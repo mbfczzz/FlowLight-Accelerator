@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO.Pipes;
 using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
@@ -353,20 +354,20 @@ if (OperatingSystem.IsWindows() && FakeKernel.Binary() is { } fakeBinary)
 
     var (mismatch, mismatchRoot) = await FailedStart("exit", new string('0', 64));
     Check(
-        mismatch is InvalidOperationException && mismatch.Message.StartsWith("Kernel checksum mismatch"),
+        mismatch is InvalidOperationException && mismatch.Message.StartsWith("网络内核校验失败"),
         "checksum mismatch not reported");
     Check(mismatch.Message.Contains(hash), "checksum mismatch hides the actual hash");
     Check(KernelLog(mismatchRoot).Contains(hash), "checksum mismatch not in kernel.log");
 
     var (rejected, rejectedRoot) = await FailedStart("reject", hash);
-    Check(rejected.Message.StartsWith("Kernel configuration validation failed"), "config rejection not reported");
+    Check(rejected.Message.StartsWith("网络内核配置校验失败"), "config rejection not reported");
     Check(rejected.Message.Contains("fake-kernel: configuration rejected"), "config rejection hides kernel output");
     Check(
         KernelLog(rejectedRoot).Contains("fake-kernel: configuration rejected"),
         "config rejection not in kernel.log");
 
     var (exited, exitedRoot) = await FailedStart("exit", hash);
-    Check(exited.Message.StartsWith("Kernel exited; check service privileges"), "kernel exit not reported");
+    Check(exited.Message.StartsWith("网络内核已退出，请检查服务权限"), "kernel exit not reported");
     Check(exited.Message.Contains("fake-kernel: cannot open TUN"), "kernel exit hides kernel output");
     Check(
         exited.Message.Contains("[redacted]") && !exited.Message.Contains(conn.Password),
@@ -377,7 +378,7 @@ if (OperatingSystem.IsWindows() && FakeKernel.Binary() is { } fakeBinary)
     // kernel that never opened its listener.
     var (hung, hungRoot) = await FailedStart("hang", hash, attempts: 3);
     Check(
-        hung is TimeoutException && hung.Message.StartsWith("Kernel listener did not become ready"),
+        hung is TimeoutException && hung.Message.StartsWith("网络内核监听未就绪"),
         "listener timeout not reported");
     var pids = hung.Message.Split("fake-kernel pid=").Skip(1).Select(p => int.Parse(p.Split(' ')[0])).ToArray();
     Check(pids.Length == 2, "listener timeout hides kernel output");
@@ -410,19 +411,96 @@ if (OperatingSystem.IsWindows())
     // Busy-versus-missing detection must see a live pipe without connecting.
     var pipeName = "FlowLight.Checks." + Guid.NewGuid().ToString("N");
     Check(!Wire.PipeExists(pipeName), "absent pipe reported as present");
-    using var server = new System.IO.Pipes.NamedPipeServerStream(
-        pipeName, System.IO.Pipes.PipeDirection.InOut, 1,
-        System.IO.Pipes.PipeTransmissionMode.Byte, System.IO.Pipes.PipeOptions.Asynchronous);
+
+    // A pipe nobody serves fails at once, not after the connect timeout.
+    var watch = Stopwatch.StartNew();
+    try
+    {
+        await Wire.CallAsync(pipeName, "status", null, CancellationToken.None);
+        throw new Exception("call to an absent pipe succeeded");
+    }
+    catch (ServiceUnavailableException e)
+    {
+        Check(!e.Busy, "absent pipe reported as busy");
+    }
+    Check(watch.ElapsedMilliseconds < 1500, $"absent pipe took {watch.ElapsedMilliseconds} ms to fail");
+
+    using var server = new NamedPipeServerStream(
+        pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
     var waiting = server.WaitForConnectionAsync();
     Check(Wire.PipeExists(pipeName), "running pipe server not detected");
     Check(!waiting.IsCompleted, "pipe detection consumed a server instance");
+
+    // A pipe served by this process is not the installed service, whether or
+    // not that service is registered on this machine.
+    if (Environment.GetEnvironmentVariable("FLOWLIGHT_DEV_PIPE") != "1")
+    {
+        using var client = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+        await client.ConnectAsync(5000);
+        await waiting;
+        try
+        {
+            Wire.VerifyServer(client);
+            throw new Exception("pipe served by the checks accepted as the service");
+        }
+        catch (IOException e)
+        {
+            Check(e.Message.Contains("本地服务"), "verification failure does not name the local service");
+        }
+    }
+
+    // Service identity comes from the Service Control Manager, which answers
+    // without elevation. EventLog always runs, hosted by svchost.
+    var eventLog = Wire.QueryService("EventLog");
+    Check(eventLog is { ProcessId: > 0 }, "EventLog service status not read from the SCM");
+    Check(
+        eventLog!.Value.BinaryPath.Contains("svchost.exe", StringComparison.OrdinalIgnoreCase),
+        $"EventLog binary path unexpected: {eventLog.Value.BinaryPath}");
+    using (var host = Process.GetProcessById((int)eventLog.Value.ProcessId))
+    {
+        Check(
+            host.ProcessName.Equals("svchost", StringComparison.OrdinalIgnoreCase),
+            $"EventLog pid {eventLog.Value.ProcessId} is {host.ProcessName}, not svchost");
+    }
+    Check(
+        Wire.QueryService("FlowLight.Checks.NoSuchService." + Guid.NewGuid().ToString("N")) is null,
+        "unregistered service not reported as absent");
+
+    // The registered binary path, as `sc.exe qc` shows it, must be the
+    // release location: quoted or not, with or without arguments.
+    var release = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+        "FlowLight Accelerator",
+        "service",
+        "FlowLight.Service.exe");
+    Check(Wire.IsExpectedServicePath(release), "unquoted release path rejected");
+    Check(Wire.IsExpectedServicePath($"\"{release}\""), "quoted release path rejected");
+    Check(Wire.IsExpectedServicePath($"\"{release}\" --service --verbose"), "release path with arguments rejected");
+    Check(Wire.IsExpectedServicePath($"  \"{release.ToUpperInvariant()}\"  "), "release path compared by case");
+    Check(!Wire.IsExpectedServicePath(""), "empty service path accepted");
+    Check(!Wire.IsExpectedServicePath("\""), "unterminated quote accepted");
+    Check(!Wire.IsExpectedServicePath("FlowLight.Service.exe"), "relative service path accepted");
+    var profileCopy = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        "FlowLight Accelerator",
+        "service",
+        "FlowLight.Service.exe");
+    Check(!Wire.IsExpectedServicePath($"\"{profileCopy}\""), "service path under the user profile accepted");
+    var tempCopy = Path.Combine(Path.GetTempPath(), "FlowLight.Service.exe");
+    Check(!Wire.IsExpectedServicePath($"\"{tempCopy}\""), "service path in a temp directory accepted");
+    var otherFile = Path.Combine(Path.GetDirectoryName(release)!, "FlowLight.Client.exe");
+    Check(!Wire.IsExpectedServicePath($"\"{otherFile}\""), "different file name accepted");
+    Check(!Wire.IsExpectedServicePath($"\"{release}.bak\""), "file name with a suffix accepted");
+    var traversal = Path.Combine(Path.GetDirectoryName(release)!, "..", "..", "..", "Users", "FlowLight.Service.exe");
+    Check(!Wire.IsExpectedServicePath($"\"{traversal}\""), "path leaving the release directory accepted");
 }
 
 Console.WriteLine(
     "PASS: HTTPS restriction, wire contract, rule validation, tunnel-pinned probe inbound, torn kernel journal, " +
     "token rotation, stable idempotency, transient gateway errors, UDP 4-of-5 sampling and loss, UDP nonce " +
     "framing, warm-connection TCP probe, Windows child lifetime, kernel failure diagnostics and cleanup " +
-    $"({kernelChecks}).");
+    $"({kernelChecks}), absent-pipe fast fail, foreign pipe server rejected, SCM service lookup, release path " +
+    "check.");
 
 static int FreeTcpPort()
 {

@@ -33,13 +33,23 @@ sealed class ServiceConfig
 
 // What `status` reports about the session. It is replaced as a whole, so a
 // reader never sees one field from before an update and another from after.
-sealed record SessionView(string State, string Error, ProbeResult? Probe, DateTime? LeaseUntil, string? SessionID)
+// Game, region and line let a client that starts mid-session show what the
+// session is for.
+sealed record SessionView(
+    string State,
+    string Error,
+    ProbeResult? Probe,
+    DateTime? LeaseUntil,
+    string? SessionID,
+    string? GameID,
+    string? RegionID,
+    string? LineID)
 {
-    public static readonly SessionView Idle = new("IDLE", "", null, null, null);
+    public static readonly SessionView Idle = new("IDLE", "", null, null, null, null, null, null);
 }
 
 // The Windows user who owns the session signed out.
-sealed class OwnerSignedOutException() : Exception("Windows user signed out; acceleration stopped");
+sealed class OwnerSignedOutException() : Exception("Windows 用户已注销，加速已停止");
 
 static class LogonSessions
 {
@@ -134,6 +144,10 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
     ServiceConfig config = new();
     MihomoKernel? kernel;
     string? owner;
+    // Who owned the session whose failure the view still shows. The error
+    // can carry kernel output and the probe an exit address, so no other
+    // Windows user gets to see them.
+    string? failedOwner;
     CancellationTokenSource? running;
     Task? sessionTask;
     CancellationToken serviceToken;
@@ -253,8 +267,9 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
                 }
                 catch (Exception e)
                 {
+                    var timedOut = dispatchDeadline.IsCancellationRequested && !stoppingToken.IsCancellationRequested;
                     reply = JsonSerializer.Serialize(
-                        new { success = false, data = (object?)null, error = e.Message },
+                        new { success = false, data = (object?)null, error = ReplyError(e, timedOut) },
                         Wire.Json);
                 }
                 await writer.WriteLineAsync(reply);
@@ -271,6 +286,18 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
             }
         }
     }
+
+    // The client shows the reply's error as is. Our own messages are Chinese;
+    // a dispatch that ran out of budget (`timedOut`, or an HTTP timeout, or a
+    // wait on the session) surfaces a framework message, which is not.
+    static string ReplyError(Exception e, bool timedOut) => e switch
+    {
+        TimeoutException => "本地服务响应超时",
+        OperationCanceledException { InnerException: TimeoutException } => "本地服务响应超时",
+        OperationCanceledException when timedOut => "本地服务响应超时",
+        OperationCanceledException => "操作被取消",
+        _ => e.Message,
+    };
 
     static async Task<string> ReadRequestLine(StreamReader reader, CancellationToken ct)
     {
@@ -307,14 +334,24 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
             await gate.WaitAsync(ct);
             try
             {
-                var visible = owner == null || owner == sid;
-                var own = owner == sid;
+                // A failed session has no owner any more, but its view still
+                // belongs to the user it failed for; everyone else sees idle.
                 var current = view;
+                var failedOwn = owner == null && current.State == "FAILED" && failedOwner == sid;
+                if (owner == null && current.State == "FAILED" && !failedOwn)
+                {
+                    current = SessionView.Idle;
+                }
+                var own = owner == sid || failedOwn;
+                var visible = owner == null || own;
                 return new
                 {
                     state = visible ? current.State : "BUSY",
-                    error = visible ? current.Error : "Another Windows user owns this session",
+                    error = visible ? current.Error : "本机正在为其他 Windows 用户加速",
                     session_id = own ? current.SessionID : null,
+                    game_id = own ? current.GameID : null,
+                    region_id = own ? current.RegionID : null,
+                    line_id = own ? current.LineID : null,
                     probe = own ? current.Probe : null,
                     lease_until = own ? current.LeaseUntil : null,
                     control_url = config.ControlUrl,
@@ -355,7 +392,7 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
                 {
                     if (owner == sid)
                     {
-                        throw new InvalidOperationException("Stop the session before changing accounts");
+                        throw new InvalidOperationException("请先停止加速再切换账号");
                     }
                     if (users.Remove(sid, out var old))
                     {
@@ -382,7 +419,7 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
         {
             identity = users.TryGetValue(sid, out var signedIn)
                 ? signedIn
-                : throw new UnauthorizedAccessException("Please sign in first");
+                : throw new UnauthorizedAccessException("请先登录");
         }
         finally
         {
@@ -406,11 +443,14 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
                 // The arguments are read before the session is claimed: a
                 // malformed start must not leave this user owning a session
                 // that never runs.
+                var gameID = Arg(args, "game_id");
+                var regionID = Arg(args, "region_id");
+                var lineID = Arg(args, "line_id");
                 var input = new
                 {
-                    game_id = Arg(args, "game_id"),
-                    region_id = Arg(args, "region_id"),
-                    line_id = Arg(args, "line_id"),
+                    game_id = gameID,
+                    region_id = regionID,
+                    line_id = lineID,
                     device_id = identity.DeviceID,
                     egress_binding_id = (string?)null,
                 };
@@ -419,10 +459,17 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
                 {
                     if (owner != null)
                     {
-                        throw new InvalidOperationException("A session is already running");
+                        throw new InvalidOperationException("已有加速会话在运行");
                     }
                     owner = sid;
-                    Update(_ => SessionView.Idle with { State = "PREPARING" });
+                    failedOwner = null;
+                    Update(_ => SessionView.Idle with
+                    {
+                        State = "PREPARING",
+                        GameID = gameID,
+                        RegionID = regionID,
+                        LineID = lineID,
+                    });
                     running = CancellationTokenSource.CreateLinkedTokenSource(serviceToken);
                     sessionTask = StartSession(identity, sid, input, running.Token);
                     return new { state = "PREPARING" };
@@ -438,7 +485,7 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
                 var (owned, task) = await Claim(sid, ct);
                 if (!owned)
                 {
-                    throw new UnauthorizedAccessException("Session belongs to another user");
+                    throw new UnauthorizedAccessException("该会话属于其他用户");
                 }
                 if (task != null)
                 {
@@ -469,7 +516,7 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
             }
 
             default:
-                throw new ArgumentException("Unsupported operation");
+                throw new ArgumentException("不支持的操作");
         }
     }
 
@@ -477,6 +524,8 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
     // it, or there is none), cancels it and returns the task to wait for.
     async Task<(bool Owned, Task? Running)> Claim(string sid, CancellationToken ct)
     {
+        CancellationTokenSource? session;
+        Task? task;
         await gate.WaitAsync(ct);
         try
         {
@@ -484,17 +533,22 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
             {
                 return (false, null);
             }
-            if (owner == sid)
+            if (owner != sid)
             {
-                running?.Cancel();
-                return (true, sessionTask);
+                return (true, null);
             }
-            return (true, null);
+            session = running;
+            task = sessionTask;
         }
         finally
         {
             gate.Release();
         }
+        // Cancel after releasing the gate: the session's continuation can run
+        // inline on Cancel, and its synchronous kernel stop takes seconds that
+        // every other request's `status` would otherwise wait out.
+        session?.Cancel();
+        return (true, task);
     }
 
     static JsonDocument ParseRequest(string line)
@@ -564,7 +618,7 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
                 catch (Exception ex) when (Transient(ex, ct))
                 {
                     // Keep polling: the node may still finish within the deadline.
-                    Update(v => v with { Error = "Control service unreachable; retrying" });
+                    Update(v => v with { Error = "控制服务暂时不可达，正在重试" });
                     await Task.Delay(1500, ct);
                     continue;
                 }
@@ -585,7 +639,7 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
             }
             if (conn == null)
             {
-                throw new TimeoutException("Node preparation timed out");
+                throw new TimeoutException("节点准备超时");
             }
 
             await kernel!.Start(conn, ct);
@@ -616,10 +670,10 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
                         // Report what the failed probe measured (UDP loss, a
                         // TCP sample) rather than the last good result.
                         var measured = (ex as TunnelProbeException)?.Result;
-                        Update(v => v with { State = "DEGRADED", Error = "Tunnel probe failed", Probe = measured ?? v.Probe });
+                        Update(v => v with { State = "DEGRADED", Error = "隧道探测失败", Probe = measured ?? v.Probe });
                         if (++failedProbes >= 3)
                         {
-                            throw new IOException("Tunnel recovery probes failed", ex);
+                            throw new IOException("隧道探测连续失败", ex);
                         }
                     }
                     lastProbe = DateTime.UtcNow;
@@ -637,11 +691,11 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
                 }
                 catch (Exception ex) when (Transient(ex, ct))
                 {
-                    Update(v => v with { Error = "Control service unreachable; local tunnel stops at lease expiry" });
+                    Update(v => v with { Error = "控制服务不可达；租约到期后本地隧道将停止" });
                 }
                 if (view.LeaseUntil is { } until && DateTime.UtcNow >= until)
                 {
-                    throw new TimeoutException("Session lease expired");
+                    throw new TimeoutException("会话租约已过期");
                 }
                 await Task.Delay(TimeSpan.FromSeconds(10), ct);
             }
@@ -659,7 +713,7 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
         {
             // A request timeout is an OperationCanceledException too, but it is
             // a failure, not a stop, and must be reported as one.
-            var message = e is OperationCanceledException ? "Control service did not respond in time" : e.Message;
+            var message = e is OperationCanceledException ? "控制服务未在规定时间内响应" : e.Message;
             Update(v => v with { State = "FAILED", Error = message });
         }
         finally
@@ -674,14 +728,25 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
                 }
                 catch
                 {
-                    Update(v => v with { Error = (v.Error == "" ? "" : v.Error + "; ") + "node authorization expires with its lease" });
+                    Update(v => v with { Error = (v.Error == "" ? "" : v.Error + "；") + "节点授权将随租约到期而失效" });
                 }
             }
             await gate.WaitAsync();
             try
             {
+                var failed = view.State == "FAILED";
                 owner = null;
-                Update(v => v with { SessionID = null, Probe = v.State == "FAILED" ? v.Probe : null, LeaseUntil = null, State = v.State == "FAILED" ? "FAILED" : "IDLE" });
+                failedOwner = failed ? ownerSid : null;
+                Update(v => v with
+                {
+                    State = failed ? "FAILED" : "IDLE",
+                    Probe = failed ? v.Probe : null,
+                    LeaseUntil = null,
+                    SessionID = null,
+                    GameID = null,
+                    RegionID = null,
+                    LineID = null,
+                });
             }
             finally
             {
@@ -699,8 +764,8 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
     {
         var output = kernel.RecentOutput;
         return output.Length == 0
-            ? "Network kernel stopped"
-            : "Network kernel stopped. Last kernel output:" + Environment.NewLine + output;
+            ? "网络内核已停止"
+            : "网络内核已停止。最近的内核输出：" + Environment.NewLine + output;
     }
 
     static bool SocketSupportsIPv6() => System.Net.NetworkInformation.NetworkInterface

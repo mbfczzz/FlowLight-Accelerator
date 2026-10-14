@@ -82,7 +82,7 @@ public sealed class MihomoKernel : IDisposable
     {
         if ((conn.Profile.Processes?.Length ?? 0) + (conn.Profile.Paths?.Length ?? 0) == 0)
         {
-            throw new ArgumentException("Game process rules are required");
+            throw new ArgumentException("缺少游戏进程规则");
         }
 
         // Tunnel probes come from FlowLight.Service.exe, which the process rule
@@ -126,7 +126,7 @@ public sealed class MihomoKernel : IDisposable
             .ToArray();
         if (dns.Length == 0)
         {
-            throw new InvalidOperationException("No system DNS resolver available");
+            throw new InvalidOperationException("未找到可用的系统 DNS");
         }
 
         var probeListener = new Dictionary<string, object>
@@ -185,7 +185,7 @@ public sealed class MihomoKernel : IDisposable
     {
         if (string.IsNullOrWhiteSpace(value) || value.IndexOfAny([',', '\r', '\n', '\0']) >= 0)
         {
-            throw new ArgumentException("Invalid game rule");
+            throw new ArgumentException("游戏规则不合法");
         }
         return $"{kind},{value},{target}";
     }
@@ -194,7 +194,7 @@ public sealed class MihomoKernel : IDisposable
     {
         if (Running)
         {
-            throw new InvalidOperationException("A kernel is already running");
+            throw new InvalidOperationException("已有网络内核在运行");
         }
         if (!OperatingSystem.IsWindows())
         {
@@ -270,7 +270,7 @@ public sealed class MihomoKernel : IDisposable
             if (kernel.HasExited)
             {
                 await Drain(pumps);
-                throw new InvalidOperationException("Kernel exited; check service privileges" + OutputDiagnostics());
+                throw new InvalidOperationException("网络内核已退出，请检查服务权限" + OutputDiagnostics());
             }
             using var attempt = CancellationTokenSource.CreateLinkedTokenSource(ct);
             attempt.CancelAfter(TimeSpan.FromMilliseconds(250));
@@ -285,7 +285,7 @@ public sealed class MihomoKernel : IDisposable
                 await Task.Delay(100, ct);
             }
         }
-        throw new TimeoutException("Kernel listener did not become ready" + OutputDiagnostics());
+        throw new TimeoutException("网络内核监听未就绪" + OutputDiagnostics());
     }
 
     async Task VerifyBinary(CancellationToken ct)
@@ -298,7 +298,7 @@ public sealed class MihomoKernel : IDisposable
         if (expectedHash.Length != 64 || !hash.Equals(expectedHash, StringComparison.OrdinalIgnoreCase))
         {
             RecordOutput($"FlowLight: {binary} has SHA-256 {hash}; expected {expectedHash}{Environment.NewLine}");
-            throw new InvalidOperationException("Kernel checksum mismatch" + OutputDiagnostics());
+            throw new InvalidOperationException("网络内核校验失败" + OutputDiagnostics());
         }
     }
 
@@ -335,7 +335,7 @@ public sealed class MihomoKernel : IDisposable
         }
         if (check.ExitCode != 0)
         {
-            throw new InvalidOperationException("Kernel configuration validation failed" + OutputDiagnostics());
+            throw new InvalidOperationException("网络内核配置校验失败" + OutputDiagnostics());
         }
     }
 
@@ -505,10 +505,10 @@ public sealed class MihomoKernel : IDisposable
         var tail = RecentOutput;
         if (tail.Length == 0)
         {
-            return $" (no kernel output; see {LogFileName})";
+            return $"（无内核输出，详见 {LogFileName}）";
         }
         var nl = Environment.NewLine;
-        return $"{nl}Kernel output (last {OutputTailChars / 1024} KB, see {LogFileName}):{nl}{tail}";
+        return $"{nl}内核输出（最近 {OutputTailChars / 1024} KB，详见 {LogFileName}）：{nl}{tail}";
     }
 
     // Stop runs in the session's finally block, so it does not throw: a

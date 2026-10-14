@@ -1,3 +1,5 @@
+using System.IO;
+using System.Reflection;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
@@ -11,6 +13,15 @@ public partial class MainWindow : Window
     const string ServiceMissingNotice = "本地服务尚未启动。请先安装并配置 FlowLight 本地服务。";
     const string ServiceBusyNotice = "本地服务正忙，稍后会自动重试。";
     const string SignInNotice = "请登录后查看游戏与线路。首次使用需要安装本地服务。";
+    const string SignedOutLabel = "尚未登录";
+    const string EmptyCatalogText = "登录后将从服务端加载游戏目录。";
+    const string VerificationNotice = "无法确认本地服务身份。请从正式安装包重新安装；开发调试请设置 FLOWLIGHT_DEV_PIPE=1。";
+
+    // A notice the user should get to read survives this many status polls
+    // before the poll is allowed to collapse it.
+    static readonly TimeSpan InfoHold = TimeSpan.FromSeconds(6);
+    static readonly TimeSpan ErrorHold = TimeSpan.FromSeconds(20);
+    static readonly TimeSpan ExitFailureHold = TimeSpan.FromSeconds(60);
 
     sealed record Game(string ID, string Name, string[] Regions, int Version)
     {
@@ -20,6 +31,61 @@ public partial class MainWindow : Window
 
     sealed record Line(string ID, string Name, bool Available, double Rtt);
 
+    // What the user picked last time, so the next launch starts where they
+    // left off. Stored per Windows user; nothing in it is a secret.
+    sealed class Preferences
+    {
+        public string? Username { get; set; }
+        public string? GameID { get; set; }
+        public string? RegionID { get; set; }
+        public string? LineID { get; set; }
+
+        static readonly string FilePath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "FlowLightAccelerator",
+            "client.json");
+
+        public static Preferences Load()
+        {
+            try
+            {
+                if (File.Exists(FilePath))
+                {
+                    return JsonSerializer.Deserialize<Preferences>(File.ReadAllText(FilePath), Wire.Json) ?? new();
+                }
+            }
+            catch (Exception e) when (e is IOException or JsonException or UnauthorizedAccessException)
+            {
+            }
+            return new();
+        }
+
+        public void Save()
+        {
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
+                File.WriteAllText(FilePath, JsonSerializer.Serialize(this, Wire.Json));
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+            }
+        }
+    }
+
+    static readonly System.Windows.Media.Brush LatencyGood = Frozen(0x4A, 0xDE, 0x80);
+    static readonly System.Windows.Media.Brush LatencyFair = Frozen(0xFB, 0xBF, 0x24);
+    static readonly System.Windows.Media.Brush LatencyPoor = Frozen(0xF8, 0x71, 0x71);
+    static readonly System.Windows.Media.Brush LatencyNeutral = Frozen(0xE7, 0xED, 0xF5);
+
+    static System.Windows.Media.Brush Frozen(byte r, byte g, byte b)
+    {
+        var brush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(r, g, b));
+        brush.Freeze();
+        return brush;
+    }
+
+    readonly Preferences prefs = Preferences.Load();
     readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromSeconds(2) };
     readonly System.Windows.Forms.NotifyIcon tray;
     readonly System.Windows.Forms.ContextMenuStrip trayMenu;
@@ -37,8 +103,14 @@ public partial class MainWindow : Window
     bool pollAgain;
     bool commandPending;
     bool updatingRegions;
+    bool loginPrompted;
+    bool trayHintShown;
     string state = "IDLE";
     string? catalogError;
+    DateTime noticeHoldUntil = DateTime.MinValue;
+    // The line a running session uses, or the one selected before a catalog
+    // reload; LoadLines re-selects it instead of the first available line.
+    string? pendingLineID;
     int selectionGeneration;
     int catalogGeneration;
     int stateGeneration;
@@ -47,8 +119,16 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        // 750 DIP at 150% scaling is taller than a 1080p work area and WPF
+        // would not clamp it, hiding the footer behind the taskbar.
+        Height = Math.Min(Height, SystemParameters.WorkArea.Height);
+        Width = Math.Min(Width, SystemParameters.WorkArea.Width);
+        VersionLabel.Text = "v" + ProductVersion() + " · Windows x64";
+        pendingLineID = prefs.LineID;
         trayMenu = new System.Windows.Forms.ContextMenuStrip();
         trayMenu.Items.Add("打开流光加速器", null, (_, _) => Dispatcher.Invoke(ShowFromTray));
+        trayMenu.Items.Add("停止加速", null, (_, _) => Dispatcher.InvokeAsync(StopFromTray));
+        trayMenu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
         trayMenu.Items.Add("退出并停止加速", null, (_, _) => Dispatcher.InvokeAsync(Exit));
         tray = new System.Windows.Forms.NotifyIcon
         {
@@ -67,6 +147,14 @@ public partial class MainWindow : Window
             {
                 e.Cancel = true;
                 Hide();
+                // Said once per run: users otherwise assume the close button
+                // ended the acceleration, or that the app is gone.
+                if (!trayHintShown)
+                {
+                    trayHintShown = true;
+                    var text = IsRunning(state) ? "已最小化到托盘，加速继续运行。" : "已最小化到托盘，双击图标可重新打开。";
+                    tray.ShowBalloonTip(3000, "流光加速器", text, System.Windows.Forms.ToolTipIcon.Info);
+                }
             }
         };
         Closed += (_, _) => ReleaseResources();
@@ -83,8 +171,27 @@ public partial class MainWindow : Window
 
     async void OnTick(object? sender, EventArgs e) => await Status();
 
-    void ShowFromTray()
+    // The build stamps the informational version (e.g. 0.1.0-abc1234+sha);
+    // the label shows it without the commit hash.
+    static string ProductVersion()
     {
+        var info = typeof(MainWindow).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+        if (string.IsNullOrWhiteSpace(info))
+        {
+            return typeof(MainWindow).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
+        }
+        var plus = info.IndexOf('+');
+        return plus > 0 ? info[..plus] : info;
+    }
+
+    // Also reached from a second launch via App; a window that is quitting
+    // must not be shown again, Show() would throw after Close().
+    internal void ShowFromTray()
+    {
+        if (quitting || released)
+        {
+            return;
+        }
         Show();
         if (WindowState == WindowState.Minimized)
         {
@@ -167,11 +274,25 @@ public partial class MainWindow : Window
         serviceConnected = true;
         state = Text(result, "state") ?? "IDLE";
         loggedIn = Flag(result, "logged_in");
-        if (Text(result, "username") is { } username)
+        if (!loggedIn)
+        {
+            // The service restarted or the account was signed out elsewhere:
+            // a stale name and catalog would suggest the session still exists.
+            ClearCatalog();
+        }
+        else if (Text(result, "username") is { } username)
         {
             AccountLabel.Text = username;
         }
         coreAvailable = Flag(result, "core_available");
+        RestoreSelection(result);
+        // First contact with a signed-out service: open the sign-in dialog
+        // instead of leaving the user to find the button in the sidebar.
+        if (!loggedIn && !loginPrompted && !exiting && LoginOverlay.Visibility != Visibility.Visible)
+        {
+            loginPrompted = true;
+            ShowLogin();
+        }
         ServiceLabel.Text = coreAvailable ? "本地服务已连接" : "网络内核待配置";
         ConnectionState.Text = state switch
         {
@@ -189,8 +310,10 @@ public partial class MainWindow : Window
         var probe = Child(result, "probe");
         if (probe.ValueKind == JsonValueKind.Object)
         {
+            var rtt = Number(probe, "rtt_ms");
             ProbeTitle.Text = "当前隧道探测";
-            Latency.Text = Number(probe, "rtt_ms").ToString("0") + " ms";
+            Latency.Text = rtt.ToString("0") + " ms";
+            Latency.Foreground = rtt <= 60 ? LatencyGood : rtt <= 120 ? LatencyFair : LatencyPoor;
             ExitAddress.Text = "实际出口 " + (Text(probe, "exit_ip") ?? "—");
         }
         else
@@ -211,11 +334,11 @@ public partial class MainWindow : Window
         {
             ShowNotice("本地服务已连接，网络内核尚未配置。请完成安装配置后开始加速。");
         }
-        else if (loggedIn)
+        else if (loggedIn && DateTime.UtcNow >= noticeHoldUntil)
         {
             NoticeBox.Visibility = Visibility.Collapsed;
         }
-        else if (Notice.Text == ServiceMissingNotice)
+        else if (!loggedIn && Notice.Text == ServiceMissingNotice)
         {
             // The service is back; the outage notice no longer applies.
             ShowNotice(SignInNotice);
@@ -247,12 +370,69 @@ public partial class MainWindow : Window
         UpdateButtons();
     }
 
+    // Only ServiceUnavailableException wraps I/O failures, so a bare
+    // IOException from the pipe layer is the service identity check failing.
     static string Describe(Exception ex) => ex switch
     {
         ServiceUnavailableException { Busy: true } => ServiceBusyNotice,
         ServiceUnavailableException => ServiceMissingNotice,
+        IOException => VerificationNotice,
+        JsonException or KeyNotFoundException => "本地服务返回了无法识别的响应，请重新安装或更新客户端。",
         _ => Summarize(ex.Message),
     };
+
+    // Re-selects the game, region and line of the session the service reports
+    // as running, so a restarted or second client shows what is connected
+    // rather than the first entries of each list.
+    void RestoreSelection(JsonElement result)
+    {
+        if (!IsRunning(state))
+        {
+            return;
+        }
+        var gameID = Text(result, "game_id");
+        if (gameID is null || GameList.ItemsSource is not Game[] games)
+        {
+            return;
+        }
+        pendingLineID = Text(result, "line_id");
+        if (GameList.SelectedItem is not Game current || current.ID != gameID)
+        {
+            var game = games.FirstOrDefault(g => g.ID == gameID);
+            if (game is null)
+            {
+                return;
+            }
+            GameList.SelectedItem = game;
+        }
+        if (Text(result, "region_id") is { } regionID &&
+            RegionList.SelectedItem as string != regionID &&
+            RegionList.ItemsSource is string[] regions &&
+            regions.Contains(regionID))
+        {
+            RegionList.SelectedItem = regionID;
+        }
+        if (pendingLineID is { } lineID &&
+            LineList.ItemsSource is Line[] lines &&
+            (LineList.SelectedItem as Line)?.ID != lineID &&
+            lines.FirstOrDefault(l => l.ID == lineID) is { } line)
+        {
+            LineList.SelectedItem = line;
+        }
+    }
+
+    void ClearCatalog()
+    {
+        AccountLabel.Text = SignedOutLabel;
+        catalogError = null;
+        pendingLineID = null;
+        if (GameList.ItemsSource is not null)
+        {
+            GameList.ItemsSource = null;
+        }
+        EmptyGames.Text = EmptyCatalogText;
+        LineHint.Text = "请选择游戏与区服";
+    }
 
     // Kernel failures carry the kernel's last output. The notice shows the
     // first line; the full text is in the copied connection diagnostics.
@@ -272,8 +452,15 @@ public partial class MainWindow : Window
             GameList.SelectedItem is Game { Version: > 0 } &&
             RegionList.SelectedItem is string &&
             LineList.SelectedItem is Line { Available: true };
+        // The button itself reports progress; a user should not have to read
+        // the footer to know a click did something.
+        StartButton.Content = !sessionRunning ? "开始加速"
+            : state is "ACTIVE" or "DEGRADED" ? "加速中"
+            : "正在连接…";
         StopButton.IsEnabled = interactive && sessionRunning;
         var locked = sessionRunning || commandPending;
+        // Reloading the catalog mid-session would re-select the first game.
+        RefreshButton.IsEnabled = interactive && loggedIn && !locked;
         GameList.IsEnabled = !locked;
         RegionList.IsEnabled = !locked;
         LineList.IsEnabled = !locked;
@@ -288,13 +475,17 @@ public partial class MainWindow : Window
         Latency.Text = allowHistory && LineList.SelectedItem is Line { Rtt: > 0 } line
             ? line.Rtt.ToString("0") + " ms"
             : "—";
+        Latency.Foreground = LatencyNeutral;
         ExitAddress.Text = "尚无当前出口探测";
     }
 
-    void ShowNotice(string text)
+    // A notice with a hold stays until it expires; the status poll otherwise
+    // collapses the banner on its next pass.
+    void ShowNotice(string text, TimeSpan? hold = null)
     {
         Notice.Text = text;
         NoticeBox.Visibility = Visibility.Visible;
+        noticeHoldUntil = hold is { } duration ? DateTime.UtcNow + duration : DateTime.MinValue;
     }
 
     async Task LoadGames()
@@ -318,11 +509,24 @@ public partial class MainWindow : Window
             ? result.EnumerateArray().Select(ParseGame).OfType<Game>().ToArray()
             : [];
         catalogError = null;
+        // A reload keeps what the user had picked when it still exists.
+        var keepGame = (GameList.SelectedItem as Game)?.ID ?? prefs.GameID;
+        var keepRegion = RegionList.SelectedItem as string ?? prefs.RegionID;
+        var keepLine = pendingLineID;
         GameList.ItemsSource = list;
         EmptyGames.Text = list.Length == 0 ? "暂无可用游戏，请联系运营人员配置。" : "";
-        if (list.Length > 0)
+        if (list.Length == 0)
         {
-            GameList.SelectedIndex = 0;
+            return;
+        }
+        var game = list.FirstOrDefault(g => g.ID == keepGame) ?? list[0];
+        // Selecting the game clears the line list, which would otherwise
+        // overwrite the remembered line before LoadLines can re-apply it.
+        GameList.SelectedItem = game;
+        pendingLineID = keepLine;
+        if (keepRegion is not null && game.Regions.Contains(keepRegion))
+        {
+            RegionList.SelectedItem = keepRegion;
         }
     }
 
@@ -408,26 +612,39 @@ public partial class MainWindow : Window
 
     async void Login_Click(object sender, RoutedEventArgs e)
     {
+        var username = Username.Text.Trim();
+        if (username.Length == 0 || Password.Password.Length == 0)
+        {
+            LoginError.Text = "请输入账号和密码。";
+            (username.Length == 0 ? (System.Windows.Controls.Control)Username : Password).Focus();
+            return;
+        }
         LoginButton.IsEnabled = false;
+        LoginButton.Content = "正在登录…";
         LoginError.Text = "";
         JsonElement user;
         try
         {
-            user = await Wire.CallAsync("login", new { username = Username.Text, password = Password.Password });
+            user = await Wire.CallAsync("login", new { username, password = Password.Password });
         }
         catch (Exception ex)
         {
             LoginError.Text = Describe(ex);
+            Password.Focus();
+            Password.SelectAll();
             return;
         }
         finally
         {
             LoginButton.IsEnabled = true;
+            LoginButton.Content = "登录";
         }
 
         stateGeneration++;
         Password.Clear();
-        AccountLabel.Text = Text(user, "username") ?? Username.Text;
+        prefs.Username = username;
+        prefs.Save();
+        AccountLabel.Text = Text(user, "username") ?? username;
         LoginOverlay.Visibility = Visibility.Collapsed;
         NoticeBox.Visibility = Visibility.Collapsed;
         loggedIn = true;
@@ -445,10 +662,35 @@ public partial class MainWindow : Window
         await Status();
     }
 
-    void Account_Click(object sender, RoutedEventArgs e)
+    void Account_Click(object sender, RoutedEventArgs e) => ShowLogin();
+
+    // Pre-fills the last account so a returning user only types the password.
+    void ShowLogin()
     {
+        if (Username.Text.Length == 0)
+        {
+            Username.Text = loggedIn && AccountLabel.Text != SignedOutLabel ? AccountLabel.Text : prefs.Username ?? "";
+        }
+        LoginError.Text = "";
         LoginOverlay.Visibility = Visibility.Visible;
-        Username.Focus();
+        if (Username.Text.Length > 0)
+        {
+            Password.Focus();
+        }
+        else
+        {
+            Username.Focus();
+        }
+    }
+
+    async Task StopFromTray()
+    {
+        if (!IsRunning(state) || commandPending || exiting)
+        {
+            return;
+        }
+        await RunCommand("stop");
+        await Status();
     }
 
     void LoginCancel_Click(object sender, RoutedEventArgs e)
@@ -462,11 +704,11 @@ public partial class MainWindow : Window
         try
         {
             await LoadGames();
-            ShowNotice("已同步服务端游戏与线路配置。");
+            ShowNotice("已同步服务端游戏与线路配置。", InfoHold);
         }
         catch (Exception ex)
         {
-            ShowNotice(Describe(ex));
+            ShowNotice(Describe(ex), ErrorHold);
         }
     }
 
@@ -532,7 +774,7 @@ public partial class MainWindow : Window
                 ? rows.EnumerateArray().Select(ParseLine).OfType<Line>().ToArray()
                 : [];
             LineList.ItemsSource = lines;
-            LineList.SelectedItem = lines.FirstOrDefault(l => l.Available);
+            LineList.SelectedItem = lines.FirstOrDefault(l => l.ID == pendingLineID) ?? lines.FirstOrDefault(l => l.Available);
             LineHint.Text = lines.Length == 0 ? "此区服暂无已验证的授权线路" : "线路按历史探测延迟排列";
         }
         catch (Exception ex)
@@ -541,13 +783,19 @@ public partial class MainWindow : Window
             {
                 return;
             }
-            ShowNotice(Describe(ex));
+            ShowNotice(Describe(ex), ErrorHold);
         }
         UpdateButtons();
     }
 
     void Line_Changed(object sender, SelectionChangedEventArgs e)
     {
+        // Mirrors the current choice so a catalog reload or region change
+        // brings it back instead of the first available line.
+        if (LineList.SelectedItem is Line line)
+        {
+            pendingLineID = line.ID;
+        }
         ResetEvidence();
         UpdateButtons();
     }
@@ -562,7 +810,12 @@ public partial class MainWindow : Window
         }
         if (await RunCommand("start", new { game_id = game.ID, region_id = region, line_id = line.ID }))
         {
-            ShowNotice("正在准备连接。通过隧道探测后才会显示线路已连接。");
+            pendingLineID = line.ID;
+            prefs.GameID = game.ID;
+            prefs.RegionID = region;
+            prefs.LineID = line.ID;
+            prefs.Save();
+            ShowNotice("正在准备连接。通过隧道探测后才会显示线路已连接。", InfoHold);
         }
         await Status();
     }
@@ -590,7 +843,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            ShowNotice(Describe(ex));
+            ShowNotice(Describe(ex), ErrorHold);
             return false;
         }
         finally
@@ -608,11 +861,11 @@ public partial class MainWindow : Window
             var result = await Wire.CallAsync("status");
             var text = JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
             System.Windows.Clipboard.SetText(text);
-            ShowNotice("连接诊断已复制，不包含账号密码或隧道密钥。");
+            ShowNotice("连接诊断已复制，不包含账号密码或隧道密钥。", InfoHold);
         }
         catch (Exception ex)
         {
-            ShowNotice(Describe(ex));
+            ShowNotice(Describe(ex), ErrorHold);
         }
     }
 
@@ -650,7 +903,7 @@ public partial class MainWindow : Window
                 timer.Start();
             }
             ShowFromTray();
-            ShowNotice("未能停止加速，客户端未退出。" + failure);
+            ShowNotice("未能停止加速，客户端未退出。" + failure, ExitFailureHold);
             UpdateButtons();
             return;
         }

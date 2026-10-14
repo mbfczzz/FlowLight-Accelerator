@@ -130,7 +130,11 @@ Windows 客户端安装时填写的控制服务地址即 `https://控制服务�
 
 服务注册、数据目录 ACL 和卸载都由 installer/configure-service.ps1 处理，安装程序和手动脚本共用同一份逻辑。固定安装于 Program Files 下的 FlowLight Accelerator。客户端验证命名管道对端进程位置；本地服务按 Windows SID 隔离账号，服务配置目录仅 SYSTEM 和管理员可读写。
 
-开发调试可用 FLOWLIGHT_SERVICE_CONFIG 指向独立配置。allow_local_http 仅放行回环地址；调试客户端用 FLOWLIGHT_DEV_PIPE=1 连接开发目录服务，生产安装无需此变量。
+客户端行为：连上本地服务但未登录时自动弹出登录框，记住上次账号（只需输密码）和上次加速的游戏、区服、线路（保存在 %LocalAppData%\FlowLightAccelerator\client.json，不含密码）；重复启动只会唤醒已有窗口；点关闭缩到托盘并提示一次，托盘菜单可直接停止加速；客户端重启或第二次打开时按本地服务上报的会话恢复选中项；"开始加速"按钮随状态显示"正在连接…"/"加速中"，延迟按 ≤60/≤120 ms 着色。
+
+客户端通过服务控制管理器校验命名管道对端就是注册在 Program Files 下的 FlowLightAccelerator 服务，普通用户权限即可完成校验。
+
+开发调试可用 FLOWLIGHT_SERVICE_CONFIG 指向独立配置。allow_local_http 仅放行回环地址；调试客户端用 FLOWLIGHT_DEV_PIPE=1 跳过服务身份校验，再加 FLOWLIGHT_PIPE_NAME 可让客户端连接另一个管道名的替身服务（真服务不必停），生产安装无需这些变量。
 
 关闭窗口进入托盘，加速继续；“退出并停止加速”确认会话已停止后才退出。拥有会话的 Windows 用户注销后，本地服务在 10 秒内停止该会话，其他用户随后可以使用。诊断不包含密码与隧道密钥。内核、驱动、正式签名证书不随源码分发。
 

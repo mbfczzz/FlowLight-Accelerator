@@ -19,6 +19,8 @@
 #ifndef DefaultControlUrl
   #define DefaultControlUrl ""
 #endif
+; Echoed in the compiler log so every build proves which address was baked in.
+#pragma message "DefaultControlUrl=" + DefaultControlUrl
 #define AppName "FlowLight Accelerator"
 #define AppNameZh "流光加速器"
 #define ServiceName "FlowLightAccelerator"

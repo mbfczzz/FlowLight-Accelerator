@@ -45,7 +45,7 @@ public static class TunnelProbe
                 if (!result.Udp)
                 {
                     throw new TunnelProbeException(
-                        $"UDP tunnel probe failed: {replies} of {UdpSamples} replies verified",
+                        $"隧道 UDP 探测失败：{replies}/{UdpSamples} 个包有回包",
                         result);
                 }
             }
@@ -55,7 +55,7 @@ public static class TunnelProbe
         {
             // An internal deadline is a probe failure, not a request to stop
             // the session; callers treat OperationCanceledException as the latter.
-            throw new TimeoutException("Tunnel probe timed out", e);
+            throw new TimeoutException("隧道探测超时", e);
         }
     }
 
@@ -92,11 +92,11 @@ public static class TunnelProbe
             var ip = json.RootElement.GetProperty("ip").GetString() ?? "";
             if (!IPAddress.TryParse(ip, out _))
             {
-                throw new InvalidOperationException("Probe did not return the exit address");
+                throw new InvalidOperationException("探测未返回出口地址");
             }
             if (!string.IsNullOrWhiteSpace(conn.ExpectedExit) && conn.ExpectedExit != ip)
             {
-                throw new InvalidOperationException("Unexpected exit address");
+                throw new InvalidOperationException("出口地址与预期不符");
             }
             result.ExitIp = ip;
             if (i >= WarmupRequests)
