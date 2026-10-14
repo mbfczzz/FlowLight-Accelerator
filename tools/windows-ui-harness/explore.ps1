@@ -42,6 +42,11 @@ function Find($root, $type, $name) {
 function FindAll($root, $type) { $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, (New-Object System.Windows.Automation.PropertyCondition($AE::ControlTypeProperty, $type))) }
 function Click($root, $name) { (Find $root $CT::Button $name).GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Log "clicked $name" }
 function Type-Into($root, $name, $text) { (Find $root $CT::Edit $name).GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($text) }
+function Text-ById($root, $id) {
+  $cond = New-Object System.Windows.Automation.PropertyCondition($AE::AutomationIdProperty, $id)
+  $el = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $cond)
+  if ($el) { return $el.Current.Name } else { return '(none)' }
+}
 # Another app can steal the foreground mid-run (it happened); never send keys
 # until the client really is in front.
 function Focus-Client {
@@ -54,6 +59,8 @@ function Focus-Client {
 }
 function Keys($k) { Focus-Client | Out-Null; [System.Windows.Forms.SendKeys]::SendWait($k); Start-Sleep -Milliseconds 600 }
 function Buttons($root) { (FindAll $root $CT::Button | ForEach-Object { $_.Current.Name + $(if (-not $_.Current.IsEnabled) { '(灰)' }) }) -join ' | ' }
+# Account actions live in the menu behind the avatar; open it first.
+function Menu-Click($root, $name) { Click $root '账号菜单'; Start-Sleep -Milliseconds 500; Click $root $name }
 
 try {
   Get-Process FlowLight.Client -ErrorAction SilentlyContinue | Stop-Process -Force
@@ -65,37 +72,40 @@ try {
   Click $root '登录'; Start-Sleep -Seconds 2; Shot 'e01-wrong-password'
   Type-Into $root '密码' 'pw'; (Find $root $CT::Edit '密码').SetFocus(); Keys '{ENTER}'; Start-Sleep -Seconds 3
   Shot 'e02-logged-in'
-  Log ("sidebar/buttons: " + (Buttons $root))
+  Log ("buttons: " + (Buttons $root))
 
-  # 2. Dropdowns as the user opens them.
+  # 2. Dropdowns as the user opens them; the unavailable line is listed but cannot be picked.
   $combos = FindAll $root $CT::ComboBox
   $combos[0].SetFocus(); Keys '{F4}'; Shot 'e03-region-dropdown-open'; Keys '{ESC}'
   $combos[1].SetFocus(); Keys '{F4}'; Shot 'e04-line-dropdown-open'; Keys '{ESC}'
-  # Walk down to the third (unavailable) line.
-  Focus-Client | Out-Null; $combos[1].SetFocus(); Keys '{DOWN}'; Keys '{DOWN}'; Start-Sleep -Seconds 1; Shot 'e05-unavailable-line-selected'
-  Log ("after choosing unavailable line: " + (Buttons $root))
+  Focus-Client | Out-Null; $combos[1].SetFocus(); Keys '{DOWN}'; Keys '{DOWN}'; Start-Sleep -Seconds 1; Shot 'e05-after-down-twice'
+  Log ("line after Down twice: " + (($combos[1].GetCurrentPattern([System.Windows.Automation.SelectionPattern]::Pattern).Current.GetSelection() | ForEach-Object { $_.Current.Name }) -join ','))
   Keys '{UP}'; Keys '{UP}'
 
-  # 3. A game whose rules are not published (last card; End key selects it).
-  Focus-Client | Out-Null; (FindAll $root $CT::List)[0].SetFocus(); Keys '{END}'; Start-Sleep -Seconds 1; Shot 'e06-draft-game'
-  Log ("draft game: " + (Buttons $root))
-  Keys '{HOME}'; Start-Sleep -Seconds 1
+  # 3. Search narrows the library; clearing it brings everything back.
+  Type-Into $root '搜索游戏' '测试'; Start-Sleep -Seconds 1; Shot 'e06-search'
+  Log ("rows while searching: " + (FindAll $root $CT::ListItem).Count)
+  Type-Into $root '搜索游戏' ''; Start-Sleep -Seconds 1
+  (FindAll $root $CT::ListItem)[0].GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select(); Start-Sleep -Seconds 1
 
-  # 4. Start refused by the service.
+  # 4. Start refused by the service: the reason sits under the button.
   New-Item -ItemType File -Path (Join-Path $Harness 'fail-start.flag') -Force | Out-Null
   Click $root '开始加速'; Start-Sleep -Seconds 2; Shot 'e07-start-refused'
+  Log ("refused: status=" + (Text-ById $root 'ConnectionState') + " inline=" + (Text-ById $root 'InlineError'))
   Remove-Item (Join-Path $Harness 'fail-start.flag') -Force
 
   # 5. Normal start, stop feedback.
   Click $root '开始加速'; Start-Sleep -Seconds 9; Shot 'e08-active'
   Click $root '停止加速'; Start-Sleep -Milliseconds 1500; Shot 'e09-just-stopped'
 
-  # 6. Diagnostics and the account button while signed in.
-  Click $root '连接诊断'; Start-Sleep -Seconds 1; Shot 'e10-diagnostics'
-  Click $root '切换账号'; Start-Sleep -Seconds 1; Shot 'e11-account-while-signed-in'; Keys '{ESC}'
+  # 6. The account menu, diagnostics, and switching account.
+  Click $root '账号菜单'; Start-Sleep -Milliseconds 800; Shot 'e10-account-menu'
+  Click $root '连接诊断'; Start-Sleep -Seconds 1; Shot 'e10b-diagnostics'
+  Log ("toast: " + (Text-ById $root 'Toast'))
+  Menu-Click $root '切换账号'; Start-Sleep -Seconds 1; Shot 'e11-switch-account'; Keys '{ESC}'
 
   # 6b. Sign out: the login dialog must come back on its own.
-  Click $root '退出登录'; Start-Sleep -Seconds 3; Shot 'e16-logged-out'
+  Menu-Click $root '退出登录'; Start-Sleep -Seconds 3; Shot 'e16-logged-out'
   Log ("after logout: " + (Buttons $root))
   Type-Into $root '密码' 'pw'; (Find $root $CT::Edit '密码').SetFocus(); Keys '{ENTER}'; Start-Sleep -Seconds 3
 

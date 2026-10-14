@@ -1,82 +1,97 @@
-<Window x:Class="FlowLight.Client.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="流光加速器 · FlowLight Accelerator" Width="1120" Height="750" MinWidth="900" MinHeight="650" WindowStartupLocation="CenterScreen" Background="{StaticResource Bg}" FontFamily="{StaticResource UiFont}" UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
+<Window x:Class="FlowLight.Client.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="流光加速器" Width="1120" Height="750" MinWidth="900" MinHeight="650" WindowStartupLocation="CenterScreen" Background="{StaticResource Bg}" FontFamily="{StaticResource UiFont}" UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
  <Grid>
-  <Grid.ColumnDefinitions><ColumnDefinition Width="208"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+  <Grid.ColumnDefinitions><ColumnDefinition Width="264"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
 
-  <!-- Sidebar: wordmark, actions, account. -->
-  <Border Background="{StaticResource Sidebar}" BorderBrush="{StaticResource Border}" BorderThickness="0,0,1,0"><DockPanel Margin="18,26,18,18">
-   <StackPanel DockPanel.Dock="Top">
-    <StackPanel Orientation="Horizontal" Margin="10,0,0,0"><Path Data="M 0 1 L 16 1 L 13 3.2 L 2 3.2 Z M 4 6 L 22 6 L 19 8.2 L 6 8.2 Z M 0 11 L 12 11 L 9 13.2 L 2 13.2 Z" Fill="{StaticResource Accent}" Width="22" Height="14" VerticalAlignment="Center"/><TextBlock Text="流光加速器" FontSize="17" FontWeight="SemiBold" Margin="10,0,0,0" VerticalAlignment="Center"/></StackPanel>
-    <TextBlock Text="FLOWLIGHT ACCELERATOR" FontFamily="{StaticResource DataFont}" FontSize="10" Foreground="{StaticResource TextTertiary}" Margin="42,2,0,0"/>
-    <TextBlock Text="操作" Style="{StaticResource Caption}" Margin="10,34,0,8"/>
-    <Button x:Name="RefreshButton" Content="刷新游戏与线路" Style="{StaticResource Ghost}" Click="Refresh_Click"/>
-    <Button Content="连接诊断" Style="{StaticResource Ghost}" Margin="0,2,0,0" Click="Diagnostics_Click"/>
-   </StackPanel>
-   <StackPanel DockPanel.Dock="Bottom">
-    <Border BorderBrush="{StaticResource Border}" BorderThickness="0,1,0,0" Padding="10,16,10,10"><StackPanel><TextBlock Text="当前账号" Style="{StaticResource Caption}"/><TextBlock x:Name="AccountLabel" Text="尚未登录" FontSize="14" FontWeight="SemiBold" Margin="0,4,0,0" TextTrimming="CharacterEllipsis"/></StackPanel></Border>
-    <Button x:Name="AccountButton" Content="账号登录" Style="{StaticResource Ghost}" Click="Account_Click"/>
-    <Button x:Name="LogoutButton" Content="退出登录" Style="{StaticResource Ghost}" Visibility="Collapsed" Margin="0,2,0,0" Click="Logout_Click"/>
-    <Button Content="退出并停止加速" Style="{StaticResource Ghost}" Margin="0,2,0,0" Click="Exit_Click"/>
-    <TextBlock x:Name="VersionLabel" Text="Windows x64" Style="{StaticResource Caption}" FontFamily="{StaticResource DataFont}" Margin="10,18,0,0"/>
-   </StackPanel>
-   <Grid/>
-  </DockPanel></Border>
-
-  <Grid Grid.Column="1" Margin="28,24,28,20">
-   <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-
-   <!-- Header: title plus the local-service pill. -->
-   <Grid><StackPanel Orientation="Horizontal" VerticalAlignment="Center"><TextBlock Text="我的游戏" Style="{StaticResource PageTitle}"/><TextBlock x:Name="GameCount" Text="" Style="{StaticResource Meta}" Margin="10,0,0,0" VerticalAlignment="Bottom" Padding="0,0,0,3"/></StackPanel>
-    <Border Background="{StaticResource Surface}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="999" HorizontalAlignment="Right" VerticalAlignment="Center" Padding="10,5"><StackPanel Orientation="Horizontal"><Ellipse x:Name="ServiceDot" Width="7" Height="7" Fill="{StaticResource TextTertiary}" VerticalAlignment="Center"/><TextBlock x:Name="ServiceLabel" Text="检测本地服务…" Style="{StaticResource Meta}" Margin="7,0,0,0" VerticalAlignment="Center"/></StackPanel></Border></Grid>
-
-   <!-- Notice banner: a severity stripe says what kind of message it is before the text is read. -->
-   <Border Grid.Row="1" x:Name="NoticeBox" Background="{StaticResource Surface}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="4" Margin="0,16,0,0"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><Border x:Name="NoticeStripe" Width="3" Background="{StaticResource Info}" CornerRadius="4,0,0,4"/><TextBlock Grid.Column="1" x:Name="Notice" Text="请登录后查看游戏与线路。首次使用需要安装本地服务。" TextWrapping="Wrap" FontSize="12.5" Margin="14,10,14,10"/></Grid></Border>
-
-   <Grid Grid.Row="2" Margin="0,18,0,16"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="300"/></Grid.ColumnDefinitions>
-    <Grid Margin="0,0,24,0">
-     <ListBox x:Name="GameList" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled" Background="Transparent" BorderThickness="0" Padding="0" SelectionChanged="Game_Changed" HorizontalContentAlignment="Stretch">
-      <ListBox.ItemsPanel><ItemsPanelTemplate><WrapPanel ItemWidth="{Binding CardWidth, RelativeSource={RelativeSource AncestorType=Window}}"/></ItemsPanelTemplate></ListBox.ItemsPanel>
-      <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem"><Setter Property="Padding" Value="0"/><Setter Property="Margin" Value="0,0,12,12"/><Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="FocusVisualStyle" Value="{x:Null}"/><Setter Property="Cursor" Value="Hand"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem"><Border x:Name="card" Background="{StaticResource Surface}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="5" Padding="16,14" SnapsToDevicePixels="True"><ContentPresenter/></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="card" Property="Background" Value="{StaticResource Elevated}"/><Setter TargetName="card" Property="BorderBrush" Value="{StaticResource BorderStrong}"/></Trigger><Trigger Property="IsSelected" Value="True"><Setter TargetName="card" Property="BorderBrush" Value="{StaticResource Accent}"/><Setter TargetName="card" Property="Background" Value="{StaticResource AccentSoft}"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style></ListBox.ItemContainerStyle>
-      <ListBox.ItemTemplate><DataTemplate><StackPanel MinHeight="64"><Grid><TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,0,70,0"/><TextBlock Text="{Binding RuleLabel}" Style="{StaticResource Caption}" HorizontalAlignment="Right" VerticalAlignment="Center"/></Grid><ItemsControl ItemsSource="{Binding RegionLabels}" Margin="0,10,0,0"><ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemTemplate><DataTemplate><Border Background="{StaticResource Elevated}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="3" Padding="7,2" Margin="0,0,6,4"><TextBlock Text="{Binding}" FontSize="11" Foreground="{StaticResource TextSecondary}"/></Border></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></StackPanel></DataTemplate></ListBox.ItemTemplate>
-     </ListBox>
-     <TextBlock x:Name="EmptyGames" VerticalAlignment="Top" IsHitTestVisible="False" Text="登录后将从服务端加载游戏目录。" Style="{StaticResource Meta}" TextWrapping="Wrap" Margin="2,4,0,0"/>
-    </Grid>
-
-    <!-- Connection panel: what will be connected, the evidence, and the one primary action. -->
-    <Border Grid.Column="1" VerticalAlignment="Top" Background="{StaticResource Surface}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="6" Padding="20,18"><DockPanel>
-     <StackPanel DockPanel.Dock="Bottom" Margin="0,16,0,0"><Button x:Name="StartButton" Content="开始加速" Style="{StaticResource Primary}" IsEnabled="False" Click="Start_Click"/><Button x:Name="StopButton" Content="停止加速" IsEnabled="False" Margin="0,8,0,0" Click="Stop_Click"/></StackPanel>
-     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel>
-      <TextBlock Text="本次连接" Style="{StaticResource SectionTitle}"/>
-      <TextBlock Text="游戏区服" Style="{StaticResource FieldLabel}" Margin="0,16,0,6"/>
-      <ComboBox x:Name="RegionList" SelectionChanged="Region_Changed"><ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}"/></DataTemplate></ComboBox.ItemTemplate></ComboBox>
-      <TextBlock Text="加速线路" Style="{StaticResource FieldLabel}" Margin="0,14,0,6"/>
-      <ComboBox x:Name="LineList" SelectionChanged="Line_Changed"><ComboBox.ItemTemplate><DataTemplate><StackPanel Orientation="Horizontal" Opacity="{Binding Dim}"><TextBlock Text="{Binding Name}"/><TextBlock Text="{Binding Tag}" Style="{StaticResource Caption}" Margin="6,0,0,0" VerticalAlignment="Center"/></StackPanel></DataTemplate></ComboBox.ItemTemplate></ComboBox>
-      <TextBlock x:Name="LineHint" Text="请选择游戏与区服" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,8,0,0"/>
-      <Border BorderBrush="{StaticResource Border}" BorderThickness="0,1,0,0" Margin="0,16,0,0" Padding="0,14,0,0"><StackPanel>
-       <TextBlock x:Name="ProbeTitle" Text="线路历史探测" Style="{StaticResource Caption}"/>
-       <TextBlock x:Name="Latency" Text="—" FontFamily="{StaticResource DataFont}" FontSize="34" Margin="0,2,0,0"/>
-       <TextBlock Text="此数值不等同于游戏内延迟" Style="{StaticResource Caption}" Margin="0,2,0,0"/>
-      </StackPanel></Border>
-     </StackPanel></ScrollViewer>
-    </DockPanel></Border>
+  <!-- Sidebar: the game library. -->
+  <Border Background="{StaticResource Sidebar}"><Grid Margin="14,22,14,14">
+   <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+   <StackPanel Orientation="Horizontal" Margin="10,0,0,0"><Path Data="M 0 1 L 16 1 L 13 3.2 L 2 3.2 Z M 4 6 L 22 6 L 19 8.2 L 6 8.2 Z M 0 11 L 12 11 L 9 13.2 L 2 13.2 Z" Fill="{StaticResource Accent}" Width="22" Height="14" VerticalAlignment="Center"/><TextBlock Text="流光加速器" FontSize="17" FontWeight="SemiBold" Margin="10,0,0,0" VerticalAlignment="Center"/></StackPanel>
+   <Grid Grid.Row="1" Margin="0,22,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+    <Grid><TextBox x:Name="SearchBox" AutomationProperties.Name="搜索游戏" MinHeight="36" FontSize="13" Padding="34,0,10,0"/><Path Data="M 6 0 A 6 6 0 1 0 6 12 A 6 6 0 1 0 6 0 M 10.5 10.5 L 15 15" Stroke="{StaticResource TextTertiary}" StrokeThickness="1.5" Width="16" Height="16" Margin="12,0,0,0" HorizontalAlignment="Left" VerticalAlignment="Center" IsHitTestVisible="False"/><TextBlock Text="搜索游戏" Style="{StaticResource SearchPlaceholder}" Margin="34,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False"/></Grid>
+    <Button Grid.Column="1" x:Name="RefreshButton" Style="{StaticResource IconButton}" AutomationProperties.Name="刷新游戏与线路" ToolTip="刷新游戏与线路" Margin="6,0,0,0" Click="Refresh_Click"><Path Data="M 14.5 5.5 A 6 6 0 1 0 15.8 11 M 15 2.5 L 15 6 L 11.5 6" Stroke="{StaticResource TextSecondary}" StrokeThickness="1.6" Width="18" Height="18"/></Button>
    </Grid>
+   <TextBlock Grid.Row="2" Text="游戏库" Style="{StaticResource Caption}" Margin="10,20,0,8"/>
+   <Grid Grid.Row="3">
+    <ListBox x:Name="GameList" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled" SelectionChanged="Game_Changed" HorizontalContentAlignment="Stretch" Padding="0">
+     <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem"><Setter Property="Padding" Value="10,8"/><Setter Property="Margin" Value="0,0,0,2"/><Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="FocusVisualStyle" Value="{x:Null}"/><Setter Property="Cursor" Value="Hand"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem"><Grid><Border x:Name="row" Background="Transparent" CornerRadius="5" Padding="{TemplateBinding Padding}" SnapsToDevicePixels="True"><ContentPresenter/></Border><Border x:Name="bar" Width="3" Background="{StaticResource Accent}" CornerRadius="2" HorizontalAlignment="Left" Margin="0,10" Visibility="Collapsed"/></Grid><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="row" Property="Background" Value="{StaticResource Hover}"/></Trigger><Trigger Property="IsSelected" Value="True"><Setter TargetName="row" Property="Background" Value="{StaticResource Elevated}"/><Setter TargetName="bar" Property="Visibility" Value="Visible"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style></ListBox.ItemContainerStyle>
+     <ListBox.ItemTemplate><DataTemplate><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><Border Width="38" Height="38" CornerRadius="7" Background="{Binding TileBrush}"><TextBlock Text="{Binding Initial}" FontFamily="{StaticResource DataFont}" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border><StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center"><TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/><TextBlock Text="{Binding RegionLabel}" Style="{StaticResource Caption}" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/></StackPanel></Grid></DataTemplate></ListBox.ItemTemplate>
+    </ListBox>
+    <TextBlock x:Name="EmptyGames" Text="" Style="{StaticResource Meta}" Margin="10,4,0,0" VerticalAlignment="Top" IsHitTestVisible="False"/>
+   </Grid>
+  </Grid></Border>
 
-   <!-- Status strip. -->
-   <Border Grid.Row="3" BorderBrush="{StaticResource Border}" BorderThickness="0,1,0,0" Padding="0,14,0,0"><Grid><StackPanel Orientation="Horizontal"><Ellipse x:Name="StateDot" Width="7" Height="7" Fill="{StaticResource TextTertiary}" VerticalAlignment="Center"/><TextBlock x:Name="ConnectionState" Text="未连接" Style="{StaticResource Meta}" Margin="8,0,0,0" VerticalAlignment="Center"/></StackPanel><TextBlock x:Name="ExitAddress" Text="游戏与线路由服务端配置" Style="{StaticResource Caption}" FontFamily="{StaticResource DataFont}" HorizontalAlignment="Right" VerticalAlignment="Center"/></Grid></Border>
+  <Grid Grid.Column="1">
+   <Grid.RowDefinitions><RowDefinition Height="56"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+
+   <!-- Top bar: only the account. -->
+   <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,20,0">
+    <Button x:Name="SignInButton" Content="登录账号" Style="{StaticResource Ghost}" Click="Account_Click"/>
+    <Button x:Name="AccountButton" Style="{StaticResource Ghost}" AutomationProperties.Name="账号菜单" Padding="6,4,10,4" Visibility="Collapsed" Click="Menu_Click"><StackPanel Orientation="Horizontal"><Border Width="26" Height="26" CornerRadius="13" Background="{StaticResource AccentSoft}"><TextBlock x:Name="AvatarInitial" Text="?" FontFamily="{StaticResource DataFont}" FontSize="13" Foreground="{StaticResource Accent}" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border><TextBlock x:Name="AccountLabel" Text="未登录" FontSize="13" Margin="8,0,6,0" VerticalAlignment="Center" MaxWidth="160" TextTrimming="CharacterEllipsis"/><Path Data="M 0 0 L 4 4 L 8 0" Stroke="{StaticResource TextSecondary}" StrokeThickness="1.5" VerticalAlignment="Center" Margin="0,1,0,0"/></StackPanel></Button>
+   </StackPanel>
+
+   <Grid Grid.Row="1">
+    <!-- Detail: the selected game, what will be connected, the one action, and the live session. -->
+    <ScrollViewer x:Name="DetailPane" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Visibility="Collapsed"><Grid Margin="40,12,40,40"><Grid.ColumnDefinitions><ColumnDefinition Width="*" MaxWidth="640"/></Grid.ColumnDefinitions><StackPanel>
+     <TextBlock x:Name="GameTitle" Text="" FontSize="26" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+     <TextBlock x:Name="GameRegions" Text="" Style="{StaticResource Meta}" Margin="0,6,0,0" TextWrapping="Wrap"/>
+     <Grid Margin="0,28,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <StackPanel><TextBlock Text="区服" Style="{StaticResource FieldLabel}"/><ComboBox x:Name="RegionList" AutomationProperties.Name="区服" SelectionChanged="Region_Changed"><ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}"/></DataTemplate></ComboBox.ItemTemplate></ComboBox></StackPanel>
+      <StackPanel Grid.Column="2"><TextBlock Text="线路" Style="{StaticResource FieldLabel}"/><ComboBox x:Name="LineList" AutomationProperties.Name="线路" ItemContainerStyle="{StaticResource LineItem}" SelectionChanged="Line_Changed"><ComboBox.ItemTemplate><DataTemplate><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/><StackPanel Grid.Column="1" Orientation="Horizontal" Margin="10,0,0,0"><TextBlock Text="{Binding Tag}" Style="{StaticResource Caption}" VerticalAlignment="Center"/><TextBlock Text="{Binding RttLabel}" FontFamily="{StaticResource DataFont}" FontSize="12" Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center"/></StackPanel></Grid></DataTemplate></ComboBox.ItemTemplate></ComboBox></StackPanel>
+     </Grid>
+     <TextBlock x:Name="LineHint" Text="" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,8,0,0"/>
+     <Button x:Name="ActionButton" Content="开始加速" Style="{StaticResource Primary}" IsEnabled="False" MinHeight="48" MinWidth="280" Padding="48,0" HorizontalAlignment="Left" FontSize="15" Margin="0,24,0,0" Click="Action_Click"/>
+     <StackPanel Orientation="Horizontal" Margin="0,14,0,0"><Ellipse x:Name="StateDot" Width="7" Height="7" Fill="{StaticResource TextTertiary}" VerticalAlignment="Center"/><TextBlock x:Name="ConnectionState" AutomationProperties.AutomationId="ConnectionState" Text="未连接" FontSize="13" Margin="8,0,0,0" VerticalAlignment="Center"/></StackPanel>
+     <TextBlock x:Name="InlineError" AutomationProperties.AutomationId="InlineError" Text="" Foreground="{StaticResource Bad}" FontSize="12" TextWrapping="Wrap" Margin="15,6,0,0" Visibility="Collapsed"/>
+     <Border x:Name="SessionPane" Background="{StaticResource Surface}" CornerRadius="6" Padding="22,16" Margin="0,24,0,0" Visibility="Collapsed"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <StackPanel Margin="0,0,44,0"><TextBlock Text="延迟" Style="{StaticResource Caption}"/><TextBlock x:Name="Latency" Text="—" FontFamily="{StaticResource DataFont}" FontSize="28" Margin="0,4,0,0"/></StackPanel>
+      <StackPanel Grid.Column="1" Margin="0,0,44,0"><TextBlock Text="出口 IP" Style="{StaticResource Caption}"/><TextBlock x:Name="ExitAddress" Text="—" FontFamily="{StaticResource DataFont}" FontSize="16" Margin="0,10,0,0"/></StackPanel>
+      <StackPanel Grid.Column="2"><TextBlock Text="线路" Style="{StaticResource Caption}"/><TextBlock x:Name="LineName" Text="—" FontSize="14" Margin="0,10,0,0" TextTrimming="CharacterEllipsis"/></StackPanel>
+     </Grid></Border>
+    </StackPanel></Grid></ScrollViewer>
+
+    <!-- Nothing to do yet: why, and what would change that. -->
+    <StackPanel x:Name="EmptyPane" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420" Margin="40,0,40,56">
+     <Path Data="M 0 1 L 16 1 L 13 3.2 L 2 3.2 Z M 4 6 L 22 6 L 19 8.2 L 6 8.2 Z M 0 11 L 12 11 L 9 13.2 L 2 13.2 Z" Fill="{StaticResource TextTertiary}" Width="44" Height="28" Stretch="Uniform" HorizontalAlignment="Center"/>
+     <TextBlock x:Name="EmptyTitle" Text="正在连接本地服务" FontSize="18" FontWeight="SemiBold" TextAlignment="Center" Margin="0,18,0,0"/>
+     <TextBlock x:Name="EmptyText" Text="" Style="{StaticResource Meta}" TextWrapping="Wrap" TextAlignment="Center" Margin="0,8,0,0" Visibility="Collapsed"/>
+     <Button x:Name="EmptyAction" Content="登录账号" Style="{StaticResource Primary}" HorizontalAlignment="Center" MinWidth="160" Margin="0,22,0,0" Visibility="Collapsed" Click="EmptyAction_Click"/>
+    </StackPanel>
+   </Grid>
+  </Grid>
+
+  <!-- Transient feedback, bottom right. -->
+  <Border x:Name="Toast" Grid.ColumnSpan="2" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,28,24" MaxWidth="440" Background="{StaticResource Elevated}" CornerRadius="6" Visibility="Collapsed" Effect="{StaticResource Shadow}"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><Border x:Name="NoticeStripe" Width="3" Background="{StaticResource Info}" CornerRadius="6,0,0,6"/><TextBlock Grid.Column="1" x:Name="Notice" AutomationProperties.AutomationId="Toast" Text="" TextWrapping="Wrap" FontSize="13" Margin="14,11,16,11"/></Grid></Border>
+
+  <!-- Account menu; the transparent overlay closes it. -->
+  <Grid x:Name="MenuOverlay" Grid.ColumnSpan="2" Background="Transparent" Visibility="Collapsed" PreviewMouseDown="MenuOverlay_MouseDown">
+   <Border x:Name="MenuPanel" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,50,20,0" Width="236" Background="{StaticResource Elevated}" CornerRadius="6" Padding="6" Effect="{StaticResource Shadow}"><StackPanel>
+    <StackPanel Margin="10,8,10,10"><TextBlock x:Name="MenuAccount" Text="" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/><TextBlock x:Name="MenuServer" Text="" Style="{StaticResource Caption}" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/></StackPanel>
+    <Border Height="1" Background="{StaticResource Border}" Margin="4,0,4,6"/>
+    <Button Content="切换账号" Style="{StaticResource Ghost}" Click="Switch_Click"/>
+    <Button x:Name="LogoutButton" Content="退出登录" Style="{StaticResource Ghost}" Click="Logout_Click"/>
+    <Button Content="连接诊断" Style="{StaticResource Ghost}" Click="Diagnostics_Click"/>
+    <Border Height="1" Background="{StaticResource Border}" Margin="4,6,4,6"/>
+    <Button Content="退出并停止加速" Style="{StaticResource Ghost}" Click="Exit_Click"/>
+    <TextBlock x:Name="VersionLabel" Text="" Style="{StaticResource Caption}" FontFamily="{StaticResource DataFont}" Margin="10,8,10,4"/>
+   </StackPanel></Border>
   </Grid>
 
   <!-- Sign-in dialog. -->
-  <Border x:Name="LoginOverlay" Grid.ColumnSpan="2" Background="#D9131217" Visibility="Collapsed">
-   <Border Background="{StaticResource Surface}" BorderBrush="{StaticResource BorderStrong}" BorderThickness="1" CornerRadius="6" Width="400" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="28,26,28,24"><StackPanel>
-    <StackPanel Orientation="Horizontal"><Path Data="M 0 1 L 16 1 L 13 3.2 L 2 3.2 Z M 4 6 L 22 6 L 19 8.2 L 6 8.2 Z M 0 11 L 12 11 L 9 13.2 L 2 13.2 Z" Fill="{StaticResource Accent}" Width="22" Height="14" VerticalAlignment="Center"/><TextBlock Text="流光加速器" Style="{StaticResource Meta}" Margin="8,0,0,0" VerticalAlignment="Center"/></StackPanel>
-    <TextBlock x:Name="LoginTitle" Text="登录" Style="{StaticResource PageTitle}" Margin="0,16,0,0"/>
-    <TextBlock x:Name="LoginSubtitle" Text="使用平台账号获取游戏与线路授权。" Style="{StaticResource Meta}" Margin="0,6,0,22"/>
-    <TextBlock Text="账号" Style="{StaticResource FieldLabel}"/><TextBox x:Name="Username" AutomationProperties.Name="账号"/>
-    <TextBlock Text="密码" Style="{StaticResource FieldLabel}" Margin="0,14,0,6"/><PasswordBox x:Name="Password" AutomationProperties.Name="密码"/>
-    <TextBlock x:Name="LoginError" TextWrapping="Wrap" Foreground="{StaticResource Bad}" FontSize="12" Margin="0,10,0,0"/>
-    <Button x:Name="LoginButton" Content="登录" Style="{StaticResource Primary}" IsDefault="True" Margin="0,18,0,0" Click="Login_Click"/>
-    <Button Content="返回" Style="{StaticResource Ghost}" HorizontalContentAlignment="Center" IsCancel="True" Margin="0,6,0,0" Click="LoginCancel_Click"/>
-    <TextBlock Text="还没有账号？账号由运营方在后台开通，请联系客服获取；客户端不提供自助注册。" Style="{StaticResource Caption}" TextWrapping="Wrap" TextAlignment="Center" Margin="0,14,0,0"/>
-   </StackPanel></Border>
+  <Border x:Name="LoginOverlay" Grid.ColumnSpan="2" Background="#E60F0E12" Visibility="Collapsed">
+   <Border Background="{StaticResource Surface}" CornerRadius="8" Width="400" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="28,22,28,24" Effect="{StaticResource Shadow}"><Grid>
+    <Button Style="{StaticResource IconButton}" AutomationProperties.Name="关闭" ToolTip="关闭" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-8,-14,0" Click="LoginCancel_Click"><Path Data="M 0 0 L 10 10 M 10 0 L 0 10" Stroke="{StaticResource TextSecondary}" StrokeThickness="1.5" Width="10" Height="10"/></Button>
+    <StackPanel>
+     <StackPanel Orientation="Horizontal"><Path Data="M 0 1 L 16 1 L 13 3.2 L 2 3.2 Z M 4 6 L 22 6 L 19 8.2 L 6 8.2 Z M 0 11 L 12 11 L 9 13.2 L 2 13.2 Z" Fill="{StaticResource Accent}" Width="22" Height="14" VerticalAlignment="Center"/><TextBlock Text="流光加速器" Style="{StaticResource Meta}" Margin="8,0,0,0" VerticalAlignment="Center"/></StackPanel>
+     <TextBlock x:Name="LoginTitle" Text="登录" Style="{StaticResource PageTitle}" Margin="0,16,0,0"/>
+     <TextBlock x:Name="LoginSubtitle" Text="" Style="{StaticResource Meta}" Margin="0,6,0,0" Visibility="Collapsed"/>
+     <TextBlock Text="账号" Style="{StaticResource FieldLabel}" Margin="0,22,0,6"/><TextBox x:Name="Username" AutomationProperties.Name="账号"/>
+     <TextBlock Text="密码" Style="{StaticResource FieldLabel}" Margin="0,14,0,6"/><PasswordBox x:Name="Password" AutomationProperties.Name="密码"/>
+     <TextBlock x:Name="LoginError" TextWrapping="Wrap" Foreground="{StaticResource Bad}" FontSize="12" Margin="0,10,0,0"/>
+     <Button x:Name="LoginButton" Content="登录" Style="{StaticResource Primary}" IsDefault="True" Margin="0,18,0,0" Click="Login_Click"/>
+     <Button Content="稍后登录" Style="{StaticResource Ghost}" HorizontalContentAlignment="Center" IsCancel="True" Margin="0,6,0,0" Click="LoginCancel_Click"/>
+     <TextBlock Text="没有账号？请联系客服开通。" Style="{StaticResource Caption}" TextAlignment="Center" Margin="0,14,0,0"/>
+    </StackPanel>
+   </Grid></Border>
   </Border>
  </Grid>
 </Window>

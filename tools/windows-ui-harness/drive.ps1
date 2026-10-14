@@ -41,10 +41,16 @@ function FindAll($root, $type) {
 function Invoke-Button($root, $name) { (Find $root $CT::Button $name).GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Log "clicked $name" }
 function Set-Text($root, $name, $text) { (Find $root $CT::Edit $name).GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($text); Log "typed into $name" }
 function Select-Item($el) { $el.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select() }
-# Reports which of the start button's labels is currently showing.
-function Start-Label($root) {
-  foreach ($b in (FindAll $root $CT::Button)) { if ($b.Current.Name -in '开始加速','正在连接…','加速中') { return $b.Current.Name } }
+# The one action button shows which of its labels is current.
+function Action-Label($root) {
+  foreach ($b in (FindAll $root $CT::Button)) { if ($b.Current.Name -in '开始加速','停止加速','正在停止') { return $b.Current.Name } }
   return '(none)'
+}
+# Text of an element by AutomationId (the status line, inline error, toast).
+function Text-ById($root, $id) {
+  $cond = New-Object System.Windows.Automation.PropertyCondition($AE::AutomationIdProperty, $id)
+  $el = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $cond)
+  if ($el) { return $el.Current.Name } else { return '(none)' }
 }
 
 try {
@@ -59,11 +65,11 @@ Set-Text $root '密码' 'pw'
 Invoke-Button $root '登录'
 Start-Sleep -Seconds 3
 Shot 'd2-logged-in'
-Log ("start button reads: " + (Start-Label $root))
+Log ("action button reads: " + (Action-Label $root) + " / status: " + (Text-ById $root 'ConnectionState'))
 
 # Pick the second game and its second region so the restore test is unambiguous.
 $items = FindAll $root $CT::ListItem
-Log ("game cards: " + $items.Count)
+Log ("library rows: " + $items.Count)
 Select-Item $items[1]
 Start-Sleep -Milliseconds 800
 $combos = FindAll $root $CT::ComboBox
@@ -73,16 +79,16 @@ Add-Type -AssemblyName System.Windows.Forms
 $combos[0].SetFocus(); Start-Sleep -Milliseconds 300
 [System.Windows.Forms.SendKeys]::SendWait('{DOWN}')
 Start-Sleep -Seconds 2
-Log ("region box reads: " + $combos[0].Current.Name + " / selection: " + (($combos[0].GetCurrentPattern([System.Windows.Automation.SelectionPattern]::Pattern).Current.GetSelection() | ForEach-Object { $_.Current.Name }) -join ','))
+Log ("region box selection: " + (($combos[0].GetCurrentPattern([System.Windows.Automation.SelectionPattern]::Pattern).Current.GetSelection() | ForEach-Object { $_.Current.Name }) -join ','))
 Shot 'd3-selected'
 
 Invoke-Button $root '开始加速'
 Start-Sleep -Milliseconds 1200
 Shot 'd4-connecting'
-Log ("button during connect: " + (Start-Label $root))
+Log ("during connect: button=" + (Action-Label $root) + " status=" + (Text-ById $root 'ConnectionState'))
 Start-Sleep -Seconds 8
 Shot 'd5-active'
-Log ("button when active: " + (Start-Label $root))
+Log ("when active: button=" + (Action-Label $root) + " status=" + (Text-ById $root 'ConnectionState'))
 
 # Kill the client while the fake session stays ACTIVE; a fresh client must
 # re-select the running game/region/line from the status reply.
@@ -91,10 +97,12 @@ Start-Sleep -Seconds 1
 $root = Launch
 Start-Sleep -Seconds 6
 Shot 'd6-restored'
+Log ("after restart: status=" + (Text-ById $root 'ConnectionState'))
 
 Invoke-Button $root '停止加速'
 Start-Sleep -Seconds 3
 Shot 'd7-stopped'
+Log ("after stop: button=" + (Action-Label $root) + " toast=" + (Text-ById $root 'Toast'))
 
 # Close button hides to the tray; the process must stay alive, and a relaunch
 # must wake it instead of starting a second instance.
