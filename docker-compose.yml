@@ -7,15 +7,12 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD}
       MYSQL_RANDOM_ROOT_PASSWORD: "yes"
     volumes: [mysql-data:/var/lib/mysql]
+    networks: [internal]
     healthcheck:
       test: [CMD-SHELL, 'MYSQL_PWD="$$MYSQL_PASSWORD" mysqladmin ping -u flowlight --silent']
       interval: 5s
       timeout: 5s
       retries: 30
-  redis:
-    image: redis:7.4-alpine
-    command: [redis-server, --appendonly, "yes"]
-    volumes: [redis-data:/data]
   control-api:
     build: {context: ., dockerfile: deploy/control.Dockerfile}
     environment:
@@ -25,21 +22,28 @@ services:
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set initial ADMIN_PASSWORD}
       ADMIN_ORIGIN: ${ADMIN_ORIGIN:-http://localhost:8088}
-      REDIS_URL: redis://redis:6379/0
       PROBE_URL: ${PROBE_URL:-}
       PROBE_UDP: ${PROBE_UDP:-}
       PROBE_NODE_ID: ${PROBE_NODE_ID:-}
       ALLOW_IMPORTED: ${ALLOW_IMPORTED:-false}
+      # Only the admin proxy below may name the real client for login throttling.
+      TRUSTED_PROXIES: 172.31.250.10/32
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
     ports: ["127.0.0.1:8090:8090"]
+    networks: [internal]
     volumes: [control-data:/data]
     depends_on:
       mysql: {condition: service_healthy}
-      redis: {condition: service_started}
   admin-web:
     build: {context: ., dockerfile: deploy/admin.Dockerfile}
     ports: ["127.0.0.1:8088:80"]
     depends_on: [control-api]
+    networks:
+      internal: {ipv4_address: 172.31.250.10}
+networks:
+  internal:
+    ipam:
+      config: [{subnet: 172.31.250.0/24}]
 volumes:
   mysql-data:
-  redis-data:
   control-data:

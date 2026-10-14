@@ -7,9 +7,11 @@ import (
 	"github.com/mbfczzz/FlowLight-Accelerator/internal/control"
 	"log"
 	"net/http"
+	"net/netip"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -41,12 +43,20 @@ func main() {
 	if e = store.Seed(env("ADMIN_USERNAME", "admin"), os.Getenv("ADMIN_PASSWORD")); e != nil {
 		log.Fatal(e)
 	}
-	server, e := control.New(store, control.Config{Origin: env("ADMIN_ORIGIN", "http://localhost:5173"), AllowImported: os.Getenv("ALLOW_IMPORTED") == "true", RequireMTLS: prod || os.Getenv("NODE_MTLS_REQUIRED") == "true", CAPath: filepath.Join(dir, "pki"), ProbeURL: os.Getenv("PROBE_URL"), ProbeUDP: os.Getenv("PROBE_UDP"), ProbeNodeID: os.Getenv("PROBE_NODE_ID")})
+	proxies := []netip.Prefix{}
+	for _, part := range strings.Split(os.Getenv("TRUSTED_PROXIES"), ",") {
+		if part = strings.TrimSpace(part); part == "" {
+			continue
+		}
+		p, e := netip.ParsePrefix(part)
+		if e != nil {
+			log.Fatalf("invalid TRUSTED_PROXIES entry %q", part)
+		}
+		proxies = append(proxies, p)
+	}
+	server, e := control.New(store, control.Config{MetricsToken: os.Getenv("METRICS_TOKEN"), TrustedProxies: proxies, Origin: env("ADMIN_ORIGIN", "http://localhost:5173"), AllowImported: os.Getenv("ALLOW_IMPORTED") == "true", RequireMTLS: prod || os.Getenv("NODE_MTLS_REQUIRED") == "true", CAPath: filepath.Join(dir, "pki"), ProbeURL: os.Getenv("PROBE_URL"), ProbeUDP: os.Getenv("PROBE_UDP"), ProbeNodeID: os.Getenv("PROBE_NODE_ID")})
 	if e != nil {
 		log.Fatal(e)
-	}
-	if e = server.ConnectCache(os.Getenv("REDIS_URL")); e != nil {
-		log.Fatal("invalid Redis configuration")
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -61,7 +71,11 @@ func main() {
 		pool.AppendCertsFromPEM(server.CA.PEM)
 		httpServer.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12, ClientAuth: tls.VerifyClientCertIfGiven, ClientCAs: pool}
 	}
+	// ListenAndServe returns as soon as Shutdown begins, so wait for the
+	// drain to finish before exiting.
+	drained := make(chan struct{})
 	go func() {
+		defer close(drained)
 		<-ctx.Done()
 		c, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -76,4 +90,5 @@ func main() {
 	if e != nil && e != http.ErrServerClosed {
 		log.Fatal(e)
 	}
+	<-drained
 }

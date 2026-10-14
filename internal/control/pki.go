@@ -7,7 +7,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
-	"errors"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -22,7 +21,7 @@ type Authority struct {
 
 func LoadAuthority(dir string) (*Authority, error) {
 	if dir == "" {
-		return nil, errors.New("CA directory required")
+		return nil, badRequest("CA directory required")
 	}
 	if e := os.MkdirAll(dir, 0700); e != nil {
 		return nil, e
@@ -37,7 +36,7 @@ func LoadAuthority(dir string) (*Authority, error) {
 		cb, _ := pem.Decode(certBytes)
 		kb, _ := pem.Decode(keyBytes)
 		if cb == nil || kb == nil {
-			return nil, errors.New("invalid CA files")
+			return nil, badRequest("invalid CA files")
 		}
 		cert, e := x509.ParseCertificate(cb.Bytes)
 		if e != nil {
@@ -53,7 +52,7 @@ func LoadAuthority(dir string) (*Authority, error) {
 		return nil, e
 	}
 	if _, e := os.Stat(keyPath); e == nil {
-		return nil, errors.New("CA key exists without certificate; restore the certificate instead of rotating silently")
+		return nil, badRequest("CA key exists without certificate; restore the certificate instead of rotating silently")
 	}
 	key, e := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if e != nil {
@@ -79,15 +78,15 @@ func LoadAuthority(dir string) (*Authority, error) {
 func (a *Authority) Issue(csrPEM, nodeID string) (string, string, error) {
 	p, _ := pem.Decode([]byte(csrPEM))
 	if p == nil {
-		return "", "", errors.New("CSR required")
+		return "", "", badRequest("CSR required")
 	}
 	csr, e := x509.ParseCertificateRequest(p.Bytes)
 	if e != nil || csr.CheckSignature() != nil {
-		return "", "", errors.New("invalid CSR")
+		return "", "", badRequest("invalid CSR")
 	}
 	key, ok := csr.PublicKey.(*ecdsa.PublicKey)
 	if !ok || key.Curve != elliptic.P256() {
-		return "", "", errors.New("P-256 node key required")
+		return "", "", badRequest("P-256 node key required")
 	}
 	serial, _ := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
 	template := &x509.Certificate{SerialNumber: serial, Subject: pkix.Name{CommonName: nodeID}, NotBefore: time.Now().Add(-time.Minute), NotAfter: time.Now().AddDate(0, 3, 0), KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}}

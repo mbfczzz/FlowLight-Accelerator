@@ -133,7 +133,7 @@ func TestNativeSS2022RealmTCPUDPAndLeaseRevoke(t *testing.T) {
 	t.Logf("actual SS2022 + Realm TCP/UDP passed: samples=%d RTT=%.2f ms loss=%.0f%%", result.Samples, result.RTTMS, result.Loss*100)
 	// An authoritative heartbeat omitting the session must revoke it, even
 	// when the previous local lease still has time left.
-	if err := m.Renew(map[string]time.Time{}); err != nil {
+	if err := m.Renew(map[string]time.Time{}, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	m.Expire()
@@ -160,7 +160,7 @@ func TestRestartWaitsForAuthoritativeLease(t *testing.T) {
 	if len(m.Processes) != 0 || len(m.pending) != 1 {
 		t.Fatal("persisted authorization resumed before reconciliation")
 	}
-	if err := m.Renew(map[string]time.Time{}); err != nil {
+	if err := m.Renew(map[string]time.Time{}, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(path); !os.IsNotExist(err) {

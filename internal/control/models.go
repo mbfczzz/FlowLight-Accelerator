@@ -18,8 +18,8 @@ type Token struct {
 	Hash      string `gorm:"primaryKey;size:64"`
 	UserID    string `gorm:"index;size:64"`
 	Kind      string
-	Family    string `gorm:"index;size:64"`
-	ExpiresAt time.Time
+	Family    string    `gorm:"index;size:64"`
+	ExpiresAt time.Time `gorm:"index"`
 	Used      bool
 }
 type Device struct {
@@ -54,12 +54,26 @@ type Node struct {
 	Enabled         bool           `json:"enabled"`
 	Capabilities    c.Capabilities `json:"capabilities" gorm:"serializer:json;type:text"`
 	BootstrapHash   string         `json:"-"`
-	TokenHash       string         `json:"-"`
+	TokenHash       string         `json:"-" gorm:"index;size:64"`
 	CertificateHash string         `json:"-"`
-	LastSeen        *time.Time     `json:"last_seen" gorm:"default:null"`
-	AgentVersion    string         `json:"agent_version"`
-	ActualVersions  []string       `json:"actual_versions" gorm:"serializer:json;type:text"`
+	// PendingCertificateHash is a renewed certificate the node has not used
+	// yet. The current one stays valid until the node presents the new one.
+	PendingCertificateHash string     `json:"-"`
+	LastSeen               *time.Time `json:"last_seen" gorm:"default:null"`
+	AgentVersion           string     `json:"agent_version"`
+	ActualVersions         []string   `json:"actual_versions" gorm:"serializer:json;type:text"`
+	// Reported is what the agent last observed. It narrows Capabilities, the
+	// administrator's declaration, without overwriting it.
+	Reported *c.Capabilities `json:"reported_capabilities" gorm:"serializer:json;type:text"`
 }
+
+func (n Node) effective() c.Capabilities {
+	if n.Reported == nil {
+		return n.Capabilities
+	}
+	return c.Capabilities{TCP: n.Capabilities.TCP && n.Reported.TCP, UDP: n.Capabilities.UDP && n.Reported.UDP, IPv4: n.Capabilities.IPv4 && n.Reported.IPv4, IPv6: n.Capabilities.IPv6 && n.Reported.IPv6, Managed: n.Capabilities.Managed && n.Reported.Managed}
+}
+
 type Endpoint struct {
 	OwnerID      string         `json:"owner_id,omitempty"`
 	ID           string         `json:"id" gorm:"primaryKey;size:64"`
@@ -111,7 +125,7 @@ type LineVersion struct {
 type Binding struct {
 	ID           string     `json:"id" gorm:"primaryKey;size:64"`
 	UserID       string     `json:"user_id" gorm:"index;size:64"`
-	EndpointID   string     `json:"endpoint_id"`
+	EndpointID   string     `json:"endpoint_id" gorm:"index;size:64"`
 	Kind         string     `json:"kind"`
 	VerifiedAt   *time.Time `json:"verified_at"`
 	ExpectedExit string     `json:"expected_exit"`
@@ -134,7 +148,7 @@ type Session struct {
 	LeaseUntil       time.Time     `json:"lease_until"`
 	PrepareUntil     time.Time     `json:"prepare_until"`
 	StopUntil        *time.Time    `json:"stop_until" gorm:"default:null"`
-	CreatedAt        time.Time     `json:"created_at"`
+	CreatedAt        time.Time     `json:"created_at" gorm:"index"`
 	UpdatedAt        time.Time     `json:"updated_at"`
 	EndReason        string        `json:"end_reason,omitempty"`
 	Probe            c.ProbeResult `json:"probe" gorm:"serializer:json;type:text"`
@@ -150,6 +164,7 @@ type Idempotency struct {
 	ID          string `gorm:"primaryKey;size:64"`
 	SessionID   string `gorm:"size:64"`
 	RequestHash string
+	CreatedAt   time.Time `gorm:"index"`
 }
 type Job struct {
 	ID            string     `json:"id" gorm:"primaryKey;size:64"`
@@ -163,7 +178,7 @@ type Job struct {
 	ClaimUntil    *time.Time `json:"claim_until" gorm:"default:null"`
 	Attempts      int        `json:"attempts"`
 	Result        string     `json:"result,omitempty" gorm:"type:text"`
-	CreatedAt     time.Time  `json:"created_at"`
+	CreatedAt     time.Time  `json:"created_at" gorm:"index"`
 }
 type Audit struct {
 	ID        string    `json:"id" gorm:"primaryKey;size:64"`
@@ -171,7 +186,7 @@ type Audit struct {
 	Action    string    `json:"action"`
 	Resource  string    `json:"resource"`
 	Detail    string    `json:"detail" gorm:"type:text"`
-	CreatedAt time.Time `json:"created_at"`
+	CreatedAt time.Time `json:"created_at" gorm:"index"`
 }
 type Release struct {
 	ID        string    `json:"id" gorm:"primaryKey;size:64"`

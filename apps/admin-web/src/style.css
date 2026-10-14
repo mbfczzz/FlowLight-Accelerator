@@ -6,6 +6,7 @@
   --accent: #087e93;
   --line: #e2e7ec;
   --muted: #677487;
+  --danger: #ac4934;
 }
 * {
   box-sizing: border-box;
@@ -220,7 +221,8 @@ p {
   gap: 10px;
 }
 .primary,
-.secondary {
+.secondary,
+.danger {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -244,6 +246,13 @@ p {
 }
 .secondary:hover {
   background: #edf3f5;
+}
+.danger {
+  background: var(--danger);
+  color: #fff;
+}
+.danger:hover:not(:disabled) {
+  background: #933c2a;
 }
 .metrics {
   display: grid;
@@ -317,9 +326,10 @@ h2 {
 }
 .table-toolbar {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
-  gap: 16px;
+  gap: 10px 16px;
   margin: 0 0 14px;
   font-size: 12px;
   color: var(--muted);
@@ -411,6 +421,22 @@ tbody tr:hover {
   padding: 3px 0;
   white-space: nowrap;
   font-size: 12px;
+}
+.row-actions .destructive {
+  color: var(--danger);
+}
+.table-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px 16px;
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.table-foot-error {
+  color: #964c36;
 }
 .empty {
   text-align: center;
@@ -528,6 +554,17 @@ dialog {
 dialog::backdrop {
   background: rgb(16 32 46 / 35%);
 }
+dialog.confirm {
+  width: min(460px, calc(100vw - 32px));
+}
+.confirm-message {
+  font-size: 14px;
+  color: #36475a;
+  margin: 0;
+}
+dialog.confirm .alert {
+  margin: 16px 0 0;
+}
 .modal-head {
   display: flex;
   justify-content: space-between;
@@ -580,7 +617,8 @@ dialog::backdrop {
 }
 .version-actions {
   display: flex;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 4px 16px;
   margin-top: 18px;
 }
 .version-actions button,
@@ -702,7 +740,10 @@ input {
     font-size: 28px;
   }
   .table-toolbar label {
-    width: 230px;
+    width: 100%;
+  }
+  .table-foot .secondary {
+    width: 100%;
   }
   footer {
     padding: 0 16px;

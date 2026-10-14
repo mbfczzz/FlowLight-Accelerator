@@ -142,4 +142,47 @@ func TestEnrollmentOneTimeAndRealMTLS(t *testing.T) {
 	if code := heartbeat(); code != 200 {
 		t.Fatalf("enrolled mTLS failed: %d", code)
 	}
+	// Renewal: the old certificate keeps working until the new one is used.
+	nextKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nextCSR, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{}, nextKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	renewal, _ := json.Marshal(map[string]string{"csr": string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: nextCSR}))})
+	req, _ := http.NewRequest("POST", server.URL+"/api/node/v1/certificate", strings.NewReader(string(renewal)))
+	req.Header.Set("Authorization", "Bearer "+identity["token"])
+	res, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var renewed map[string]string
+	json.NewDecoder(res.Body).Decode(&renewed)
+	res.Body.Close()
+	if res.StatusCode != 200 || renewed["certificate"] == "" {
+		t.Fatalf("certificate renewal failed: %d", res.StatusCode)
+	}
+	if code := heartbeat(); code != 200 {
+		t.Fatalf("previous certificate rejected before the renewed one was used: %d", code)
+	}
+	nextDER, _ := x509.MarshalECPrivateKey(nextKey)
+	nextPair, err := tls.X509KeyPair([]byte(renewed["certificate"]), pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: nextDER}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	next := transport.Clone()
+	next.TLSClientConfig.Certificates = []tls.Certificate{nextPair}
+	defer next.CloseIdleConnections()
+	client.Transport = next
+	if code := heartbeat(); code != 200 {
+		t.Fatalf("renewed certificate rejected: %d", code)
+	}
+	old := transport.Clone()
+	defer old.CloseIdleConnections()
+	client.Transport = old
+	if code := heartbeat(); code != 401 {
+		t.Fatalf("retired certificate still accepted: %d", code)
+	}
 }

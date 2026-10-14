@@ -5,10 +5,12 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	c "github.com/mbfczzz/FlowLight-Accelerator/packages/contracts"
 	"gorm.io/gorm"
 	"net/http"
 	"slices"
+	"strings"
 	"time"
 )
 
@@ -30,14 +32,16 @@ func (s *Server) job(tx *gorm.DB, node, session, version, kind string, p c.JobPa
 func (s *Server) provision(tx *gorm.DB, x *Session, v LineVersion, p c.Profile) error {
 	hops := append([]c.Hop{}, v.Hops...)
 	if len(hops) == 0 {
-		return errors.New("empty published path")
+		return badRequest("empty published path")
 	}
 	now := time.Now().UTC()
 	x.CreatedAt = now
 	x.UpdatedAt = now
 	x.State = "PREPARING"
 	x.PrepareUntil = now.Add(s.Config.PrepareTimeout)
-	x.LeaseUntil = now.Add(s.Config.LeaseDuration)
+	// Clients only start renewing once the path is ready, so the first lease
+	// must outlast preparation; otherwise PrepareTimeout could never apply.
+	x.LeaseUntil = now.Add(max(s.Config.LeaseDuration, s.Config.PrepareTimeout))
 	x.Enforcement = "node-lease"
 	var password string
 	if v.Hops[len(v.Hops)-1].Capabilities.Managed {
@@ -71,13 +75,19 @@ func (s *Server) provision(tx *gorm.DB, x *Session, v LineVersion, p c.Profile) 
 			}
 			var node Node
 			if tx.First(&node, "id = ?", h.NodeID).Error != nil || !node.Enabled || timeSince(node.LastSeen) > s.Config.NodeTimeout {
-				return errors.New("node offline")
+				return badRequest("node offline")
+			}
+			var taken []int
+			if e := tx.Model(&Reservation{}).Where("node_id = ? AND port BETWEEN ? AND ?", h.NodeID, h.Port, h.PortEnd).Pluck("port", &taken).Error; e != nil {
+				return e
+			}
+			used := map[int]bool{}
+			for _, p := range taken {
+				used[p] = true
 			}
 			allocated := false
 			for port := h.Port; port <= h.PortEnd; port++ {
-				var count int64
-				tx.Model(&Reservation{}).Where("node_id = ? AND port = ?", h.NodeID, port).Count(&count)
-				if count == 0 {
+				if !used[port] {
 					res := Reservation{ID: ID(), SessionID: x.ID, NodeID: h.NodeID, Port: port}
 					if e := tx.Create(&res).Error; e != nil {
 						return e
@@ -89,7 +99,7 @@ func (s *Server) provision(tx *gorm.DB, x *Session, v LineVersion, p c.Profile) 
 				}
 			}
 			if !allocated {
-				return errors.New("node port pool exhausted")
+				return badRequest("node port pool exhausted")
 			}
 		}
 	}
@@ -98,7 +108,7 @@ func (s *Server) provision(tx *gorm.DB, x *Session, v LineVersion, p c.Profile) 
 		connection.UDP = connection.UDP && h.Capabilities.UDP
 	}
 	if p.UDP && !connection.UDP {
-		return errors.New("game requires UDP across the complete path")
+		return badRequest("game requires UDP across the complete path")
 	}
 	var e error
 	x.ConnectionCipher, e = s.Store.Seal(connection)
@@ -114,7 +124,12 @@ func (s *Server) provision(tx *gorm.DB, x *Session, v LineVersion, p c.Profile) 
 				continue
 			}
 			h := hops[i]
-			runtime := c.Runtime{VersionID: v.ID, ID: reservations[i].ID, SessionID: x.ID, Kind: h.Kind, ListenPort: h.Port, Cipher: h.Cipher, Password: password, UDP: connection.UDP, ExpiresAt: x.LeaseUntil}
+			runtime := c.Runtime{VersionID: v.ID, ID: reservations[i].ID, SessionID: x.ID, Kind: h.Kind, ListenPort: h.Port, UDP: connection.UDP, ExpiresAt: x.LeaseUntil}
+			// Realm relays forward ciphertext and never need the session key.
+			if h.Kind == "ss2022" {
+				runtime.Cipher = h.Cipher
+				runtime.Password = password
+			}
 			if i+1 < len(hops) {
 				runtime.RemoteHost = hops[i+1].Host
 				runtime.RemotePort = hops[i+1].Port
@@ -148,26 +163,26 @@ func (s *Server) beginSession(w http.ResponseWriter, r *http.Request) {
 		var old Idempotency
 		if tx.First(&old, "id = ?", idemID).Error == nil {
 			if old.RequestHash != hash(string(body)) {
-				return errors.New("idempotency key reused with different input")
+				return badRequest("idempotency key reused with different input")
 			}
 			return tx.First(&out, "id = ?", old.SessionID).Error
 		}
 		var d Device
 		if tx.First(&d, "id = ? AND user_id = ?", in.DeviceID, u.ID).Error != nil {
-			return errors.New("register this device first")
+			return badRequest("register this device first")
 		}
 		var active int64
 		tx.Model(&Session{}).Where("device_id = ? AND state <> ?", d.ID, "CLOSED").Count(&active)
 		if active > 0 {
-			return errors.New("device already has a session")
+			return badRequest("device already has a session")
 		}
 		tx.Model(&Session{}).Where("user_id = ? AND state <> ? AND purpose = ?", u.ID, "CLOSED", "game").Count(&active)
 		if active >= int64(u.MaxSessions) {
-			return errors.New("account concurrency limit reached")
+			return badRequest("account concurrency limit reached")
 		}
 		var g Game
 		if tx.First(&g, "id = ?", in.GameID).Error != nil || !g.Enabled || g.PublishedVersion == 0 || !slices.Contains(g.Regions, in.RegionID) {
-			return errors.New("game profile or region not published")
+			return badRequest("game profile or region not published")
 		}
 		var profile GameVersion
 		if e := tx.First(&profile, "game_id = ? AND version = ?", g.ID, g.PublishedVersion).Error; e != nil {
@@ -175,25 +190,26 @@ func (s *Server) beginSession(w http.ResponseWriter, r *http.Request) {
 		}
 		var l Line
 		if tx.First(&l, "id = ?", in.LineID).Error != nil || l.Draining || !permitted(l, u) {
-			return errors.New("line unavailable or unauthorized")
+			return badRequest("line unavailable or unauthorized")
 		}
 		var v LineVersion
 		if tx.First(&v, "id = ? AND status = ?", l.PublishedVersion, "ready").Error != nil {
-			return errors.New("line is not verified and published")
+			return badRequest("line is not verified and published")
 		}
 		if !slices.Contains(v.Regions, in.RegionID) || (len(v.GameIDs) > 0 && !slices.Contains(v.GameIDs, in.GameID)) {
-			return errors.New("line does not cover game/region")
+			return badRequest("line does not cover game/region")
 		}
 		if v.Hops[0].Capabilities.IPv6 && !v.Hops[0].Capabilities.IPv4 && !d.Capabilities.IPv6 {
-			return errors.New("device cannot use IPv6-only ingress")
+			return badRequest("device cannot use IPv6-only ingress")
 		}
-		tx.Model(&Session{}).Where("line_id = ? AND state <> ?", l.ID, "CLOSED").Count(&active)
+		// Validation sessions do not occupy player capacity.
+		tx.Model(&Session{}).Where("line_id = ? AND state <> ? AND purpose = ?", l.ID, "CLOSED", "game").Count(&active)
 		if active >= int64(l.Capacity) {
-			return errors.New("line capacity exhausted")
+			return badRequest("line capacity exhausted")
 		}
 		exitID := v.Hops[len(v.Hops)-1].EndpointID
 		if !egressAllowed(tx, exitID, u.ID) {
-			return errors.New("egress belongs to another account")
+			return badRequest("egress belongs to another account")
 		}
 		if in.BindingID == "" {
 			var owned Binding
@@ -204,20 +220,20 @@ func (s *Server) beginSession(w http.ResponseWriter, r *http.Request) {
 		if in.BindingID != "" {
 			var b Binding
 			if tx.First(&b, "id = ? AND user_id = ?", in.BindingID, u.ID).Error != nil || !b.Enabled || b.VerifiedAt == nil {
-				return errors.New("egress binding not verified")
+				return badRequest("egress binding not verified")
 			}
 			if b.FixedIP && b.ExpectedExit != "" {
 				v.ExpectedExit = b.ExpectedExit
 			}
 			if v.Hops[len(v.Hops)-1].EndpointID != b.EndpointID {
-				return errors.New("selected line does not terminate at this egress")
+				return badRequest("selected line does not terminate at this egress")
 			}
 		}
 		out = Session{ID: ID(), UserID: u.ID, DeviceID: d.ID, GameID: g.ID, RegionID: in.RegionID, LineID: l.ID, LineVersion: v.ID, ProfileVersion: g.PublishedVersion, BindingID: in.BindingID, Purpose: "game"}
 		if e := s.provision(tx, &out, v, profile.Profile); e != nil {
 			return e
 		}
-		return tx.Create(&Idempotency{ID: idemID, SessionID: out.ID, RequestHash: hash(string(body))}).Error
+		return tx.Create(&Idempotency{ID: idemID, SessionID: out.ID, RequestHash: hash(string(body)), CreatedAt: time.Now().UTC()}).Error
 	})
 	if e != nil {
 		respond(w, nil, e)
@@ -256,28 +272,28 @@ func (s *Server) heartbeatSession(w http.ResponseWriter, r *http.Request) {
 			return e
 		}
 		if out.State == "CLOSED" || out.State == "STOPPING" {
-			return errors.New("session is closing")
+			return badRequest("session is closing")
 		}
 		var currentLine Line
 		if tx.First(&currentLine, "id = ?", out.LineID).Error != nil || !permitted(currentLine, actor(r)) {
-			return errors.New("line access was revoked")
+			return badRequest("line access was revoked")
 		}
 		var version LineVersion
 		if tx.First(&version, "id = ?", out.LineVersion).Error != nil || len(version.Hops) == 0 || !egressAllowed(tx, version.Hops[len(version.Hops)-1].EndpointID, actor(r).ID) {
-			return errors.New("egress access was revoked")
+			return badRequest("egress access was revoked")
 		}
 		if out.BindingID != "" {
 			var binding Binding
 			if tx.First(&binding, "id = ? AND user_id = ?", out.BindingID, actor(r).ID).Error != nil || !binding.Enabled {
-				return errors.New("egress access was revoked")
+				return badRequest("egress access was revoked")
 			}
 		}
 		if time.Now().After(out.LeaseUntil) {
-			return errors.New("session lease expired")
+			return badRequest("session lease expired")
 		}
 		allowed := map[string][]string{"CONNECTING": {"ACTIVE", "DEGRADED"}, "ACTIVE": {"ACTIVE", "DEGRADED", "RECONNECTING"}, "DEGRADED": {"ACTIVE", "DEGRADED", "RECONNECTING"}, "RECONNECTING": {"ACTIVE", "DEGRADED", "RECONNECTING"}, "PREPARING": {"PREPARING"}}
 		if !slices.Contains(allowed[out.State], in.State) {
-			return errors.New("invalid session transition")
+			return badRequest("invalid session transition")
 		}
 		if in.State == "ACTIVE" {
 			var conn c.Connection
@@ -285,7 +301,7 @@ func (s *Server) heartbeatSession(w http.ResponseWriter, r *http.Request) {
 				return e
 			}
 			if !in.Probe.TCP || (conn.Profile.UDP && !in.Probe.UDP) || in.Probe.Samples < 1 {
-				return errors.New("active state requires tunnel probe evidence")
+				return badRequest("active state requires tunnel probe evidence")
 			}
 		}
 		if out.State == "PREPARING" {
@@ -347,7 +363,8 @@ func (s *Server) stopSession(w http.ResponseWriter, r *http.Request) {
 	var x Session
 	e := s.Store.Tx(func(tx *gorm.DB) error {
 		q := tx.Where("id = ?", r.PathValue("id"))
-		if actor(r).Role != "admin" {
+		// The admin route is already restricted to operators and admins.
+		if actor(r).Role != "admin" && !strings.HasPrefix(r.URL.Path, "/api/admin/") {
 			q = q.Where("user_id = ?", actor(r).ID)
 		}
 		if e := q.First(&x).Error; e != nil {
@@ -357,29 +374,46 @@ func (s *Server) stopSession(w http.ResponseWriter, r *http.Request) {
 	})
 	respond(w, x, e)
 }
+
+// Reap stops sessions whose lease or preparation lapsed and closes stopping
+// sessions past their reclaim grace. Each session is handled in its own
+// transaction, re-read under the lock, so one failing row neither rolls back
+// nor blocks the rest.
 func (s *Server) Reap() error {
-	return s.Store.Tx(func(tx *gorm.DB) error {
-		var sessions []Session
-		if e := tx.Where("state <> ?", "CLOSED").Find(&sessions).Error; e != nil {
-			return e
+	// Time is compared in Go: SQLite compares timestamps as text.
+	var live []Session
+	if e := s.Store.DB.Select("id", "state", "lease_until", "prepare_until", "stop_until").Where("state <> ?", "CLOSED").Find(&live).Error; e != nil {
+		return e
+	}
+	var failures []error
+	for _, candidate := range live {
+		if !reapDue(candidate, time.Now()) {
+			continue
 		}
-		now := time.Now().UTC()
-		for _, x := range sessions {
-			if x.State == "STOPPING" && x.StopUntil != nil && now.After(*x.StopUntil) {
-				if e := s.closeSession(tx, &x); e != nil {
-					return e
-				}
-				continue
+		e := s.Store.Tx(func(tx *gorm.DB) error {
+			x, e := load[Session](tx, candidate.ID)
+			if e != nil || !reapDue(x, time.Now()) {
+				return e
 			}
-			if now.After(x.LeaseUntil) || (x.State == "PREPARING" && now.After(x.PrepareUntil)) {
-				if x.Purpose == "validation" {
-					tx.Model(&LineVersion{}).Where("id = ? AND status <> ?", x.LineVersion, "ready").Updates(map[string]any{"status": "failed", "error": "preparation or lease timeout"})
-				}
-				if e := s.stopping(tx, &x, "lease or preparation timeout"); e != nil {
-					return e
-				}
+			if x.State == "STOPPING" {
+				return s.closeSession(tx, &x)
 			}
+			return s.stopping(tx, &x, "lease or preparation timeout")
+		})
+		if e != nil {
+			failures = append(failures, fmt.Errorf("session %s: %w", candidate.ID, e))
 		}
-		return nil
-	})
+	}
+	return errors.Join(failures...)
+}
+func reapDue(x Session, now time.Time) bool {
+	switch x.State {
+	case "CLOSED":
+		return false
+	case "STOPPING":
+		return x.StopUntil != nil && now.After(*x.StopUntil)
+	case "PREPARING":
+		return now.After(x.LeaseUntil) || now.After(x.PrepareUntil)
+	}
+	return now.After(x.LeaseUntil)
 }

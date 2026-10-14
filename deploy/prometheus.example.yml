@@ -8,4 +8,5 @@ scrape_configs:
       - targets: [control.example.com:8443]
     authorization:
       credentials_file: /run/secrets/flowlight-metrics-access-token
-# Rotate this read-only observer token through auth/refresh.
+# The file holds the control service's METRICS_TOKEN, a read-only credential
+# that is valid only for /metrics and does not expire like access tokens.

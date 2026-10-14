@@ -7,8 +7,10 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 	"io"
+	"log"
 	"net"
 	"net/http"
+	"net/netip"
 	"strings"
 	"sync"
 	"time"
@@ -60,9 +62,24 @@ func (s *Server) nodeAuth(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		if s.Config.RequireMTLS {
-			if r.TLS == nil || len(r.TLS.VerifiedChains) == 0 || len(r.TLS.PeerCertificates) == 0 || hash(string(r.TLS.PeerCertificates[0].Raw)) != n.CertificateHash {
+			if r.TLS == nil || len(r.TLS.VerifiedChains) == 0 || len(r.TLS.PeerCertificates) == 0 {
 				fail(w, 401, "node client certificate required")
 				return
+			}
+			fingerprint := hash(string(r.TLS.PeerCertificates[0].Raw))
+			if fingerprint != n.CertificateHash {
+				if n.PendingCertificateHash == "" || fingerprint != n.PendingCertificateHash {
+					fail(w, 401, "node client certificate required")
+					return
+				}
+				// First use of a renewed certificate retires the previous one.
+				if e := s.Store.Tx(func(tx *gorm.DB) error {
+					return tx.Model(&Node{}).Where("id = ? AND pending_certificate_hash = ?", n.ID, fingerprint).Updates(map[string]any{"certificate_hash": fingerprint, "pending_certificate_hash": ""}).Error
+				}); e != nil {
+					fail(w, 503, "node identity temporarily unavailable")
+					return
+				}
+				n.CertificateHash, n.PendingCertificateHash = fingerprint, ""
 			}
 		}
 		next(w, r.WithContext(context.WithValue(r.Context(), nodeKey, n)))
@@ -81,9 +98,42 @@ func (s *Server) issue(tx *gorm.DB, u User, family string) (map[string]any, erro
 	}
 	return map[string]any{"access_token": a, "refresh_token": b, "expires_in": 900, "user": u}, nil
 }
+
+// Login throttling: each client address gets loginPerAddress attempts a
+// minute, and each username loginFailures failed attempts per loginWindow.
+// The username limit stops distributed guessing; it does not grow with the
+// number of attacker addresses.
+const (
+	loginPerAddress = 30
+	loginFailures   = 10
+	loginWindow     = 15 * time.Minute
+)
+
+// dummyHash keeps unknown usernames as slow as wrong passwords, so response
+// time does not reveal which accounts exist.
+var dummyHash, _ = bcrypt.GenerateFromPassword([]byte("flowlight-unknown-account"), 12)
+
+// clientAddress is the TCP peer, or the X-Real-IP set by a reverse proxy the
+// operator listed in TRUSTED_PROXIES. Without that, every login through the
+// admin proxy would share one throttling bucket.
+func (s *Server) clientAddress(r *http.Request) string {
+	host, _, _ := net.SplitHostPort(r.RemoteAddr)
+	peer, e := netip.ParseAddr(host)
+	if e != nil {
+		return host
+	}
+	for _, p := range s.Config.TrustedProxies {
+		if p.Contains(peer.Unmap()) {
+			if real, e := netip.ParseAddr(strings.TrimSpace(r.Header.Get("X-Real-IP"))); e == nil {
+				return real.Unmap().String()
+			}
+			break
+		}
+	}
+	return host
+}
 func (s *Server) login(w http.ResponseWriter, r *http.Request) {
-	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
-	if !s.limiter.Allow(ip) {
+	if !s.limiter.Allow("addr:"+s.clientAddress(r), loginPerAddress, time.Minute) {
 		fail(w, 429, "too many login attempts")
 		return
 	}
@@ -94,11 +144,24 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in) {
 		return
 	}
+	name := strings.TrimSpace(in.Username)
+	account := "user:" + strings.ToLower(name)
+	if s.limiter.Count(account, loginWindow) >= loginFailures {
+		fail(w, 429, "too many failed attempts for this account; try again later")
+		return
+	}
 	var u User
-	if s.Store.DB.First(&u, "username = ?", strings.TrimSpace(in.Username)).Error != nil || !u.Enabled || bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(in.Password)) != nil {
+	found := s.Store.DB.First(&u, "username = ?", name).Error == nil
+	hashed := []byte(u.PasswordHash)
+	if !found {
+		hashed = dummyHash
+	}
+	if bcrypt.CompareHashAndPassword(hashed, []byte(in.Password)) != nil || !found || !u.Enabled {
+		s.limiter.Allow(account, loginFailures, loginWindow)
 		fail(w, 401, "invalid credentials")
 		return
 	}
+	s.limiter.Reset(account)
 	var out map[string]any
 	e := s.Store.Tx(func(tx *gorm.DB) error { var e error; out, e = s.issue(tx, u, ""); return e })
 	respond(w, out, e)
@@ -170,12 +233,20 @@ func write(w http.ResponseWriter, status int, v any) {
 func fail(w http.ResponseWriter, status int, msg string) {
 	write(w, status, map[string]any{"error": msg})
 }
+
+// respond maps handler outcomes to status codes. Validation and state
+// conflicts are 400, a missing row is 404, and anything else is an internal
+// failure: database and driver text must not reach clients.
 func respond(w http.ResponseWriter, out any, e error) {
 	if e != nil {
-		if errors.Is(e, gorm.ErrRecordNotFound) {
+		switch {
+		case errors.Is(e, gorm.ErrRecordNotFound):
 			fail(w, 404, "resource not found")
-		} else {
+		case isInvalid(e):
 			fail(w, 400, e.Error())
+		default:
+			log.Printf("request failed: %v", e)
+			fail(w, 500, "internal request failure")
 		}
 		return
 	}
@@ -191,22 +262,40 @@ type limiter struct {
 	Entries map[string]limitEntry
 }
 
-func (l *limiter) Allow(k string) bool {
+// Allow records one event for k in a fixed window and reports whether the
+// count is still within limit.
+func (l *limiter) Allow(k string, limit int, window time.Duration) bool {
 	l.Lock()
 	defer l.Unlock()
 	now := time.Now()
 	if len(l.Entries) > 10000 {
 		for key, e := range l.Entries {
-			if now.Sub(e.Start) > time.Minute {
+			if now.Sub(e.Start) > loginWindow {
 				delete(l.Entries, key)
 			}
 		}
 	}
 	e := l.Entries[k]
-	if now.Sub(e.Start) > time.Minute {
+	if now.Sub(e.Start) > window {
 		e = limitEntry{Start: now}
 	}
 	e.Count++
 	l.Entries[k] = e
-	return e.Count <= 15
+	return e.Count <= limit
+}
+
+// Count returns the events recorded for k in the current window.
+func (l *limiter) Count(k string, window time.Duration) int {
+	l.Lock()
+	defer l.Unlock()
+	e := l.Entries[k]
+	if time.Since(e.Start) > window {
+		return 0
+	}
+	return e.Count
+}
+func (l *limiter) Reset(k string) {
+	l.Lock()
+	defer l.Unlock()
+	delete(l.Entries, k)
 }

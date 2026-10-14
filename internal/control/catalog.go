@@ -1,12 +1,14 @@
 package control
 
 import (
+	"context"
 	"encoding/json"
-	"errors"
 	c "github.com/mbfczzz/FlowLight-Accelerator/packages/contracts"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
+	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"slices"
 	"strconv"
@@ -21,6 +23,26 @@ func (s *Server) save(kind string) http.HandlerFunc {
 		var raw json.RawMessage
 		if !decode(w, r, &raw) {
 			return
+		}
+		// bcrypt takes ~250 ms; hash before taking the transaction lock so a
+		// password change does not stall every other write.
+		var passwordHash []byte
+		if kind == "users" {
+			var p struct {
+				Password string `json:"password"`
+			}
+			_ = json.Unmarshal(raw, &p)
+			if p.Password != "" {
+				if len(p.Password) < 14 || len(p.Password) > 72 {
+					respond(w, nil, badRequest("password must contain 14-72 bytes"))
+					return
+				}
+				var e error
+				if passwordHash, e = bcrypt.GenerateFromPassword([]byte(p.Password), 12); e != nil {
+					respond(w, nil, e)
+					return
+				}
+			}
 		}
 		e := s.Store.Tx(func(tx *gorm.DB) error {
 			if r.Method == http.MethodPatch {
@@ -58,9 +80,11 @@ func (s *Server) save(kind string) http.HandlerFunc {
 				in.BootstrapUntil = old.BootstrapUntil
 				in.TokenHash = old.TokenHash
 				in.CertificateHash = old.CertificateHash
+				in.PendingCertificateHash = old.PendingCertificateHash
 				in.LastSeen = old.LastSeen
 				in.AgentVersion = old.AgentVersion
 				in.ActualVersions = old.ActualVersions
+				in.Reported = old.Reported
 				out = in
 				if e := tx.Save(&in).Error; e != nil {
 					return e
@@ -75,7 +99,7 @@ func (s *Server) save(kind string) http.HandlerFunc {
 				}
 				var n Node
 				if tx.First(&n, "id = ?", in.NodeID).Error != nil {
-					return errors.New("unknown node")
+					return badRequest("unknown node")
 				}
 				old, _ := load[Endpoint](tx, id)
 				in.ID = id
@@ -83,7 +107,7 @@ func (s *Server) save(kind string) http.HandlerFunc {
 				in.OwnerID = old.OwnerID
 				if in.Password != "" {
 					if !validKey(in.Cipher, in.Password) {
-						return errors.New("invalid SS2022 key or cipher")
+						return badRequest("invalid SS2022 key or cipher")
 					}
 					enc, e := s.Store.Seal(in.Password)
 					if e != nil {
@@ -96,7 +120,7 @@ func (s *Server) save(kind string) http.HandlerFunc {
 					in.CredentialID = cred.ID
 				}
 				if in.Kind != "realm" && in.Kind != "ss2022" {
-					return errors.New("unsupported endpoint kind")
+					return badRequest("unsupported endpoint kind")
 				}
 				out = in.Endpoint
 				if e := tx.Save(&in.Endpoint).Error; e != nil {
@@ -129,21 +153,26 @@ func (s *Server) save(kind string) http.HandlerFunc {
 				}
 				old, e := load[User](tx, id)
 				if e != nil && in.Password == "" {
-					return errors.New("password required")
+					return badRequest("password required")
+				}
+				if e != nil {
+					old.CreatedAt = time.Now().UTC()
 				}
 				if in.Password != "" {
-					if len(in.Password) < 14 || len(in.Password) > 72 {
-						return errors.New("password must contain 14-72 bytes")
-					}
-					h, e := bcrypt.GenerateFromPassword([]byte(in.Password), 12)
-					if e != nil {
+					old.PasswordHash = string(passwordHash)
+					if e := tx.Where("user_id = ?", id).Delete(&Token{}).Error; e != nil {
 						return e
 					}
-					old.PasswordHash = string(h)
-					tx.Where("user_id = ?", id).Delete(&Token{})
+				}
+				var clash int64
+				if e := tx.Model(&User{}).Where("username = ? AND id <> ?", in.Username, id).Count(&clash).Error; e != nil {
+					return e
+				}
+				if clash > 0 {
+					return badRequest("username already exists")
 				}
 				if id == actor(r).ID && (!in.Enabled || in.Role != "admin") {
-					return errors.New("cannot demote or disable your own administrator")
+					return badRequest("cannot demote or disable your own administrator")
 				}
 				old.ID = id
 				old.Username = in.Username
@@ -169,16 +198,16 @@ func (s *Server) save(kind string) http.HandlerFunc {
 					return errInvalid
 				}
 				if _, e := load[User](tx, in.UserID); e != nil {
-					return e
+					return badRequest("unknown user")
 				}
 				if _, e := load[Endpoint](tx, in.EndpointID); e != nil {
-					return e
+					return badRequest("unknown endpoint")
 				}
 				if in.Kind == "dedicated" {
 					var n int64
 					tx.Model(&Binding{}).Where("endpoint_id = ? AND enabled = ? AND id <> ?", in.EndpointID, true, id).Count(&n)
 					if n > 0 {
-						return errors.New("egress already assigned")
+						return badRequest("egress already assigned")
 					}
 				}
 				out = in
@@ -192,10 +221,14 @@ func (s *Server) save(kind string) http.HandlerFunc {
 				}
 				u, e := url.Parse(in.URL)
 				if e != nil || u.Scheme != "https" || len(in.SHA256) != 64 || in.Signature == "" || !nameOK(in.Version) {
-					return errors.New("HTTPS URL, SHA256 and signed release manifest required")
+					return badRequest("HTTPS URL, SHA256 and signed release manifest required")
 				}
 				in.ID = id
+				// Editing an old release must not make it look newer.
 				in.CreatedAt = time.Now().UTC()
+				if old, e := load[Release](tx, id); e == nil {
+					in.CreatedAt = old.CreatedAt
+				}
 				out = in
 				if e = tx.Save(&in).Error; e != nil {
 					return e
@@ -230,39 +263,87 @@ func (s *Server) device(w http.ResponseWriter, r *http.Request) {
 	e := s.Store.Tx(func(tx *gorm.DB) error {
 		old, e := load[Device](tx, in.ID)
 		if e == nil && old.UserID != out.UserID {
-			return errors.New("device belongs to a different account")
+			return badRequest("device belongs to a different account")
 		}
 		return tx.Save(&out).Error
 	})
 	respond(w, out, e)
 }
+
+// clientLines lists the lines a player may use for a game and region. Rows
+// are loaded in a fixed number of batched queries, independent of how many
+// lines, hops and nodes there are.
 func (s *Server) clientLines(w http.ResponseWriter, r *http.Request) {
+	db, u := s.Store.DB, actor(r)
+	region, game := r.URL.Query().Get("region_id"), r.URL.Query().Get("game_id")
 	var rows []Line
-	s.Store.DB.Where("draining = ?", false).Find(&rows)
+	if e := db.Where("draining = ?", false).Find(&rows).Error; e != nil {
+		respond(w, nil, e)
+		return
+	}
+	versionIDs := []string{}
+	for _, l := range rows {
+		if permitted(l, u) && l.PublishedVersion != "" {
+			versionIDs = append(versionIDs, l.PublishedVersion)
+		}
+	}
+	var versionRows []LineVersion
+	var counts []struct {
+		LineID string
+		Total  int64
+	}
+	if e := db.Where("id IN ? AND status = ?", versionIDs, "ready").Find(&versionRows).Error; e != nil {
+		respond(w, nil, e)
+		return
+	}
+	if e := db.Model(&Session{}).Select("line_id, count(*) as total").Where("state <> ? AND purpose = ?", "CLOSED", "game").Group("line_id").Scan(&counts).Error; e != nil {
+		respond(w, nil, e)
+		return
+	}
+	versions, active := map[string]LineVersion{}, map[string]int64{}
+	exitIDs, nodeIDs := []string{}, []string{}
+	for _, v := range versionRows {
+		versions[v.ID] = v
+		if len(v.Hops) > 0 {
+			exitIDs = append(exitIDs, v.Hops[len(v.Hops)-1].EndpointID)
+		}
+		for _, h := range v.Hops {
+			if h.Capabilities.Managed {
+				nodeIDs = append(nodeIDs, h.NodeID)
+			}
+		}
+	}
+	for _, c := range counts {
+		active[c.LineID] = c.Total
+	}
+	allowed, e := egressAllowedBatch(db, exitIDs, u.ID)
+	if e != nil {
+		respond(w, nil, e)
+		return
+	}
+	var nodeRows []Node
+	if e := db.Where("id IN ?", nodeIDs).Find(&nodeRows).Error; e != nil {
+		respond(w, nil, e)
+		return
+	}
+	online := map[string]bool{}
+	for _, n := range nodeRows {
+		online[n.ID] = n.Enabled && timeSince(n.LastSeen) < s.Config.NodeTimeout
+	}
 	out := []map[string]any{}
 	for _, l := range rows {
-		if !permitted(l, actor(r)) {
+		v, ok := versions[l.PublishedVersion]
+		if !permitted(l, u) || !ok || len(v.Hops) == 0 || !allowed[v.Hops[len(v.Hops)-1].EndpointID] {
 			continue
 		}
-		v, e := load[LineVersion](s.Store.DB, l.PublishedVersion)
-		if e != nil || v.Status != "ready" {
-			continue
-		}
-		if len(v.Hops) == 0 || !egressAllowed(s.Store.DB, v.Hops[len(v.Hops)-1].EndpointID, actor(r).ID) {
-			continue
-		}
-		region := r.URL.Query().Get("region_id")
-		game := r.URL.Query().Get("game_id")
 		if region != "" && !slices.Contains(v.Regions, region) || game != "" && len(v.GameIDs) > 0 && !slices.Contains(v.GameIDs, game) {
 			continue
 		}
-		var count int64
-		s.Store.DB.Model(&Session{}).Where("line_id = ? AND state <> ?", l.ID, "CLOSED").Count(&count)
+		count := active[l.ID]
 		healthy := count < int64(l.Capacity)
 		for _, h := range v.Hops {
 			if h.Capabilities.Managed {
-				n, e := load[Node](s.Store.DB, h.NodeID)
-				healthy = healthy && e == nil && n.Enabled && timeSince(n.LastSeen) < s.Config.NodeTimeout
+				healthy = healthy && online[h.NodeID]
 			}
 		}
 		out = append(out, map[string]any{"id": l.ID, "name": l.Name, "version": v.ID, "regions": v.Regions, "mode": v.Mode, "available": healthy, "capacity": l.Capacity, "active_sessions": count, "probe": v.Probe, "priority": l.Priority})
@@ -301,10 +382,23 @@ func (s *Server) clientBinding(w http.ResponseWriter, r *http.Request) {
 	err := s.Store.Tx(func(tx *gorm.DB) error {
 		if in.EndpointID == "" {
 			if !s.Config.AllowImported {
-				return errors.New("operator has not enabled external egress registration")
+				return badRequest("operator has not enabled external egress registration")
 			}
 			if !validHost(in.Host) || in.Port < 1 || in.Port > 65535 || !validKey(in.Cipher, in.Password) || !nameOK(in.Name) {
 				return errInvalid
+			}
+			if !publicHost(in.Host) {
+				return badRequest("external egress must be a public address or hostname")
+			}
+			if e := resolvesPublic(in.Host); e != nil {
+				return e
+			}
+			var owned int64
+			if e := tx.Model(&Binding{}).Where("user_id = ? AND kind = ?", u.ID, "byo").Count(&owned).Error; e != nil {
+				return e
+			}
+			if owned >= maxOwnedEgress {
+				return badRequest("external egress limit reached; remove one first")
 			}
 			node := Node{ID: ID(), Name: in.Name, Address: in.Host, Enabled: true, Capabilities: c.Capabilities{TCP: true, UDP: true, IPv4: true}}
 			if e := tx.Create(&node).Error; e != nil {
@@ -340,20 +434,70 @@ func (s *Server) clientBinding(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			v, e := load[LineVersion](tx, l.PublishedVersion)
-			if e == nil && v.Status == "ready" && len(v.Hops) > 0 && v.Hops[len(v.Hops)-1].EndpointID == in.EndpointID {
+			if e == nil && v.Status == "ready" && len(v.Hops) > 0 && v.Hops[len(v.Hops)-1].EndpointID == in.EndpointID && egressAllowed(tx, in.EndpointID, u.ID) {
 				now := time.Now().UTC()
 				out = Binding{ID: ID(), UserID: u.ID, EndpointID: in.EndpointID, Kind: "shared", Enabled: true, VerifiedAt: &now, ExpectedExit: v.Probe.ExitIP}
 				return tx.Create(&out).Error
 			}
 		}
-		return errors.New("egress not available to this account")
+		return badRequest("egress not available to this account")
 	})
 	respond(w, out, err)
 }
+
+// latestRelease returns the highest published stable version, so a hotfix
+// for an older line published later never downgrades clients.
 func (s *Server) latestRelease(w http.ResponseWriter, r *http.Request) {
-	var rel Release
-	e := s.Store.DB.Where("published = ? AND channel = ?", true, "stable").Order("created_at DESC").First(&rel).Error
-	respond(w, rel, e)
+	var rows []Release
+	if e := s.Store.DB.Where("published = ? AND channel = ?", true, "stable").Find(&rows).Error; e != nil {
+		respond(w, nil, e)
+		return
+	}
+	if len(rows) == 0 {
+		respond(w, nil, gorm.ErrRecordNotFound)
+		return
+	}
+	best := rows[0]
+	for _, rel := range rows[1:] {
+		if c := compareVersions(rel.Version, best.Version); c > 0 || c == 0 && rel.CreatedAt.After(best.CreatedAt) {
+			best = rel
+		}
+	}
+	write(w, 200, best)
+}
+
+// compareVersions orders dotted numeric versions such as 1.10.2 > 1.9.7.
+// A leading "v" and any pre-release suffix after "-" or "+" are ignored.
+func compareVersions(a, b string) int {
+	parts := func(v string) []int {
+		v = strings.TrimPrefix(strings.TrimSpace(v), "v")
+		if i := strings.IndexAny(v, "-+"); i >= 0 {
+			v = v[:i]
+		}
+		out := []int{}
+		for _, field := range strings.Split(v, ".") {
+			n, _ := strconv.Atoi(field)
+			out = append(out, n)
+		}
+		return out
+	}
+	x, y := parts(a), parts(b)
+	for i := 0; i < max(len(x), len(y)); i++ {
+		var p, q int
+		if i < len(x) {
+			p = x[i]
+		}
+		if i < len(y) {
+			q = y[i]
+		}
+		if p != q {
+			if p < q {
+				return -1
+			}
+			return 1
+		}
+	}
+	return 0
 }
 func (s *Server) publishGame(w http.ResponseWriter, r *http.Request) {
 	var out Game
@@ -364,7 +508,7 @@ func (s *Server) publishGame(w http.ResponseWriter, r *http.Request) {
 			return e
 		}
 		if len(out.Regions) == 0 {
-			return errors.New("configure at least one region before publishing")
+			return badRequest("configure at least one region before publishing")
 		}
 		if e = validateProfile(out.Draft); e != nil {
 			return e
@@ -374,7 +518,7 @@ func (s *Server) publishGame(w http.ResponseWriter, r *http.Request) {
 		if raw := r.PathValue("version"); raw != "" {
 			v, e := strconv.Atoi(raw)
 			if e != nil || v < 1 {
-				return errors.New("invalid profile version")
+				return badRequest("invalid profile version")
 			}
 			var previous GameVersion
 			if tx.First(&previous, "game_id = ? AND version = ?", out.ID, v).Error == nil {
@@ -385,7 +529,7 @@ func (s *Server) publishGame(w http.ResponseWriter, r *http.Request) {
 				return audit(tx, actor(r).ID, "game.profile.activate", out.ID, raw)
 			}
 			if v != maxVersion+1 {
-				return errors.New("profile version does not exist")
+				return badRequest("profile version does not exist")
 			}
 		}
 		out.PublishedVersion = maxVersion + 1
@@ -423,16 +567,16 @@ func (s *Server) publishLine(w http.ResponseWriter, r *http.Request) {
 		if l.Mode == "imported" {
 			probeNode, err := load[Node](tx, s.Config.ProbeNodeID)
 			if err != nil || !probeNode.Enabled || timeSince(probeNode.LastSeen) > s.Config.NodeTimeout {
-				return errors.New("configure an online PROBE_NODE_ID for imported line validation")
+				return badRequest("configure an online PROBE_NODE_ID for imported line validation")
 			}
 		}
 		if s.Config.ProbeURL == "" || s.Config.ProbeUDP == "" {
-			return errors.New("configure controlled TCP and UDP probe endpoints before publication")
+			return badRequest("configure controlled TCP and UDP probe endpoints before publication")
 		}
 		var pending int64
 		tx.Model(&LineVersion{}).Where("line_id = ? AND status = ?", l.ID, "validating").Count(&pending)
 		if pending > 0 {
-			return errors.New("publication already in progress")
+			return badRequest("publication already in progress")
 		}
 		var n int64
 		tx.Model(&LineVersion{}).Where("line_id = ?", l.ID).Count(&n)
@@ -461,7 +605,15 @@ func (s *Server) rollbackLine(w http.ResponseWriter, r *http.Request) {
 	e := s.Store.Tx(func(tx *gorm.DB) error {
 		v, e := load[LineVersion](tx, in.Version)
 		if e != nil || v.LineID != r.PathValue("id") || v.Status != "ready" {
-			return errors.New("choose a verified version of this line")
+			return badRequest("choose a verified version of this line")
+		}
+		// A validation finishing later would replace the version chosen here.
+		var pending int64
+		if e = tx.Model(&LineVersion{}).Where("line_id = ? AND status = ?", v.LineID, "validating").Count(&pending).Error; e != nil {
+			return e
+		}
+		if pending > 0 {
+			return badRequest("a publication is being validated; stop its validation session before rolling back")
 		}
 		if e = tx.Model(&Line{}).Where("id = ?", v.LineID).Update("published_version", v.ID).Error; e != nil {
 			return e
@@ -490,9 +642,16 @@ func (s *Server) drainLine(w http.ResponseWriter, r *http.Request) {
 }
 func (s *Server) terminateLine(w http.ResponseWriter, r *http.Request) {
 	e := s.Store.Tx(func(tx *gorm.DB) error {
-		tx.Model(&Line{}).Where("id = ?", r.PathValue("id")).Update("draining", true)
+		if _, e := load[Line](tx, r.PathValue("id")); e != nil {
+			return e
+		}
+		if e := tx.Model(&Line{}).Where("id = ?", r.PathValue("id")).Update("draining", true).Error; e != nil {
+			return e
+		}
 		var rows []Session
-		tx.Where("line_id = ? AND state <> ?", r.PathValue("id"), "CLOSED").Find(&rows)
+		if e := tx.Where("line_id = ? AND state <> ?", r.PathValue("id"), "CLOSED").Find(&rows).Error; e != nil {
+			return e
+		}
 		for _, x := range rows {
 			if e := s.stopping(tx, &x, "line terminated by operator"); e != nil {
 				return e
@@ -549,4 +708,39 @@ func mergeObjects(base, delta map[string]any) {
 		}
 		base[k] = v
 	}
+}
+
+// A player can register at most this many external exits.
+const maxOwnedEgress = 5
+
+// resolvesPublic rejects a hostname that points into internal address space,
+// so a player cannot aim platform probes at the operator's own network.
+func resolvesPublic(host string) error {
+	if _, e := netip.ParseAddr(strings.Trim(host, "[]")); e != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		addrs, e := net.DefaultResolver.LookupNetIP(ctx, "ip", host)
+		if e != nil {
+			return badRequest("external egress hostname does not resolve")
+		}
+		for _, a := range addrs {
+			if !publicHost(a.Unmap().String()) {
+				return badRequest("external egress hostname resolves to an internal address")
+			}
+		}
+	}
+	return nil
+}
+
+// publicHost rejects loopback, private, link-local and other non-routable
+// literals so a player cannot point platform probes at internal networks.
+// Hostnames are accepted; the probe agent resolves them at validation time.
+func publicHost(host string) bool {
+	ip, e := netip.ParseAddr(strings.Trim(host, "[]"))
+	if e != nil {
+		lower := strings.ToLower(host)
+		return lower != "localhost" && !strings.HasSuffix(lower, ".localhost") && !strings.HasSuffix(lower, ".local") && !strings.HasSuffix(lower, ".internal")
+	}
+	ip = ip.Unmap()
+	return ip.IsGlobalUnicast() && !ip.IsPrivate() && !ip.IsLoopback() && !ip.IsLinkLocalUnicast() && !netip.MustParsePrefix("100.64.0.0/10").Contains(ip)
 }

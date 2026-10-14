@@ -41,6 +41,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -85,6 +95,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -141,6 +161,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -179,6 +209,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -213,6 +253,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -257,6 +307,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -313,6 +373,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -351,6 +421,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -392,6 +472,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -433,6 +523,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -481,6 +581,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -532,6 +642,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -586,6 +706,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -654,6 +784,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -702,6 +842,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -774,6 +924,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -825,6 +985,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
@@ -861,6 +1031,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -932,6 +1112,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -973,8 +1163,41 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 200
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          }
+        ]
       },
       "post": {
         "summary": "Create games",
@@ -1009,6 +1232,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -1061,6 +1294,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -1126,8 +1369,41 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 200
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          }
+        ]
       },
       "post": {
         "summary": "Create nodes",
@@ -1162,6 +1438,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -1214,6 +1500,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -1279,8 +1575,41 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 200
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          }
+        ]
       },
       "post": {
         "summary": "Create endpoints",
@@ -1315,6 +1644,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -1376,6 +1715,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -1450,8 +1799,41 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 200
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          }
+        ]
       },
       "post": {
         "summary": "Create lines",
@@ -1486,6 +1868,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -1538,6 +1930,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -1603,8 +2005,41 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 200
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          }
+        ]
       },
       "post": {
         "summary": "Create bindings",
@@ -1639,6 +2074,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -1691,6 +2136,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -1756,8 +2211,41 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 200
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          }
+        ]
       },
       "post": {
         "summary": "Create users",
@@ -1792,6 +2280,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -1853,6 +2351,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -1927,8 +2435,41 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 200
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          }
+        ]
       }
     },
     "/api/admin/v1/sessions": {
@@ -1968,8 +2509,41 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 200
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          }
+        ]
       }
     },
     "/api/admin/v1/jobs": {
@@ -2009,8 +2583,41 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 200
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          }
+        ]
       }
     },
     "/api/admin/v1/audits": {
@@ -2050,8 +2657,41 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 200
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          }
+        ]
       }
     },
     "/api/admin/v1/releases": {
@@ -2091,8 +2731,41 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
-        }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 200
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          }
+        ]
       },
       "post": {
         "summary": "Create releases",
@@ -2127,6 +2800,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -2179,6 +2862,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -2241,6 +2934,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -2279,6 +2982,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -2327,6 +3040,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -2383,6 +3106,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -2431,6 +3164,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -2479,6 +3222,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -2542,6 +3295,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -2590,6 +3353,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -2656,6 +3429,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -2704,6 +3487,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -2752,6 +3545,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -2800,6 +3603,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -2844,6 +3657,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -2908,6 +3731,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -2928,6 +3761,78 @@
                     "items": {
                       "type": "string"
                     }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/node/v1/certificate": {
+      "post": {
+        "summary": "Rotate the node key and certificate before expiry; the current certificate stays valid until the renewed one is first presented",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "certificate": {
+                      "type": "string"
+                    },
+                    "ca_certificate": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or state conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "csr"
+                ],
+                "properties": {
+                  "csr": {
+                    "type": "string",
+                    "description": "PEM P-256 certificate request"
                   }
                 }
               }
@@ -2970,6 +3875,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -3008,6 +3923,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -3084,6 +4009,16 @@
           },
           "403": {
             "description": "Permission denied"
+          },
+          "500": {
+            "description": "Internal failure; details are only logged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "requestBody": {

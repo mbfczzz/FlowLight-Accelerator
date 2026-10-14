@@ -2,11 +2,15 @@ package control
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"fmt"
-	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
+	"log"
 	"net/http"
+	"net/netip"
+	"runtime/debug"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -23,9 +27,14 @@ type Config struct {
 	ProbeURL       string
 	ProbeUDP       string
 	CAPath         string
+	// TrustedProxies are reverse proxies whose X-Real-IP header names the
+	// real client, used for login throttling.
+	TrustedProxies []netip.Prefix
+	// MetricsToken is a long-lived read-only credential for scraping
+	// /metrics. Access tokens are too short lived for a scrape config.
+	MetricsToken string
 }
 type Server struct {
-	cache   *redis.Client
 	Store   *Store
 	Config  Config
 	limiter limiter
@@ -61,7 +70,7 @@ func (s *Server) Handler() http.Handler {
 		}
 		write(w, 200, map[string]string{"status": "ok", "service": "flowlight-control", "version": "0.1.0"})
 	})
-	m.HandleFunc("GET /metrics", s.auth(s.metrics, "viewer", "operator", "publisher"))
+	m.HandleFunc("GET /metrics", s.metricsAuth(s.metrics))
 	for _, prefix := range []string{"/api/client/v1", "/api/admin/v1"} {
 		m.HandleFunc("POST "+prefix+"/auth/login", s.login)
 		m.HandleFunc("POST "+prefix+"/auth/refresh", s.refresh)
@@ -104,12 +113,14 @@ func (s *Server) Handler() http.Handler {
 	m.HandleFunc("POST /api/admin/v1/sessions/{id}/stop", s.auth(s.stopSession, "operator"))
 	m.HandleFunc("POST /api/node/v1/register", s.registerNode)
 	m.HandleFunc("POST /api/node/v1/heartbeat", s.nodeAuth(s.nodeHeartbeat))
+	m.HandleFunc("POST /api/node/v1/certificate", s.nodeAuth(s.renewCertificate))
 	m.HandleFunc("GET /api/node/v1/jobs", s.nodeAuth(s.claimJobs))
 	m.HandleFunc("POST /api/node/v1/jobs/{id}/result", s.nodeAuth(s.jobResult))
 	m.HandleFunc("POST /api/node/v1/session-events", s.nodeAuth(s.nodeEvents))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
-			if recover() != nil {
+			if failure := recover(); failure != nil {
+				log.Printf("panic serving %s %s: %v\n%s", r.Method, r.URL.Path, failure, debug.Stack())
 				fail(w, 500, "internal request failure")
 			}
 		}()
@@ -135,14 +146,55 @@ func (s *Server) Handler() http.Handler {
 func (s *Server) RunReaper(ctx context.Context) {
 	t := time.NewTicker(5 * time.Second)
 	defer t.Stop()
+	lastPurge := time.Time{}
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			_ = s.Reap()
-			s.indexLeases(ctx)
+			if e := s.Reap(); e != nil {
+				log.Printf("session reaper: %v", e)
+			}
+			if time.Since(lastPurge) > time.Hour {
+				if e := s.Purge(); e != nil {
+					log.Printf("retention purge: %v", e)
+				}
+				lastPurge = time.Now()
+			}
 		}
+	}
+}
+
+// Retention for rows nothing reads once they are spent.
+const (
+	idempotencyRetention = 24 * time.Hour
+	jobRetention         = 30 * 24 * time.Hour
+)
+
+// Purge deletes expired tokens, old idempotency keys and finished jobs.
+// Sessions and audits are kept: they are the operational record.
+func (s *Server) Purge() error {
+	now := time.Now().UTC()
+	db := s.Store.DB
+	if e := db.Where("expires_at < ?", now).Delete(&Token{}).Error; e != nil {
+		return e
+	}
+	if e := db.Where("created_at < ?", now.Add(-idempotencyRetention)).Delete(&Idempotency{}).Error; e != nil {
+		return e
+	}
+	return db.Where("created_at < ? AND status IN ?", now.Add(-jobRetention), []string{"succeeded", "failed", "cancelled"}).Delete(&Job{}).Error
+}
+
+// metricsAuth accepts the operator's long-lived scrape token, or a bearer
+// access token from an administrator. Access tokens expire in 15 minutes, so
+// a scrape configuration cannot rely on one.
+func (s *Server) metricsAuth(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if s.Config.MetricsToken != "" && subtle.ConstantTimeCompare([]byte(bearer(r)), []byte(s.Config.MetricsToken)) == 1 {
+			next(w, r)
+			return
+		}
+		s.auth(next, "viewer", "operator", "publisher")(w, r)
 	}
 }
 func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
@@ -152,19 +204,30 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 	out["games"] = n
 	s.Store.DB.Model(&Session{}).Where("state <> ?", "CLOSED").Count(&n)
 	out["active_sessions"] = n
-	s.Store.DB.Model(&Node{}).Where("enabled = ? AND last_seen > ?", true, time.Now().Add(-s.Config.NodeTimeout)).Count(&n)
+	// Stored timestamps are UTC and SQLite compares them as text, so the
+	// bound must be UTC as well.
+	s.Store.DB.Model(&Node{}).Where("enabled = ? AND last_seen > ?", true, time.Now().UTC().Add(-s.Config.NodeTimeout)).Count(&n)
 	out["online_nodes"] = n
 	s.Store.DB.Model(&LineVersion{}).Where("status = ?", "ready").Count(&n)
 	out["verified_versions"] = n
 	write(w, 200, out)
 }
-func ptr(m map[string]int64, k string) *int64 { return new(int64) }
 func (s *Server) metrics(w http.ResponseWriter, r *http.Request) {
+	var rows []struct {
+		State string
+		Total int64
+	}
+	if e := s.Store.DB.Model(&Session{}).Select("state, count(*) as total").Group("state").Scan(&rows).Error; e != nil {
+		fail(w, 503, "session state unavailable")
+		return
+	}
+	counts := map[string]int64{}
+	for _, row := range rows {
+		counts[row.State] = row.Total
+	}
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
 	for _, state := range []string{"PREPARING", "CONNECTING", "ACTIVE", "DEGRADED", "RECONNECTING", "STOPPING"} {
-		var n int64
-		s.Store.DB.Model(&Session{}).Where("state = ?", state).Count(&n)
-		fmt.Fprintf(w, "flowlight_sessions{state=%q} %d\n", state, n)
+		fmt.Fprintf(w, "flowlight_sessions{state=%q} %d\n", state, counts[state])
 	}
 }
 func (s *Server) getJob(w http.ResponseWriter, r *http.Request) {
@@ -182,32 +245,51 @@ func listRows[T any](w http.ResponseWriter, db *gorm.DB) {
 	e := db.Limit(1000).Find(&v).Error
 	respond(w, v, e)
 }
+
+// listPage serves one page of an admin list: ?limit= (default 200, at most
+// 1000) and ?offset=. Rows are ordered by the given column and then by id,
+// so consecutive pages neither repeat nor skip rows.
+func listPage[T any](w http.ResponseWriter, r *http.Request, db *gorm.DB, order string) {
+	limit, offset := 200, 0
+	if n, e := strconv.Atoi(r.URL.Query().Get("limit")); e == nil && n > 0 {
+		limit = min(n, 1000)
+	}
+	if n, e := strconv.Atoi(r.URL.Query().Get("offset")); e == nil && n > 0 {
+		offset = n
+	}
+	if order != "" {
+		db = db.Order(order)
+	}
+	v := []T{}
+	e := db.Order("id").Limit(limit).Offset(offset).Find(&v).Error
+	respond(w, v, e)
+}
 func (s *Server) list(kind string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		db := s.Store.DB
 		switch kind {
 		case "games":
-			listRows[Game](w, db)
+			listPage[Game](w, r, db, "")
 		case "nodes":
-			listRows[Node](w, db)
+			listPage[Node](w, r, db, "")
 		case "endpoints":
-			listRows[Endpoint](w, db)
+			listPage[Endpoint](w, r, db, "")
 		case "lines":
-			listRows[Line](w, db)
+			listPage[Line](w, r, db, "")
 		case "bindings":
-			listRows[Binding](w, db)
+			listPage[Binding](w, r, db, "")
 		case "users":
-			listRows[User](w, db)
+			listPage[User](w, r, db, "")
 		case "devices":
-			listRows[Device](w, db)
+			listPage[Device](w, r, db, "")
 		case "sessions":
-			listRows[Session](w, db.Order("created_at DESC"))
+			listPage[Session](w, r, db, "created_at DESC")
 		case "jobs":
-			listRows[Job](w, db.Order("created_at DESC"))
+			listPage[Job](w, r, db, "created_at DESC")
 		case "audits":
-			listRows[Audit](w, db.Order("created_at DESC"))
+			listPage[Audit](w, r, db, "created_at DESC")
 		case "releases":
-			listRows[Release](w, db.Order("created_at DESC"))
+			listPage[Release](w, r, db, "created_at DESC")
 		}
 	}
 }
@@ -219,6 +301,16 @@ func cleanID(r *http.Request) string {
 	return id
 }
 
-var errInvalid = errors.New("invalid resource configuration")
+var errInvalid = badRequest("invalid resource configuration")
+
+// invalid marks an error the client caused and can correct. respond reports
+// these as 400 with their message; any other error is internal.
+type invalid struct{ error }
+
+func badRequest(message string) error { return invalid{errors.New(message)} }
+func isInvalid(e error) bool {
+	var i invalid
+	return errors.As(e, &i)
+}
 
 func nameOK(s string) bool { return len(strings.TrimSpace(s)) > 0 && len(s) < 150 }

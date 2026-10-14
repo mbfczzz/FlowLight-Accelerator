@@ -12,6 +12,7 @@ server {
   proxy_ssl_verify on;
   proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
   proxy_set_header Host $host;
+  proxy_set_header X-Real-IP $remote_addr;
   proxy_read_timeout 35s;
  }
  location /assets/ { add_header Cache-Control "public, max-age=31536000, immutable"; }

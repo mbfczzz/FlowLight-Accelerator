@@ -14,8 +14,20 @@ $hash = (Get-FileHash -LiteralPath $MihomoPath -Algorithm SHA256).Hash
 if ($hash -ne $MihomoSha256) { throw 'Kernel checksum mismatch' }
 $installRoot = Join-Path $env:ProgramFiles 'FlowLight Accelerator'
 $dataRoot = Join-Path $env:ProgramData 'FlowLightAccelerator'
+# Standard users may create folders under ProgramData. A folder they created
+# first stays theirs after the ACL reset and would let them rewrite
+# service.json for the SYSTEM service, so only trust one owned by SYSTEM or
+# Administrators. Never delete it here: it could be a junction elsewhere.
+$adminsSid = [Security.Principal.SecurityIdentifier]::new([Security.Principal.WellKnownSidType]::BuiltinAdministratorsSid,$null)
+$systemSid = [Security.Principal.SecurityIdentifier]::new([Security.Principal.WellKnownSidType]::LocalSystemSid,$null)
+if (Test-Path -LiteralPath $dataRoot) {
+ $item = Get-Item -LiteralPath $dataRoot -Force
+ $owner = (Get-Acl -LiteralPath $dataRoot).GetOwner([Security.Principal.SecurityIdentifier])
+ if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -or ($owner -ne $adminsSid -and $owner -ne $systemSid)) { throw "Untrusted existing $dataRoot (owner $owner). Inspect and remove it as an administrator, then retry." }
+}
 New-Item -ItemType Directory -Path $installRoot,$dataRoot,(Join-Path $installRoot 'core') -Force | Out-Null
 $acl = [Security.AccessControl.DirectorySecurity]::new()
+$acl.SetOwner($adminsSid)
 $acl.SetAccessRuleProtection($true,$false)
 foreach ($sidType in @([Security.Principal.WellKnownSidType]::LocalSystemSid,[Security.Principal.WellKnownSidType]::BuiltinAdministratorsSid)) {
  $sid = [Security.Principal.SecurityIdentifier]::new($sidType,$null)

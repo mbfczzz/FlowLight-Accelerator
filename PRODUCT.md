@@ -13,7 +13,7 @@ Windows PC players of VALORANT and League of Legends, and operators configuring 
 FlowLight Accelerator / 流光加速器 lets a player select a game, region and authorized line, then start and stop a real acceleration session. Operators publish independently versioned game profiles and lines.
 
 ## Capabilities and Constraints
-Windows x64 first, one live session per device. MySQL authoritative state, Redis optional cache. SS2022 and Realm data plane; Mihomo TUN client adapter. Real nodes and regions are not supplied yet; unverified lines must never display as tested or ready. No claimed game compatibility until real testing.
+Windows x64 first, one live session per device. MySQL authoritative state; no Redis in the first release. SS2022 and Realm data plane; Mihomo TUN client adapter. Real nodes and regions are not supplied yet; unverified lines must never display as tested or ready. No claimed game compatibility until real testing.
 
 ## Brand Commitments
 FlowLight Accelerator. Client interaction follows the supplied UU-like game library and one-click acceleration brief; no imitation of proprietary implementation or artwork.

@@ -9,7 +9,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"github.com/glebarez/sqlite"
 	c "github.com/mbfczzz/FlowLight-Accelerator/packages/contracts"
 	"golang.org/x/crypto/bcrypt"
@@ -178,7 +177,7 @@ func audit(tx *gorm.DB, actor, action, id, detail string) error {
 }
 func required(ok bool, msg string) error {
 	if !ok {
-		return fmt.Errorf("%s", msg)
+		return badRequest(msg)
 	}
 	return nil
 }

@@ -29,47 +29,72 @@ func Probe(ctx context.Context, socks, urlString, udpTarget string) (c.ProbeResu
 		return out, e
 	}
 	cd := dialer.(proxy.ContextDialer)
-	transport := &http.Transport{DialContext: cd.DialContext, DisableKeepAlives: true}
+	// One warmed connection: the first request pays for the SOCKS, SS and
+	// TLS handshakes and is not timed, so samples measure the path RTT.
+	transport := &http.Transport{DialContext: cd.DialContext, MaxIdleConnsPerHost: 1}
 	defer transport.CloseIdleConnections()
 	client := &http.Client{Transport: transport, Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	rtts := []float64{}
-	for i := 0; i < 3; i++ {
+	for i := 0; i <= tcpSamples; i++ {
 		start := time.Now()
-		req, _ := http.NewRequestWithContext(ctx, "GET", urlString, nil)
-		res, e := client.Do(req)
+		ip, e := probeOnce(ctx, client, urlString)
 		if e != nil {
-			return out, errors.New("TCP tunnel probe failed")
+			return out, fmt.Errorf("TCP tunnel probe failed: %w", e)
 		}
-		var data struct {
-			IP string `json:"ip"`
+		out.ExitIP = ip
+		if i > 0 {
+			rtts = append(rtts, float64(time.Since(start).Microseconds())/1000)
 		}
-		e = json.NewDecoder(io.LimitReader(res.Body, 4096)).Decode(&data)
-		res.Body.Close()
-		if e != nil || res.StatusCode != 200 || net.ParseIP(data.IP) == nil {
-			return out, errors.New("probe endpoint must return JSON with actual peer ip")
-		}
-		out.ExitIP = data.IP
-		rtts = append(rtts, float64(time.Since(start).Microseconds())/1000)
 	}
 	sort.Float64s(rtts)
 	out.TCP = true
-	out.RTTMS = rtts[1]
-	out.JitterMS = rtts[2] - rtts[0]
-	out.Samples = 3
+	out.RTTMS = rtts[len(rtts)/2]
+	out.JitterMS = rtts[len(rtts)-1] - rtts[0]
+	out.Samples = len(rtts)
 	if udpTarget != "" {
 		ok := 0
-		for i := 0; i < 3; i++ {
-			if UDPProbe(ctx, socks, udpTarget) == nil {
+		var last error
+		for i := 0; i < udpSamples; i++ {
+			if e := UDPProbe(ctx, socks, udpTarget); e == nil {
 				ok++
+			} else {
+				last = e
 			}
 		}
-		out.Loss = float64(3-ok) / 3
-		out.UDP = ok == 3
+		out.Loss = float64(udpSamples-ok) / udpSamples
+		out.UDP = ok >= udpRequired
 		if !out.UDP {
-			return out, errors.New("UDP tunnel probe failed")
+			return out, fmt.Errorf("UDP tunnel probe failed: %d of %d replies: %v", ok, udpSamples, last)
 		}
 	}
 	return out, nil
+}
+
+// A probe takes tcpSamples timed HTTP requests after one warm-up request, and
+// udpSamples UDP echoes of which udpRequired must return.
+const (
+	tcpSamples  = 3
+	udpSamples  = 5
+	udpRequired = 4
+)
+
+func probeOnce(ctx context.Context, client *http.Client, urlString string) (string, error) {
+	req, _ := http.NewRequestWithContext(ctx, "GET", urlString, nil)
+	res, e := client.Do(req)
+	if e != nil {
+		return "", e
+	}
+	defer res.Body.Close()
+	var data struct {
+		IP string `json:"ip"`
+	}
+	e = json.NewDecoder(io.LimitReader(res.Body, 4096)).Decode(&data)
+	// Drain so the connection is reused for the next sample.
+	_, _ = io.Copy(io.Discard, io.LimitReader(res.Body, 4096))
+	if e != nil || res.StatusCode != 200 || net.ParseIP(data.IP) == nil {
+		return "", errors.New("probe endpoint must return JSON with actual peer ip")
+	}
+	return data.IP, nil
 }
 func UDPProbe(ctx context.Context, socks, target string) error {
 	d := net.Dialer{Timeout: 3 * time.Second}
