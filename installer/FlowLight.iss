@@ -47,6 +47,10 @@ MinVersion=10.0.17763
 OutputDir={#SourcePath}\..\artifacts\installer
 OutputBaseFilename=FlowLight-Accelerator-Setup-{#AppVersion}
 SetupIconFile={#SourcePath}\flowlight.ico
+; Inno shows these in the wizard; it requires 24-bit BMPs at exactly
+; 164x314 (side banner) and 55x55 (top-right corner).
+WizardImageFile={#SourcePath}\wizard-image.bmp
+WizardSmallImageFile={#SourcePath}\wizard-small.bmp
 UninstallDisplayIcon={app}\{#ClientExe}
 UninstallDisplayName={#AppNameZh} {#AppName}
 Compression=lzma2/max
