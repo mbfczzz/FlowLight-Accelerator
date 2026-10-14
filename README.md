@@ -54,7 +54,7 @@ MySQL 保存权威状态，开发可用 SQLite。首版不依赖 Redis：原先�
 
 镜像默认私有：在仓库 Packages 设置里改为 public，或在服务器上 `docker login ghcr.io`（PAT 需 read:packages）。
 
-安装程序固定安装到 `C:\Program Files\FlowLight Accelerator`（客户端只信任这个路径下的服务），安装时要求输入控制服务地址（必须 https://）。在仓库变量里设置 `CONTROL_URL` 可把默认地址预填进安装程序；静默安装用 `Setup.exe /VERYSILENT /CONTROLURL=https://...`。升级时直接运行新版安装程序，服务会先停止再替换；卸载会停止并删除服务及 ProgramData 下的配置。安装程序未签名，SmartScreen 会提示“未知发布者”，正式分发前需要代码签名。
+安装程序固定安装到 `C:\Program Files\FlowLight Accelerator`（客户端只信任这个路径下的服务）。控制服务地址已内置，用户无需填写：工作流默认写入 `https://accel.tcmzhan.com:8443`，在仓库变量里设置 `CONTROL_URL` 可覆盖（换域名时不必改代码）。安装向导仍会显示该地址，允许手工改成自建服务；静默安装用 `Setup.exe /VERYSILENT`，需要指定别的地址时加 `/CONTROLURL=https://...`。升级时直接运行新版安装程序，服务会先停止再替换；卸载会停止并删除服务及 ProgramData 下的配置。安装程序未签名，SmartScreen 会提示“未知发布者”，正式分发前需要代码签名。
 
 ## 服务器部署（host 网络，复用已有 MySQL）
 

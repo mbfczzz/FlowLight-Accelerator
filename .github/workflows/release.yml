@@ -42,8 +42,10 @@ jobs:
       - name: Compile installer
         shell: pwsh
         env:
-          # Optional repository variable; pre-fills the control service address.
-          DEFAULT_CONTROL_URL: ${{ vars.CONTROL_URL }}
+          # Baked into the installer so users never type the address. The
+          # repository variable CONTROL_URL overrides it; the literal is the
+          # production control service used by this deployment.
+          DEFAULT_CONTROL_URL: ${{ vars.CONTROL_URL || 'https://accel.tcmzhan.com:8443' }}
         run: |
           $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
           if (-not (Test-Path $iscc)) { choco install innosetup --no-progress -y; }
