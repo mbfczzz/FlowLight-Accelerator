@@ -1,0 +1,420 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-14T04:59:57.773647+00:00",
+  "title": "Design System: FlowLight Accelerator",
+  "extensions": {
+    "colorMeta": {
+      "admin-accent": {
+        "role": "primary",
+        "displayName": "Admin Accent",
+        "tonalRamp": [
+          "oklch(15.00% 0.09499 215.05)",
+          "oklch(26.43% 0.09499 215.05)",
+          "oklch(37.86% 0.09499 215.05)",
+          "oklch(49.29% 0.09499 215.05)",
+          "oklch(60.71% 0.09499 215.05)",
+          "oklch(72.14% 0.09499 215.05)",
+          "oklch(83.57% 0.09499 215.05)",
+          "oklch(95.00% 0.09499 215.05)"
+        ]
+      },
+      "admin-background": {
+        "role": "neutral",
+        "displayName": "Admin Background",
+        "tonalRamp": [
+          "oklch(15.00% 0.00342 247.86)",
+          "oklch(26.43% 0.00342 247.86)",
+          "oklch(37.86% 0.00342 247.86)",
+          "oklch(49.29% 0.00342 247.86)",
+          "oklch(60.71% 0.00342 247.86)",
+          "oklch(72.14% 0.00342 247.86)",
+          "oklch(83.57% 0.00342 247.86)",
+          "oklch(95.00% 0.00342 247.86)"
+        ]
+      },
+      "admin-surface": {
+        "role": "neutral",
+        "displayName": "Admin Surface",
+        "tonalRamp": [
+          "oklch(15.00% 0.00000 89.88)",
+          "oklch(26.43% 0.00000 89.88)",
+          "oklch(37.86% 0.00000 89.88)",
+          "oklch(49.29% 0.00000 89.88)",
+          "oklch(60.71% 0.00000 89.88)",
+          "oklch(72.14% 0.00000 89.88)",
+          "oklch(83.57% 0.00000 89.88)",
+          "oklch(95.00% 0.00000 89.88)"
+        ]
+      },
+      "admin-text": {
+        "role": "neutral",
+        "displayName": "Admin Text",
+        "tonalRamp": [
+          "oklch(15.00% 0.03311 254.41)",
+          "oklch(26.43% 0.03311 254.41)",
+          "oklch(37.86% 0.03311 254.41)",
+          "oklch(49.29% 0.03311 254.41)",
+          "oklch(60.71% 0.03311 254.41)",
+          "oklch(72.14% 0.03311 254.41)",
+          "oklch(83.57% 0.03311 254.41)",
+          "oklch(95.00% 0.03311 254.41)"
+        ]
+      },
+      "admin-muted": {
+        "role": "neutral",
+        "displayName": "Admin Muted",
+        "tonalRamp": [
+          "oklch(15.00% 0.03349 257.79)",
+          "oklch(26.43% 0.03349 257.79)",
+          "oklch(37.86% 0.03349 257.79)",
+          "oklch(49.29% 0.03349 257.79)",
+          "oklch(60.71% 0.03349 257.79)",
+          "oklch(72.14% 0.03349 257.79)",
+          "oklch(83.57% 0.03349 257.79)",
+          "oklch(95.00% 0.03349 257.79)"
+        ]
+      },
+      "admin-line": {
+        "role": "neutral",
+        "displayName": "Admin Line",
+        "tonalRamp": [
+          "oklch(15.00% 0.00866 247.92)",
+          "oklch(26.43% 0.00866 247.92)",
+          "oklch(37.86% 0.00866 247.92)",
+          "oklch(49.29% 0.00866 247.92)",
+          "oklch(60.71% 0.00866 247.92)",
+          "oklch(72.14% 0.00866 247.92)",
+          "oklch(83.57% 0.00866 247.92)",
+          "oklch(95.00% 0.00866 247.92)"
+        ]
+      },
+      "client-accent": {
+        "role": "primary",
+        "displayName": "Client Accent",
+        "tonalRamp": [
+          "oklch(15.00% 0.12003 207.41)",
+          "oklch(26.43% 0.12003 207.41)",
+          "oklch(37.86% 0.12003 207.41)",
+          "oklch(49.29% 0.12003 207.41)",
+          "oklch(60.71% 0.12003 207.41)",
+          "oklch(72.14% 0.12003 207.41)",
+          "oklch(83.57% 0.12003 207.41)",
+          "oklch(95.00% 0.12003 207.41)"
+        ]
+      },
+      "client-background": {
+        "role": "neutral",
+        "displayName": "Client Background",
+        "tonalRamp": [
+          "oklch(15.00% 0.02275 260.41)",
+          "oklch(26.43% 0.02275 260.41)",
+          "oklch(37.86% 0.02275 260.41)",
+          "oklch(49.29% 0.02275 260.41)",
+          "oklch(60.71% 0.02275 260.41)",
+          "oklch(72.14% 0.02275 260.41)",
+          "oklch(83.57% 0.02275 260.41)",
+          "oklch(95.00% 0.02275 260.41)"
+        ]
+      },
+      "client-surface": {
+        "role": "neutral",
+        "displayName": "Client Surface",
+        "tonalRamp": [
+          "oklch(15.00% 0.02625 258.32)",
+          "oklch(26.43% 0.02625 258.32)",
+          "oklch(37.86% 0.02625 258.32)",
+          "oklch(49.29% 0.02625 258.32)",
+          "oklch(60.71% 0.02625 258.32)",
+          "oklch(72.14% 0.02625 258.32)",
+          "oklch(83.57% 0.02625 258.32)",
+          "oklch(95.00% 0.02625 258.32)"
+        ]
+      },
+      "client-text": {
+        "role": "neutral",
+        "displayName": "Client Text",
+        "tonalRamp": [
+          "oklch(15.00% 0.01257 255.51)",
+          "oklch(26.43% 0.01257 255.51)",
+          "oklch(37.86% 0.01257 255.51)",
+          "oklch(49.29% 0.01257 255.51)",
+          "oklch(60.71% 0.01257 255.51)",
+          "oklch(72.14% 0.01257 255.51)",
+          "oklch(83.57% 0.01257 255.51)",
+          "oklch(95.00% 0.01257 255.51)"
+        ]
+      },
+      "client-muted": {
+        "role": "neutral",
+        "displayName": "Client Muted",
+        "tonalRamp": [
+          "oklch(15.00% 0.02728 253.62)",
+          "oklch(26.43% 0.02728 253.62)",
+          "oklch(37.86% 0.02728 253.62)",
+          "oklch(49.29% 0.02728 253.62)",
+          "oklch(60.71% 0.02728 253.62)",
+          "oklch(72.14% 0.02728 253.62)",
+          "oklch(83.57% 0.02728 253.62)",
+          "oklch(95.00% 0.02728 253.62)"
+        ]
+      },
+      "client-field": {
+        "role": "neutral",
+        "displayName": "Client Field",
+        "tonalRamp": [
+          "oklch(15.00% 0.03364 257.67)",
+          "oklch(26.43% 0.03364 257.67)",
+          "oklch(37.86% 0.03364 257.67)",
+          "oklch(49.29% 0.03364 257.67)",
+          "oklch(60.71% 0.03364 257.67)",
+          "oklch(72.14% 0.03364 257.67)",
+          "oklch(83.57% 0.03364 257.67)",
+          "oklch(95.00% 0.03364 257.67)"
+        ]
+      },
+      "client-button": {
+        "role": "neutral",
+        "displayName": "Client Button",
+        "tonalRamp": [
+          "oklch(15.00% 0.03637 258.32)",
+          "oklch(26.43% 0.03637 258.32)",
+          "oklch(37.86% 0.03637 258.32)",
+          "oklch(49.29% 0.03637 258.32)",
+          "oklch(60.71% 0.03637 258.32)",
+          "oklch(72.14% 0.03637 258.32)",
+          "oklch(83.57% 0.03637 258.32)",
+          "oklch(95.00% 0.03637 258.32)"
+        ]
+      },
+      "success-background": {
+        "role": "neutral",
+        "displayName": "Success Background",
+        "tonalRamp": [
+          "oklch(15.00% 0.01834 166.37)",
+          "oklch(26.43% 0.01834 166.37)",
+          "oklch(37.86% 0.01834 166.37)",
+          "oklch(49.29% 0.01834 166.37)",
+          "oklch(60.71% 0.01834 166.37)",
+          "oklch(72.14% 0.01834 166.37)",
+          "oklch(83.57% 0.01834 166.37)",
+          "oklch(95.00% 0.01834 166.37)"
+        ]
+      },
+      "success-text": {
+        "role": "neutral",
+        "displayName": "Success Text",
+        "tonalRamp": [
+          "oklch(15.00% 0.09343 157.00)",
+          "oklch(26.43% 0.09343 157.00)",
+          "oklch(37.86% 0.09343 157.00)",
+          "oklch(49.29% 0.09343 157.00)",
+          "oklch(60.71% 0.09343 157.00)",
+          "oklch(72.14% 0.09343 157.00)",
+          "oklch(83.57% 0.09343 157.00)",
+          "oklch(95.00% 0.09343 157.00)"
+        ]
+      },
+      "failure-background": {
+        "role": "neutral",
+        "displayName": "Failure Background",
+        "tonalRamp": [
+          "oklch(15.00% 0.01678 31.08)",
+          "oklch(26.43% 0.01678 31.08)",
+          "oklch(37.86% 0.01678 31.08)",
+          "oklch(49.29% 0.01678 31.08)",
+          "oklch(60.71% 0.01678 31.08)",
+          "oklch(72.14% 0.01678 31.08)",
+          "oklch(83.57% 0.01678 31.08)",
+          "oklch(95.00% 0.01678 31.08)"
+        ]
+      },
+      "failure-text": {
+        "role": "neutral",
+        "displayName": "Failure Text",
+        "tonalRamp": [
+          "oklch(15.00% 0.13485 33.56)",
+          "oklch(26.43% 0.13485 33.56)",
+          "oklch(37.86% 0.13485 33.56)",
+          "oklch(49.29% 0.13485 33.56)",
+          "oklch(60.71% 0.13485 33.56)",
+          "oklch(72.14% 0.13485 33.56)",
+          "oklch(83.57% 0.13485 33.56)",
+          "oklch(95.00% 0.13485 33.56)"
+        ]
+      },
+      "progress-background": {
+        "role": "neutral",
+        "displayName": "Progress Background",
+        "tonalRamp": [
+          "oklch(15.00% 0.01719 248.01)",
+          "oklch(26.43% 0.01719 248.01)",
+          "oklch(37.86% 0.01719 248.01)",
+          "oklch(49.29% 0.01719 248.01)",
+          "oklch(60.71% 0.01719 248.01)",
+          "oklch(72.14% 0.01719 248.01)",
+          "oklch(83.57% 0.01719 248.01)",
+          "oklch(95.00% 0.01719 248.01)"
+        ]
+      },
+      "progress-text": {
+        "role": "neutral",
+        "displayName": "Progress Text",
+        "tonalRamp": [
+          "oklch(15.00% 0.08530 247.50)",
+          "oklch(26.43% 0.08530 247.50)",
+          "oklch(37.86% 0.08530 247.50)",
+          "oklch(49.29% 0.08530 247.50)",
+          "oklch(60.71% 0.08530 247.50)",
+          "oklch(72.14% 0.08530 247.50)",
+          "oklch(83.57% 0.08530 247.50)",
+          "oklch(95.00% 0.08530 247.50)"
+        ]
+      }
+    },
+    "colorRampNote": "Tonal ramps are synthesized for panel inspection; they are not additional shipped palette tokens.",
+    "typographyMeta": {
+      "admin-body": {
+        "displayName": "Admin body",
+        "purpose": "Paragraphs and supporting copy."
+      },
+      "admin-label": {
+        "displayName": "Admin labels",
+        "purpose": "Tables and supporting labels."
+      },
+      "client-body": {
+        "displayName": "Native body",
+        "purpose": "Default native TextBlock size in DIPs."
+      },
+      "client-label": {
+        "displayName": "Native labels",
+        "purpose": "Native field labels and supporting text in DIPs."
+      }
+    },
+    "shadows": [],
+    "motion": [],
+    "breakpoints": [
+      {
+        "name": "admin-compact-max",
+        "value": "1000px"
+      },
+      {
+        "name": "admin-mobile-max",
+        "value": "680px"
+      }
+    ],
+    "nativeWindow": {
+      "initial": "1120 × 750 DIPs",
+      "minimum": "900 × 650 DIPs",
+      "sidebar": "190 DIPs",
+      "connectionPanel": "280 DIPs"
+    },
+    "focus": {
+      "webButtons": "3px solid #5dbac8; offset 3px",
+      "webFields": "2px solid #75c5d1; offset 1px",
+      "nativeButtons": "2 DIPs border #60dae8"
+    },
+    "backdrops": {
+      "webDialog": "rgb(16 32 46 / 35%)",
+      "nativeLogin": "#DB090F18"
+    }
+  },
+  "components": [
+    {
+      "name": "Primary button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Cyan actions such as add, save, and login.",
+      "html": "<button class=\"ds-primary\">保存</button>",
+      "css": ".ds-primary{font-family:\"Segoe UI\",\"Microsoft YaHei\",sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:7px;padding:10px 15px;font-weight:600;font-size:13px;cursor:pointer;background:var(--accent,#087e93);color:#fff}.ds-primary:hover{background:#066b7e}.ds-primary:focus-visible{outline:3px solid #5dbac8;outline-offset:3px}.ds-primary:disabled{opacity:.5;cursor:not-allowed}"
+    },
+    {
+      "name": "Secondary button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Refresh and cancel actions.",
+      "html": "<button class=\"ds-secondary\">刷新</button>",
+      "css": ".ds-secondary{font-family:\"Segoe UI\",\"Microsoft YaHei\",sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid #d6dee6;border-radius:7px;padding:10px 15px;font-weight:600;font-size:13px;cursor:pointer;background:#fff;color:#182433}.ds-secondary:hover{background:#edf3f5}.ds-secondary:focus-visible{outline:3px solid #5dbac8;outline-offset:3px}.ds-secondary:disabled{opacity:.5;cursor:not-allowed}"
+    },
+    {
+      "name": "Labeled input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Visible label and focus treatment used in forms.",
+      "html": "<label class=\"ds-field\">名称<input placeholder=\"输入名称\"></label>",
+      "css": ".ds-field{font-family:\"Segoe UI\",\"Microsoft YaHei\",sans-serif;display:flex;flex-direction:column;gap:8px;font-size:13px;font-weight:600;color:#182433}.ds-field input{font:inherit;min-width:0;border:1px solid #ccd5df;background:#fff;border-radius:7px;padding:10px 12px;color:#182433;caret-color:var(--accent,#087e93)}.ds-field input:focus{outline:2px solid #75c5d1;outline-offset:1px}"
+    },
+    {
+      "name": "Selected navigation",
+      "kind": "nav",
+      "refersTo": "navigation-item",
+      "description": "Persistent resource navigation, horizontal on narrow screens.",
+      "html": "<nav class=\"ds-nav\"><button class=\"ds-selected\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><path d=\"M22 12h-4l-3 9L9 3l-3 9H2\"/></svg>运行总览</button><button>游戏与规则</button></nav>",
+      "css": ".ds-nav{display:grid;gap:4px}.ds-nav button{font-family:\"Segoe UI\",\"Microsoft YaHei\",sans-serif;display:flex;align-items:center;gap:12px;text-align:left;padding:11px 12px;border:0;border-radius:7px;font-size:13px;color:#4b5d70;background:transparent;cursor:pointer}.ds-nav button:hover{background:#f1f5f7}.ds-nav .ds-selected{background:#e8f4f5;color:#086c7e;font-weight:650}.ds-nav button:focus-visible{outline:3px solid #5dbac8;outline-offset:3px}"
+    },
+    {
+      "name": "State badges",
+      "kind": "chip",
+      "refersTo": "badge-ready",
+      "description": "Noninteractive labels identify verified, failed, and running states.",
+      "html": "<div class=\"ds-badges\"><span class=\"ds-ready\">已验证</span><span class=\"ds-failed\">失败</span><span class=\"ds-running\">执行中</span></div>",
+      "css": ".ds-badges{display:flex;gap:8px}.ds-badges span{font-family:\"Segoe UI\",\"Microsoft YaHei\",sans-serif;display:inline-block;padding:4px 7px;border-radius:4px;font-size:11px;white-space:nowrap}.ds-ready{background:#e5f4ed;color:#216944}.ds-failed{background:#fff0ed;color:#ac4934}.ds-running{background:#e8f2fc;color:#34638d}"
+    },
+    {
+      "name": "Resource table",
+      "kind": "card",
+      "refersTo": "resource-table",
+      "description": "Scrollable resource list with readable headers and row actions.",
+      "html": "<div class=\"ds-table-wrap\"><table class=\"ds-table\"><thead><tr><th>名称</th><th>发布版本</th><th>操作</th></tr></thead><tbody><tr><td>英雄联盟</td><td>草稿</td><td><button>详情</button></td></tr></tbody></table></div>",
+      "css": ".ds-table-wrap{background:#fff;border:1px solid var(--line,#e2e7ec);border-radius:9px;overflow:auto}.ds-table{font-family:\"Segoe UI\",\"Microsoft YaHei\",sans-serif;border-collapse:collapse;width:100%;min-width:640px;font-size:12px;text-align:left;color:#182433}.ds-table th{color:#657388;font-weight:500;background:#fafbfd;padding:14px 18px;white-space:nowrap;border-bottom:1px solid var(--line,#e2e7ec)}.ds-table td{padding:18px;overflow-wrap:anywhere}.ds-table tbody tr:hover{background:#fafcfd}.ds-table button{font:inherit;background:transparent;border:0;color:var(--accent,#087e93);padding:3px 0;cursor:pointer}.ds-table button:focus-visible{outline:3px solid #5dbac8;outline-offset:3px}"
+    },
+    {
+      "name": "Native primary button",
+      "kind": "button",
+      "refersTo": "button-client-primary",
+      "description": "HTML preview of the native WPF start/login styling; dimensions represent DIPs.",
+      "html": "<button class=\"ds-client-primary\">开始加速</button>",
+      "css": ".ds-client-primary{font-family:\"Segoe UI\",\"Microsoft YaHei\",sans-serif;background:#31c5d7;color:#07181c;border:0;border-radius:7px;padding:11px 18px;font-size:14px;font-weight:600;cursor:pointer}.ds-client-primary:hover{opacity:.86}.ds-client-primary:focus-visible{outline:2px solid #60dae8;outline-offset:-2px}.ds-client-primary:disabled{opacity:.4;cursor:default}"
+    },
+    {
+      "name": "Native secondary button",
+      "kind": "button",
+      "refersTo": "button-client",
+      "description": "HTML preview of native secondary buttons.",
+      "html": "<button class=\"ds-client-secondary\">停止加速</button>",
+      "css": ".ds-client-secondary{font-family:\"Segoe UI\",\"Microsoft YaHei\",sans-serif;background:#263244;color:#e7edf5;border:0;border-radius:7px;padding:11px 18px;font-size:14px;cursor:pointer}.ds-client-secondary:hover{opacity:.86}.ds-client-secondary:focus-visible{outline:2px solid #60dae8;outline-offset:-2px}.ds-client-secondary:disabled{opacity:.4;cursor:default}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Operate",
+    "overview": "FlowLight uses light operational tables for administrators and a dark game library with a connection panel for Windows players. Cyan identifies actions and selection. This record merges the confirmed incumbent direction with the implemented React administration and native WPF client; it does not introduce a new visual concept.\n\nDense resource views, plain language, and visible connection evidence support the initial VALORANT and League of Legends workflow. Game names and simple vector icons provide recognition; no game artwork is bundled.",
+    "keyCharacteristics": [
+      "Light administration, dark native client, cyan actions.",
+      "Persistent navigation, compact resource tables, modal editors.",
+      "Game selection beside one connection panel and its start action.",
+      "Unknown, draft, unavailable, historical, and current states remain explicit."
+    ],
+    "rules": [
+      {
+        "name": "The Evidence Rule",
+        "body": "A color or count must describe reported state: an enabled resource, a published profile, a verified path, and a live connection are separate facts.",
+        "section": "colors"
+      },
+      {
+        "name": "The Probe Label Rule",
+        "body": "Historical line measurements are labeled “线路历史探测”; current tunnel evidence is labeled “当前隧道探测”. Missing evidence displays an em dash, and service loss clears stale measurements. Neither measurement is presented as in-game latency.",
+        "section": "components"
+      }
+    ],
+    "dos": [
+      "**Do** preserve the light administration and dark native-client surface roles.",
+      "**Do** keep status labels, provenance, empty states, and errors visible beside the affected resource or action.",
+      "**Do** retain horizontally scrollable tables on narrow web screens and scrollable connection details at the native minimum size.",
+      "**Do** use local Chinese-capable fonts and simple vector icons already present in the applications."
+    ],
+    "donts": [
+      "**Don't** replace unknown counts or missing probe evidence with zero or invented healthy measurements.",
+      "**Don't** conflate a published rule, verified path, historical probe, and current connection.",
+      "**Don't** claim tested game compatibility or bundle proprietary game artwork without established evidence or assets."
+    ]
+  }
+}

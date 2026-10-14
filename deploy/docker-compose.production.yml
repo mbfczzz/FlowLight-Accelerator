@@ -1,0 +1,14 @@
+# Merge with root compose. Agents connect directly to TLS to preserve client certificates.
+services:
+  control-api:
+    environment:
+      APP_ENV: production
+      NODE_MTLS_REQUIRED: "true"
+      TLS_CERT: /tls/fullchain.pem
+      TLS_KEY: /tls/privkey.pem
+    ports: ["8443:8090"]
+    volumes: [./tls:/tls:ro]
+  admin-web:
+    environment:
+      API_UPSTREAM: https://control-api:8090
+      CONTROL_TLS_SERVER_NAME: ${CONTROL_HOST:?Set certificate hostname}

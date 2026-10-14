@@ -1,0 +1,21 @@
+<Application x:Class="FlowLight.Client.App" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" StartupUri="MainWindow.xaml" ShutdownMode="OnExplicitShutdown">
+ <Application.Resources>
+  <SolidColorBrush x:Key="Surface" Color="#151D29"/>
+  <SolidColorBrush x:Key="Muted" Color="#A2AFBF"/>
+  <Style TargetType="TextBlock"><Setter Property="Foreground" Value="#E7EDF5"/><Setter Property="FontFamily" Value="Segoe UI, Microsoft YaHei"/><Setter Property="FontSize" Value="14"/></Style>
+  <Style TargetType="Button"><Setter Property="Background" Value="#263244"/><Setter Property="Foreground" Value="#E7EDF5"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Padding" Value="18,11"/><Setter Property="Cursor" Value="Hand"/><Setter Property="FontSize" Value="14"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Border x:Name="border" Background="{TemplateBinding Background}" CornerRadius="7" Padding="{TemplateBinding Padding}"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="border" Property="Opacity" Value=".86"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="border" Property="BorderBrush" Value="#60DAE8"/><Setter TargetName="border" Property="BorderThickness" Value="2"/></Trigger><Trigger Property="IsEnabled" Value="False"><Setter TargetName="border" Property="Opacity" Value=".4"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style>
+  <Style TargetType="TextBox"><Setter Property="Background" Value="#1D2838"/><Setter Property="Foreground" Value="#F2F6FC"/><Setter Property="BorderBrush" Value="#3D4B61"/><Setter Property="Padding" Value="10,9"/><Setter Property="FontSize" Value="14"/><Setter Property="CaretBrush" Value="#36CDDF"/></Style>
+  <Style TargetType="PasswordBox"><Setter Property="Background" Value="#1D2838"/><Setter Property="Foreground" Value="#F2F6FC"/><Setter Property="BorderBrush" Value="#3D4B61"/><Setter Property="Padding" Value="10,9"/><Setter Property="FontSize" Value="14"/></Style>
+  <Style TargetType="ComboBoxItem"><Setter Property="Foreground" Value="#E7EDF5"/><Setter Property="Padding" Value="10,9"/><Setter Property="Background" Value="#1D2838"/><Style.Triggers><Trigger Property="IsHighlighted" Value="True"><Setter Property="Background" Value="#294454"/></Trigger><Trigger Property="IsSelected" Value="True"><Setter Property="Background" Value="#225366"/></Trigger></Style.Triggers></Style>
+  <Style TargetType="ComboBox">
+   <Setter Property="Foreground" Value="#E7EDF5"/><Setter Property="FontSize" Value="14"/><Setter Property="MinHeight" Value="40"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ComboBox"><Grid>
+    <ToggleButton IsChecked="{Binding IsDropDownOpen,RelativeSource={RelativeSource TemplatedParent},Mode=TwoWay}" Focusable="False">
+     <ToggleButton.Template><ControlTemplate TargetType="ToggleButton"><Border Background="#1D2838" BorderBrush="#40516A" BorderThickness="1" CornerRadius="6"><Path Data="M 0 0 L 4 4 L 8 0" Stroke="#A2AFBF" StrokeThickness="1.5" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,12,0"/></Border></ControlTemplate></ToggleButton.Template>
+    </ToggleButton>
+    <ContentPresenter Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" Margin="10,8,28,8" IsHitTestVisible="False" VerticalAlignment="Center"/>
+    <Popup IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom" AllowsTransparency="False"><Border Background="#1D2838" BorderBrush="#40516A" BorderThickness="1" MinWidth="{Binding ActualWidth,RelativeSource={RelativeSource AncestorType=ComboBox}}"><ScrollViewer MaxHeight="260"><ItemsPresenter/></ScrollViewer></Border></Popup>
+   </Grid><ControlTemplate.Triggers><Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value=".5"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+  </Style>
+ </Application.Resources>
+</Application>

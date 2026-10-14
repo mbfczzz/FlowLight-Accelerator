@@ -1,0 +1,19 @@
+server {
+ listen 80;
+ server_tokens off;
+ root /usr/share/nginx/html;
+ add_header X-Content-Type-Options nosniff always;
+ add_header Referrer-Policy same-origin always;
+ add_header Content-Security-Policy "default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; frame-ancestors 'none'; base-uri 'self'" always;
+ location /api/ {
+  proxy_pass ${API_UPSTREAM};
+  proxy_ssl_server_name on;
+  proxy_ssl_name ${CONTROL_TLS_SERVER_NAME};
+  proxy_ssl_verify on;
+  proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
+  proxy_set_header Host $host;
+  proxy_read_timeout 35s;
+ }
+ location /assets/ { add_header Cache-Control "public, max-age=31536000, immutable"; }
+ location / { add_header Cache-Control "no-cache"; try_files $uri /index.html; }
+}

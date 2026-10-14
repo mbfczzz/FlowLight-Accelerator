@@ -1,0 +1,17 @@
+{
+ "control_url":"https://control.example.com:8443",
+ "node_id":"REPLACE_WITH_REGISTERED_NODE_ID",
+ "bootstrap_secret":"REPLACE_WITH_ONE_TIME_ENROLLMENT_SECRET",
+ "data_dir":"/var/lib/flowlight-node",
+ "allow_http_local_dev":false,
+ "binaries":{
+  "ssserver":"/opt/flowlight/bin/ssserver",
+  "sslocal":"/opt/flowlight/bin/sslocal",
+  "realm":"/opt/flowlight/bin/realm",
+  "sha256":{
+   "ss2022":"REPLACE_WITH_EXECUTABLE_SHA256",
+   "sslocal":"REPLACE_WITH_EXECUTABLE_SHA256",
+   "realm":"REPLACE_WITH_EXECUTABLE_SHA256"
+  }
+ }
+}

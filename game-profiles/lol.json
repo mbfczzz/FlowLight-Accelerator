@@ -1,0 +1,17 @@
+{
+  "id": "lol",
+  "name": "英雄联盟",
+  "status": "draft",
+  "regions": [],
+  "profile": {
+    "processes": [
+      "League of Legends.exe"
+    ],
+    "udp": true,
+    "paths": [],
+    "domains": [],
+    "cidrs": [],
+    "exclude_domains": []
+  },
+  "verification": "Requires validation against the actual installation, region, login and voice processes."
+}

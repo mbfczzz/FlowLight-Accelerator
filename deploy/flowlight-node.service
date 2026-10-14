@@ -1,0 +1,23 @@
+[Unit]
+Description=FlowLight Accelerator Node Agent
+Wants=network-online.target
+After=network-online.target
+[Service]
+Type=simple
+User=flowlight-node
+Group=flowlight-node
+ExecStart=/opt/flowlight/bin/flowlight-node -config /etc/flowlight/node.json
+Restart=on-failure
+RestartSec=3
+KillMode=control-group
+TimeoutStopSec=15
+StateDirectory=flowlight-node
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/flowlight-node
+LimitNOFILE=65536
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,45 @@
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: flowlight
+      MYSQL_USER: flowlight
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD}
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+    volumes: [mysql-data:/var/lib/mysql]
+    healthcheck:
+      test: [CMD-SHELL, 'MYSQL_PWD="$$MYSQL_PASSWORD" mysqladmin ping -u flowlight --silent']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  redis:
+    image: redis:7.4-alpine
+    command: [redis-server, --appendonly, "yes"]
+    volumes: [redis-data:/data]
+  control-api:
+    build: {context: ., dockerfile: deploy/control.Dockerfile}
+    environment:
+      DB_DRIVER: mysql
+      DB_DSN: 'flowlight:${MYSQL_PASSWORD}@tcp(mysql:3306)/flowlight?charset=utf8mb4&parseTime=true&loc=UTC'
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?Set ENCRYPTION_KEY}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set initial ADMIN_PASSWORD}
+      ADMIN_ORIGIN: ${ADMIN_ORIGIN:-http://localhost:8088}
+      REDIS_URL: redis://redis:6379/0
+      PROBE_URL: ${PROBE_URL:-}
+      PROBE_UDP: ${PROBE_UDP:-}
+      PROBE_NODE_ID: ${PROBE_NODE_ID:-}
+      ALLOW_IMPORTED: ${ALLOW_IMPORTED:-false}
+    ports: ["127.0.0.1:8090:8090"]
+    volumes: [control-data:/data]
+    depends_on:
+      mysql: {condition: service_healthy}
+      redis: {condition: service_started}
+  admin-web:
+    build: {context: ., dockerfile: deploy/admin.Dockerfile}
+    ports: ["127.0.0.1:8088:80"]
+    depends_on: [control-api]
+volumes:
+  mysql-data:
+  redis-data:
+  control-data:

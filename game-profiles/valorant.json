@@ -1,0 +1,17 @@
+{
+  "id": "valorant",
+  "name": "VALORANT",
+  "status": "draft",
+  "regions": [],
+  "profile": {
+    "processes": [
+      "VALORANT-Win64-Shipping.exe"
+    ],
+    "udp": true,
+    "paths": [],
+    "domains": [],
+    "cidrs": [],
+    "exclude_domains": []
+  },
+  "verification": "Requires validation against the actual installation, region, login and voice processes."
+}

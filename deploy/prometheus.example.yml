@@ -1,0 +1,11 @@
+global:
+  scrape_interval: 15s
+scrape_configs:
+  - job_name: flowlight-control
+    scheme: https
+    metrics_path: /metrics
+    static_configs:
+      - targets: [control.example.com:8443]
+    authorization:
+      credentials_file: /run/secrets/flowlight-metrics-access-token
+# Rotate this read-only observer token through auth/refresh.
