@@ -26,8 +26,8 @@ public partial class MainWindow : Window
 
     sealed record Game(string ID, string Name, string[] Regions, int Version)
     {
-        public string RuleLabel =>
-            Version > 0 ? $"规则版本 {Version} · 选择区服继续" : "规则草稿 · 等待运营发布";
+        public string RuleLabel => Version > 0 ? $"规则版本 {Version}" : "草稿 · 等待运营发布";
+        public string[] RegionLabels => Regions.Select(r => ToRegion(r).Name).ToArray();
     }
 
     sealed record Line(string ID, string Name, bool Available, double Rtt)
@@ -91,10 +91,11 @@ public partial class MainWindow : Window
         }
     }
 
-    static readonly System.Windows.Media.Brush LatencyGood = Frozen(0x4A, 0xDE, 0x80);
-    static readonly System.Windows.Media.Brush LatencyFair = Frozen(0xFB, 0xBF, 0x24);
-    static readonly System.Windows.Media.Brush LatencyPoor = Frozen(0xF8, 0x71, 0x71);
-    static readonly System.Windows.Media.Brush LatencyNeutral = Frozen(0xE7, 0xED, 0xF5);
+    // The semantic colours from App.xaml (Good / Warn / Bad / Text).
+    static readonly System.Windows.Media.Brush LatencyGood = Frozen(0x5C, 0xC9, 0x8B);
+    static readonly System.Windows.Media.Brush LatencyFair = Frozen(0xEE, 0x9A, 0x3C);
+    static readonly System.Windows.Media.Brush LatencyPoor = Frozen(0xE4, 0x60, 0x6A);
+    static readonly System.Windows.Media.Brush LatencyNeutral = Frozen(0xF3, 0xF0, 0xF6);
 
     static System.Windows.Media.Brush Frozen(byte r, byte g, byte b)
     {
@@ -114,7 +115,7 @@ public partial class MainWindow : Window
         set => SetValue(CardWidthProperty, value);
     }
 
-    const double MinCardWidth = 420;
+    const double MinCardWidth = 320;
 
     void UpdateCardWidth(double listWidth)
     {
@@ -211,6 +212,12 @@ public partial class MainWindow : Window
 
     async void OnTick(object? sender, EventArgs e) => await Status();
 
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        DarkChrome.Apply(this);
+    }
+
     // The build stamps the informational version (e.g. 0.1.0-abc1234+sha);
     // the label shows it without the commit hash.
     static string ProductVersion()
@@ -305,7 +312,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            ShowNotice(Describe(ex));
+            ShowNotice(Describe(ex), kind: NoticeKind.Error);
         }
     }
 
@@ -341,7 +348,7 @@ public partial class MainWindow : Window
             loginPrompted = true;
             ShowLogin();
         }
-        ServiceLabel.Text = coreAvailable ? "本地服务已连接" : "网络内核待配置";
+        SetService(coreAvailable ? "本地服务已连接" : "网络内核待配置", coreAvailable ? "Good" : "Warn");
         ConnectionState.Text = state switch
         {
             "PREPARING" => "正在准备节点与授权…",
@@ -354,6 +361,13 @@ public partial class MainWindow : Window
             "BUSY" => "本机正在为另一用户加速",
             _ => "未连接",
         };
+        StateDot.Fill = Tone(state switch
+        {
+            "ACTIVE" => "Good",
+            "PREPARING" or "CONNECTING" or "DEGRADED" or "RECONNECTING" or "STOPPING" => "Warn",
+            "FAILED" or "BUSY" => "Bad",
+            _ => "TextTertiary",
+        });
 
         var probe = Child(result, "probe");
         if (probe.ValueKind == JsonValueKind.Object)
@@ -372,15 +386,15 @@ public partial class MainWindow : Window
         var error = Text(result, "error");
         if (!string.IsNullOrWhiteSpace(error))
         {
-            ShowNotice(Summarize(error));
+            ShowNotice(Summarize(error), kind: NoticeKind.Error);
         }
         else if (loggedIn && catalogError is not null)
         {
-            ShowNotice(catalogError);
+            ShowNotice(catalogError, kind: NoticeKind.Error);
         }
         else if (loggedIn && !coreAvailable)
         {
-            ShowNotice("本地服务已连接，网络内核尚未配置。请完成安装配置后开始加速。");
+            ShowNotice("本地服务已连接，网络内核尚未配置。请完成安装配置后开始加速。", kind: NoticeKind.Warning);
         }
         else if (loggedIn && DateTime.UtcNow >= noticeHoldUntil)
         {
@@ -403,19 +417,19 @@ public partial class MainWindow : Window
         ResetEvidence(false);
         if (ex is ServiceUnavailableException { Busy: true })
         {
-            ServiceLabel.Text = "本地服务繁忙";
-            ShowNotice(ServiceBusyNotice);
+            SetService("本地服务繁忙", "Warn");
+            ShowNotice(ServiceBusyNotice, kind: NoticeKind.Warning);
         }
         else if (ex is ServiceUnavailableException)
         {
             // "Install it first" only makes sense if it was never reached.
-            ServiceLabel.Text = "本地服务未连接";
-            ShowNotice(hadService ? ServiceLostNotice : ServiceMissingNotice);
+            SetService("本地服务未连接", "Bad");
+            ShowNotice(hadService ? ServiceLostNotice : ServiceMissingNotice, kind: NoticeKind.Warning);
         }
         else
         {
-            ServiceLabel.Text = "本地服务异常";
-            ShowNotice(Describe(ex));
+            SetService("本地服务异常", "Bad");
+            ShowNotice(Describe(ex), kind: NoticeKind.Error);
         }
         UpdateButtons();
     }
@@ -479,6 +493,7 @@ public partial class MainWindow : Window
         if (GameList.ItemsSource is not null)
         {
             GameList.ItemsSource = null;
+            GameCount.Text = "";
         }
         EmptyGames.Text = EmptyCatalogText;
         LineHint.Text = "请选择游戏与区服";
@@ -507,6 +522,7 @@ public partial class MainWindow : Window
         StartButton.Content = !sessionRunning ? "开始加速"
             : state is "ACTIVE" or "DEGRADED" ? "加速中"
             : "正在连接…";
+        StartButton.Style = (Style)FindResource(sessionRunning ? "Running" : "Primary");
         StopButton.IsEnabled = interactive && sessionRunning;
         var locked = sessionRunning || commandPending;
         // Reloading the catalog mid-session would re-select the first game.
@@ -531,11 +547,28 @@ public partial class MainWindow : Window
 
     // A notice with a hold stays until it expires; the status poll otherwise
     // collapses the banner on its next pass.
-    void ShowNotice(string text, TimeSpan? hold = null)
+    enum NoticeKind { Info, Success, Warning, Error }
+
+    void ShowNotice(string text, TimeSpan? hold = null, NoticeKind kind = NoticeKind.Info)
     {
         Notice.Text = text;
+        NoticeStripe.Background = Tone(kind switch
+        {
+            NoticeKind.Success => "Good",
+            NoticeKind.Warning => "Warn",
+            NoticeKind.Error => "Bad",
+            _ => "Info",
+        });
         NoticeBox.Visibility = Visibility.Visible;
         noticeHoldUntil = hold is { } duration ? DateTime.UtcNow + duration : DateTime.MinValue;
+    }
+
+    System.Windows.Media.Brush Tone(string key) => (System.Windows.Media.Brush)FindResource(key);
+
+    void SetService(string text, string tone)
+    {
+        ServiceLabel.Text = text;
+        ServiceDot.Fill = Tone(tone);
     }
 
     async Task LoadGames()
@@ -564,6 +597,7 @@ public partial class MainWindow : Window
         var keepRegion = (RegionList.SelectedItem as Region)?.ID ?? prefs.RegionID;
         var keepLine = pendingLineID;
         GameList.ItemsSource = list;
+        GameCount.Text = list.Length > 0 ? list.Length + " 款" : "";
         EmptyGames.Text = list.Length == 0 ? "暂无可用游戏，请联系运营人员配置。" : "";
         if (list.Length == 0)
         {
@@ -592,7 +626,7 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             catalogError = Describe(ex);
-            ShowNotice(catalogError);
+            ShowNotice(catalogError, kind: NoticeKind.Error);
         }
     }
 
@@ -708,7 +742,7 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             catalogError = Describe(ex);
-            ShowNotice(catalogError);
+            ShowNotice(catalogError, kind: NoticeKind.Error);
         }
         await Status();
     }
@@ -722,7 +756,7 @@ public partial class MainWindow : Window
         {
             Username.Text = loggedIn && AccountLabel.Text != SignedOutLabel ? AccountLabel.Text : prefs.Username ?? "";
         }
-        LoginTitle.Text = loggedIn ? "切换账号" : "登录流光加速器";
+        LoginTitle.Text = loggedIn ? "切换账号" : "登录";
         LoginSubtitle.Text = loggedIn ? "登录另一个账号后，当前账号会退出。" : "使用平台账号获取游戏与线路授权。";
         LoginError.Text = "";
         LoginOverlay.Visibility = Visibility.Visible;
@@ -744,7 +778,7 @@ public partial class MainWindow : Window
         }
         if (await RunCommand("stop"))
         {
-            ShowNotice("已停止加速。", InfoHold);
+            ShowNotice("已停止加速。", InfoHold, NoticeKind.Success);
         }
         await Status();
     }
@@ -760,11 +794,11 @@ public partial class MainWindow : Window
         try
         {
             await LoadGames();
-            ShowNotice("已同步服务端游戏与线路配置。", InfoHold);
+            ShowNotice("已同步服务端游戏与线路配置。", InfoHold, NoticeKind.Success);
         }
         catch (Exception ex)
         {
-            ShowNotice(Describe(ex), ErrorHold);
+            ShowNotice(Describe(ex), ErrorHold, NoticeKind.Error);
         }
     }
 
@@ -849,7 +883,7 @@ public partial class MainWindow : Window
             {
                 return;
             }
-            ShowNotice(Describe(ex), ErrorHold);
+            ShowNotice(Describe(ex), ErrorHold, NoticeKind.Error);
         }
         UpdateButtons();
     }
@@ -892,7 +926,7 @@ public partial class MainWindow : Window
     {
         if (await RunCommand("stop"))
         {
-            ShowNotice("已停止加速。", InfoHold);
+            ShowNotice("已停止加速。", InfoHold, NoticeKind.Success);
         }
         await Status();
     }
@@ -914,7 +948,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            ShowNotice(Describe(ex), ErrorHold);
+            ShowNotice(Describe(ex), ErrorHold, NoticeKind.Error);
             return false;
         }
         finally
@@ -932,11 +966,11 @@ public partial class MainWindow : Window
             var result = await Wire.CallAsync("status");
             var text = JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
             System.Windows.Clipboard.SetText(text);
-            ShowNotice("连接诊断已复制，不包含账号密码或隧道密钥。", InfoHold);
+            ShowNotice("连接诊断已复制，不包含账号密码或隧道密钥。", InfoHold, NoticeKind.Success);
         }
         catch (Exception ex)
         {
-            ShowNotice(Describe(ex), ErrorHold);
+            ShowNotice(Describe(ex), ErrorHold, NoticeKind.Error);
         }
     }
 
@@ -974,7 +1008,7 @@ public partial class MainWindow : Window
                 timer.Start();
             }
             ShowFromTray();
-            ShowNotice("未能停止加速，客户端未退出。" + failure, ExitFailureHold);
+            ShowNotice("未能停止加速，客户端未退出。" + failure, ExitFailureHold, NoticeKind.Error);
             UpdateButtons();
             return;
         }
@@ -1047,5 +1081,38 @@ public partial class MainWindow : Window
         tray.Visible = false;
         tray.Dispose();
         trayMenu.Dispose();
+    }
+}
+
+// Asks the Desktop Window Manager for a title bar in the window's own colours.
+// Attributes a Windows build does not know are rejected, which leaves the
+// stock light title bar; nothing else depends on them.
+static class DarkChrome
+{
+    [System.Runtime.InteropServices.DllImport("dwmapi.dll")]
+    static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
+
+    public static void Apply(Window window)
+    {
+        var hwnd = new System.Windows.Interop.WindowInteropHelper(window).Handle;
+        if (hwnd == IntPtr.Zero)
+        {
+            return;
+        }
+        Set(hwnd, 20, 1);          // DWMWA_USE_IMMERSIVE_DARK_MODE
+        Set(hwnd, 35, 0x00171213); // DWMWA_CAPTION_COLOR, COLORREF of #131217
+        Set(hwnd, 36, 0x00F6F0F3); // DWMWA_TEXT_COLOR, COLORREF of #F3F0F6
+        Set(hwnd, 34, 0x0048393D); // DWMWA_BORDER_COLOR, COLORREF of #3D3948
+    }
+
+    static void Set(IntPtr hwnd, int attribute, int value)
+    {
+        try
+        {
+            _ = DwmSetWindowAttribute(hwnd, attribute, ref value, sizeof(int));
+        }
+        catch (Exception e) when (e is DllNotFoundException or EntryPointNotFoundException)
+        {
+        }
     }
 }
