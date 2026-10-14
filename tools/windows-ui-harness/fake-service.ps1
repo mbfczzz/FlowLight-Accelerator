@@ -49,6 +49,8 @@ function Handle($cmd, $a) {
       $list = @(@{ id = 'valorant'; name = 'VALORANT'; regions = @('kr','jp','sg'); published_version = 3 },
                 @{ id = 'lol'; name = '英雄联盟'; regions = @('kr','tw'); published_version = 2 })
       for ($i = 3; $i -le $Games; $i++) { $list += @{ id = "g$i"; name = "测试游戏 $i"; regions = @('kr'); published_version = 1 } }
+      # A game whose rules are still a draft: no regions, nothing to start.
+      $list += @{ id = 'draft'; name = '待发布游戏'; regions = @(); published_version = 0 }
       return $list
     }
     'lines' {
@@ -58,6 +60,7 @@ function Handle($cmd, $a) {
                @{ id = "$($a.region_id)-03"; name = "$($a.region_id.ToUpper()) 备用-03"; available = $false; probe = @{} })
     }
     'start' {
+      if (Test-Path (Join-Path $PSScriptRoot 'fail-start.flag')) { throw '线路容量已满，请选择其他线路' }
       if ($state.session -ne 'IDLE') { throw '已有加速会话在运行' }
       $state.session = 'PREPARING'; $state.since = Get-Date
       $state.game = $a.game_id; $state.region = $a.region_id; $state.line = $a.line_id

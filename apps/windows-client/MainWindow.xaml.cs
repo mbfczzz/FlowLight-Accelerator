@@ -11,6 +11,7 @@ namespace FlowLight.Client;
 public partial class MainWindow : Window
 {
     const string ServiceMissingNotice = "本地服务尚未启动。请先安装并配置 FlowLight 本地服务。";
+    const string ServiceLostNotice = "本地服务连接已断开，正在尝试重新连接…";
     const string ServiceBusyNotice = "本地服务正忙，稍后会自动重试。";
     const string SignInNotice = "请登录后查看游戏与线路。首次使用需要安装本地服务。";
     const string SignedOutLabel = "尚未登录";
@@ -29,7 +30,24 @@ public partial class MainWindow : Window
             Version > 0 ? $"规则版本 {Version} · 选择区服继续" : "规则草稿 · 等待运营发布";
     }
 
-    sealed record Line(string ID, string Name, bool Available, double Rtt);
+    sealed record Line(string ID, string Name, bool Available, double Rtt)
+    {
+        public string Tag => Available ? "" : "· 不可用";
+        public double Dim => Available ? 1 : 0.55;
+    }
+
+    // Region identifiers come from the control service as short codes; the
+    // familiar ones get a readable name, anything else is shown as is.
+    sealed record Region(string ID, string Name);
+
+    static readonly Dictionary<string, string> RegionNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["kr"] = "韩服", ["jp"] = "日服", ["tw"] = "台服", ["hk"] = "港服", ["sg"] = "新加坡", ["sea"] = "东南亚",
+        ["na"] = "美服", ["us"] = "美服", ["eu"] = "欧服", ["cn"] = "国服", ["br"] = "巴西", ["latam"] = "拉美",
+        ["oce"] = "大洋洲", ["ru"] = "俄服", ["global"] = "国际服",
+    };
+
+    static Region ToRegion(string id) => new(id, RegionNames.TryGetValue(id, out var name) ? name : id);
 
     // What the user picked last time, so the next launch starts where they
     // left off. Stored per Windows user; nothing in it is a secret.
@@ -85,6 +103,26 @@ public partial class MainWindow : Window
         return brush;
     }
 
+    // Game cards flow into as many columns as fit at 420 px each, so a
+    // maximised window shows a grid instead of one card stretched across it.
+    public static readonly DependencyProperty CardWidthProperty = DependencyProperty.Register(
+        nameof(CardWidth), typeof(double), typeof(MainWindow), new PropertyMetadata(double.NaN));
+
+    public double CardWidth
+    {
+        get => (double)GetValue(CardWidthProperty);
+        set => SetValue(CardWidthProperty, value);
+    }
+
+    const double MinCardWidth = 420;
+
+    void UpdateCardWidth(double listWidth)
+    {
+        var usable = Math.Max(0, listWidth - 20);
+        var columns = Math.Max(1, (int)(usable / MinCardWidth));
+        CardWidth = Math.Floor(usable / columns);
+    }
+
     readonly Preferences prefs = Preferences.Load();
     readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromSeconds(2) };
     readonly System.Windows.Forms.NotifyIcon tray;
@@ -105,6 +143,7 @@ public partial class MainWindow : Window
     bool updatingRegions;
     bool loginPrompted;
     bool trayHintShown;
+    bool hadService;
     string state = "IDLE";
     string? catalogError;
     DateTime noticeHoldUntil = DateTime.MinValue;
@@ -125,6 +164,7 @@ public partial class MainWindow : Window
         Width = Math.Min(Width, SystemParameters.WorkArea.Width);
         VersionLabel.Text = "v" + ProductVersion() + " · Windows x64";
         pendingLineID = prefs.LineID;
+        GameList.SizeChanged += (_, e) => UpdateCardWidth(e.NewSize.Width);
         trayMenu = new System.Windows.Forms.ContextMenuStrip();
         trayMenu.Items.Add("打开流光加速器", null, (_, _) => Dispatcher.Invoke(ShowFromTray));
         trayMenu.Items.Add("停止加速", null, (_, _) => Dispatcher.InvokeAsync(StopFromTray));
@@ -272,6 +312,7 @@ public partial class MainWindow : Window
     void ApplyStatus(JsonElement result)
     {
         serviceConnected = true;
+        hadService = true;
         state = Text(result, "state") ?? "IDLE";
         loggedIn = Flag(result, "logged_in");
         if (!loggedIn)
@@ -280,10 +321,17 @@ public partial class MainWindow : Window
             // a stale name and catalog would suggest the session still exists.
             ClearCatalog();
         }
-        else if (Text(result, "username") is { } username)
+        else
         {
-            AccountLabel.Text = username;
+            if (Text(result, "username") is { } username)
+            {
+                AccountLabel.Text = username;
+            }
+            // A later sign-out (service restart, logout) prompts once more.
+            loginPrompted = false;
         }
+        AccountButton.Content = loggedIn ? "切换账号" : "账号登录";
+        LogoutButton.Visibility = loggedIn ? Visibility.Visible : Visibility.Collapsed;
         coreAvailable = Flag(result, "core_available");
         RestoreSelection(result);
         // First contact with a signed-out service: open the sign-in dialog
@@ -338,9 +386,10 @@ public partial class MainWindow : Window
         {
             NoticeBox.Visibility = Visibility.Collapsed;
         }
-        else if (!loggedIn && Notice.Text == ServiceMissingNotice)
+        else if (!loggedIn && Notice.Text != SignInNotice && DateTime.UtcNow >= noticeHoldUntil)
         {
-            // The service is back; the outage notice no longer applies.
+            // Signed out, whether by a service restart or on purpose: whatever
+            // the banner said before no longer applies.
             ShowNotice(SignInNotice);
         }
         UpdateButtons();
@@ -359,8 +408,9 @@ public partial class MainWindow : Window
         }
         else if (ex is ServiceUnavailableException)
         {
+            // "Install it first" only makes sense if it was never reached.
             ServiceLabel.Text = "本地服务未连接";
-            ShowNotice(ServiceMissingNotice);
+            ShowNotice(hadService ? ServiceLostNotice : ServiceMissingNotice);
         }
         else
         {
@@ -406,11 +456,11 @@ public partial class MainWindow : Window
             GameList.SelectedItem = game;
         }
         if (Text(result, "region_id") is { } regionID &&
-            RegionList.SelectedItem as string != regionID &&
-            RegionList.ItemsSource is string[] regions &&
-            regions.Contains(regionID))
+            (RegionList.SelectedItem as Region)?.ID != regionID &&
+            RegionList.ItemsSource is Region[] regions &&
+            regions.FirstOrDefault(r => r.ID == regionID) is { } region)
         {
-            RegionList.SelectedItem = regionID;
+            RegionList.SelectedItem = region;
         }
         if (pendingLineID is { } lineID &&
             LineList.ItemsSource is Line[] lines &&
@@ -450,7 +500,7 @@ public partial class MainWindow : Window
         var interactive = serviceConnected && !commandPending && !exiting;
         StartButton.IsEnabled = interactive && loggedIn && coreAvailable && idle &&
             GameList.SelectedItem is Game { Version: > 0 } &&
-            RegionList.SelectedItem is string &&
+            RegionList.SelectedItem is Region &&
             LineList.SelectedItem is Line { Available: true };
         // The button itself reports progress; a user should not have to read
         // the footer to know a click did something.
@@ -511,7 +561,7 @@ public partial class MainWindow : Window
         catalogError = null;
         // A reload keeps what the user had picked when it still exists.
         var keepGame = (GameList.SelectedItem as Game)?.ID ?? prefs.GameID;
-        var keepRegion = RegionList.SelectedItem as string ?? prefs.RegionID;
+        var keepRegion = (RegionList.SelectedItem as Region)?.ID ?? prefs.RegionID;
         var keepLine = pendingLineID;
         GameList.ItemsSource = list;
         EmptyGames.Text = list.Length == 0 ? "暂无可用游戏，请联系运营人员配置。" : "";
@@ -524,9 +574,10 @@ public partial class MainWindow : Window
         // overwrite the remembered line before LoadLines can re-apply it.
         GameList.SelectedItem = game;
         pendingLineID = keepLine;
-        if (keepRegion is not null && game.Regions.Contains(keepRegion))
+        if (keepRegion is not null && RegionList.ItemsSource is Region[] regions &&
+            regions.FirstOrDefault(r => r.ID == keepRegion) is { } region)
         {
-            RegionList.SelectedItem = keepRegion;
+            RegionList.SelectedItem = region;
         }
     }
 
@@ -689,7 +740,10 @@ public partial class MainWindow : Window
         {
             return;
         }
-        await RunCommand("stop");
+        if (await RunCommand("stop"))
+        {
+            ShowNotice("已停止加速。", InfoHold);
+        }
         await Status();
     }
 
@@ -712,9 +766,19 @@ public partial class MainWindow : Window
         }
     }
 
-    void Library_Click(object sender, RoutedEventArgs e)
+    async void Logout_Click(object sender, RoutedEventArgs e)
     {
-        GameList.Focus();
+        if (IsRunning(state))
+        {
+            ShowNotice("请先停止加速，再退出登录。", InfoHold);
+            return;
+        }
+        if (await RunCommand("logout"))
+        {
+            ClearCatalog();
+            loggedIn = false;
+        }
+        await Status();
     }
 
     void Game_Changed(object sender, SelectionChangedEventArgs e)
@@ -722,11 +786,11 @@ public partial class MainWindow : Window
         var game = GameList.SelectedItem as Game;
         var regions = game?.Regions ?? Array.Empty<string>();
         // Replacing the regions may or may not raise Region_Changed (WPF keeps
-        // an equal selected string), so lines are reloaded explicitly below.
+        // an equal selected item), so lines are reloaded explicitly below.
         updatingRegions = true;
         try
         {
-            RegionList.ItemsSource = game is null ? null : regions;
+            RegionList.ItemsSource = game is null ? null : regions.Select(ToRegion).ToArray();
             RegionList.SelectedIndex = regions.Length > 0 ? 0 : -1;
         }
         finally
@@ -757,7 +821,7 @@ public partial class MainWindow : Window
     {
         var generation = ++selectionGeneration;
         LineList.ItemsSource = null;
-        if (GameList.SelectedItem is not Game game || RegionList.SelectedItem is not string region)
+        if (GameList.SelectedItem is not Game game || RegionList.SelectedItem is not Region region)
         {
             UpdateButtons();
             return;
@@ -765,7 +829,7 @@ public partial class MainWindow : Window
         UpdateButtons();
         try
         {
-            var rows = await Wire.CallAsync("lines", new { game_id = game.ID, region_id = region });
+            var rows = await Wire.CallAsync("lines", new { game_id = game.ID, region_id = region.ID });
             if (generation != selectionGeneration)
             {
                 return;
@@ -795,6 +859,8 @@ public partial class MainWindow : Window
         if (LineList.SelectedItem is Line line)
         {
             pendingLineID = line.ID;
+            // The disabled start button needs a reason next to the choice.
+            LineHint.Text = line.Available ? "线路按历史探测延迟排列" : "该线路当前不可用，请选择其他线路。";
         }
         ResetEvidence();
         UpdateButtons();
@@ -803,16 +869,16 @@ public partial class MainWindow : Window
     async void Start_Click(object sender, RoutedEventArgs e)
     {
         if (GameList.SelectedItem is not Game game ||
-            RegionList.SelectedItem is not string region ||
+            RegionList.SelectedItem is not Region region ||
             LineList.SelectedItem is not Line line)
         {
             return;
         }
-        if (await RunCommand("start", new { game_id = game.ID, region_id = region, line_id = line.ID }))
+        if (await RunCommand("start", new { game_id = game.ID, region_id = region.ID, line_id = line.ID }))
         {
             pendingLineID = line.ID;
             prefs.GameID = game.ID;
-            prefs.RegionID = region;
+            prefs.RegionID = region.ID;
             prefs.LineID = line.ID;
             prefs.Save();
             ShowNotice("正在准备连接。通过隧道探测后才会显示线路已连接。", InfoHold);
@@ -822,7 +888,10 @@ public partial class MainWindow : Window
 
     async void Stop_Click(object sender, RoutedEventArgs e)
     {
-        await RunCommand("stop");
+        if (await RunCommand("stop"))
+        {
+            ShowNotice("已停止加速。", InfoHold);
+        }
         await Status();
     }
 
