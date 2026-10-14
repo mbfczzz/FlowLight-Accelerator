@@ -15,6 +15,8 @@
     $ui = "$env:TEMP\fl-ui"; New-Item -ItemType Directory -Force $ui | Out-Null
     Start-Process powershell -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File','.\fake-service.ps1' -WindowStyle Hidden
     powershell -NoProfile -ExecutionPolicy Bypass -File .\drive.ps1 -Exe ..\..\artifacts\windows\client\FlowLight.Client.exe -Ui $ui
+    # explore.ps1 自己启动并重启替身服务；先结束手动启动的那个，否则两个实例轮流应答，客户端会在已登录/未登录之间跳变。
+    Get-CimInstance Win32_Process | Where-Object CommandLine -like '*fake-service.ps1*' | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
     powershell -NoProfile -ExecutionPolicy Bypass -File .\explore.ps1 -Exe ..\..\artifacts\windows\client\FlowLight.Client.exe -Ui $ui -Harness (Get-Location)
 
 客户端通过 `FLOWLIGHT_DEV_PIPE=1` 跳过服务身份校验、`FLOWLIGHT_PIPE_NAME` 指向替身管道，驱动脚本会自动设置。
