@@ -5,8 +5,8 @@
 #        CREATE DATABASE flowlight CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
 #        CREATE USER 'flowlight'@'127.0.0.1' IDENTIFIED BY '数据库密码';
 #        GRANT ALL ON flowlight.* TO 'flowlight'@'127.0.0.1';
-#   2. 把控制服务域名的证书放到 /etc/flowlight/tls/fullchain.pem 和 privkey.pem，
-#      容器内进程以 uid 10001 运行，文件需对其可读（见 certbot-deploy-hook.sh）。
+#   2. 用 issue-certs.sh 签发证书：证书位于 /root/acc/cert/<域名>/，已授权给容器内的 uid 10001，
+#      续期后自动刷新并重启 control-api 与 probe。
 #   3. 防火墙放行 8443/tcp（控制服务）、9443/tcp 与 9081/udp（探测端点）。
 #   4. 把现有反向代理的后台域名转发到 http://127.0.0.1:8088。
 #   5. 填写下面标注“填写”的值，然后 docker compose up -d。
@@ -42,9 +42,9 @@ services:
       # 只有本机 nginx（admin-web）可以代为声明客户端地址，用于登录限流
       TRUSTED_PROXIES: "127.0.0.1/32"
 
-      # 线路发布时的探测端点，对应下面的 probe 服务
-      PROBE_URL: "https://填写控制服务域名:9443/probe"
-      PROBE_UDP: "填写控制服务域名:9081"
+      # 线路发布时的探测端点，对应下面的 probe 服务（与控制服务同域名时填同一个）
+      PROBE_URL: "https://填写探测端点域名:9443/probe"
+      PROBE_UDP: "填写探测端点域名:9081"
       # 入口节点无法回环访问自身公网地址时，填写一台在线节点的 ID，由它代为验证
       PROBE_NODE_ID: ""
 
@@ -56,7 +56,7 @@ services:
     volumes:
       # 节点 CA 与本地密钥；务必与 MySQL、ENCRYPTION_KEY 一起备份
       - control-data:/data
-      - /etc/flowlight/tls:/tls:ro
+      - /root/acc/cert/填写控制服务域名:/tls:ro
 
   admin-web:
     image: ghcr.io/mbfczzz/flowlight-admin:latest
@@ -90,7 +90,7 @@ services:
       - "-tls-key"
       - "/tls/privkey.pem"
     volumes:
-      - /etc/flowlight/tls:/tls:ro
+      - /root/acc/cert/填写探测端点域名:/tls:ro
 
 volumes:
   control-data:

@@ -63,7 +63,7 @@ MySQL 保存权威状态，开发可用 SQLite。首版不依赖 Redis：原先�
     mkdir -p /opt/flowlight && cp deploy/server/docker-compose.yml /opt/flowlight/
     cd /opt/flowlight && docker compose up -d
 
-端口约定：控制服务 TLS 监听 `0.0.0.0:8443`（节点 Agent 和 Windows 客户端直连，节点要做 mTLS，所以不能放在外层反向代理后面）；管理后台 nginx 只监听 `127.0.0.1:8088`，由你现有的反向代理把后台域名转发过来；探测端点 `9443/tcp`、`9081/udp`。证书放 `/etc/flowlight/tls/`，容器以 uid 10001 运行，用 `deploy/server/certbot-deploy-hook.sh` 复制并授权，续期后自动重启相关容器。
+端口约定：控制服务 TLS 监听 `0.0.0.0:8443`（节点 Agent 和 Windows 客户端直连，节点要做 mTLS，所以不能放在外层反向代理后面）；管理后台 nginx 只监听 `127.0.0.1:8088`，由你现有的反向代理把后台域名转发过来；探测端点 `9443/tcp`、`9081/udp`。证书用 `deploy/server/issue-certs.sh` 签发：每个域名一张，存放在 `/root/acc/cert/<域名>/`，已授权给容器内的 uid 10001，续期钩子会刷新副本、重启 control-api 与 probe 并重载 nginx。
 
 Windows 客户端安装时填写的控制服务地址即 `https://控制服务域名:8443`。
 
