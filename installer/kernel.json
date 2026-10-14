@@ -1,0 +1,13 @@
+{
+  "project": "MetaCubeX/mihomo",
+  "version": "v1.19.32",
+  "asset": "mihomo-windows-amd64-compatible-v1.19.32.zip",
+  "zip_sha256": "974a4d7ad69aed27aa2e8f91d61113573c14dadb14562c63e58effabf59816f0",
+  "exe_in_zip": "mihomo-windows-amd64-compatible.exe",
+  "exe_sha256": "04f8d7fc2b314771e1ecbf15951d59f0e1cb7914503c88cfb6972ff6a824e314",
+  "notes": [
+    "The 'compatible' build targets GOAMD64=v1, so it runs on every x64 CPU; the plain amd64 build needs AVX2.",
+    "Wintun is embedded in this binary (the executable exports WintunCreateAdapter/WintunStartSession), so no separate wintun.dll ships with the installer.",
+    "To upgrade: pick a release at https://github.com/MetaCubeX/mihomo/releases, download the asset, record sha256 of the zip and of the extracted exe here, then run installer/fetch-kernel.ps1 to confirm."
+  ]
+}

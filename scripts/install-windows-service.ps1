@@ -1,3 +1,10 @@
+<#
+.SYNOPSIS
+Manual installation from build output, for machines without the packaged
+installer. Copies the client, service and verified kernel into Program Files,
+then hands over to installer/configure-service.ps1 for the service and data
+directory. Prefer the Setup.exe from a release for end users.
+#>
 param(
  [Parameter(Mandatory=$true)][string]$ControlUrl,
  [Parameter(Mandatory=$true)][string]$MihomoPath,
@@ -8,38 +15,17 @@ $ErrorActionPreference = 'Stop'
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 if (-not ([Security.Principal.WindowsPrincipal]::new($identity)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { throw 'Run installation as administrator' }
 if (([Uri]$ControlUrl).Scheme -ne 'https') { throw 'Production control URL must use HTTPS' }
-$existing = Get-Service -Name FlowLightAccelerator -ErrorAction SilentlyContinue
-if ($existing -and $existing.Status -ne 'Stopped') { throw 'Stop acceleration and the service before updating it' }
 $hash = (Get-FileHash -LiteralPath $MihomoPath -Algorithm SHA256).Hash
 if ($hash -ne $MihomoSha256) { throw 'Kernel checksum mismatch' }
+$configure = Join-Path (Split-Path $PSScriptRoot -Parent) 'installer/configure-service.ps1'
+& $configure -Stop
+# The client only talks to a service under this exact path.
 $installRoot = Join-Path $env:ProgramFiles 'FlowLight Accelerator'
-$dataRoot = Join-Path $env:ProgramData 'FlowLightAccelerator'
-# Standard users may create folders under ProgramData. A folder they created
-# first stays theirs after the ACL reset and would let them rewrite
-# service.json for the SYSTEM service, so only trust one owned by SYSTEM or
-# Administrators. Never delete it here: it could be a junction elsewhere.
-$adminsSid = [Security.Principal.SecurityIdentifier]::new([Security.Principal.WellKnownSidType]::BuiltinAdministratorsSid,$null)
-$systemSid = [Security.Principal.SecurityIdentifier]::new([Security.Principal.WellKnownSidType]::LocalSystemSid,$null)
-if (Test-Path -LiteralPath $dataRoot) {
- $item = Get-Item -LiteralPath $dataRoot -Force
- $owner = (Get-Acl -LiteralPath $dataRoot).GetOwner([Security.Principal.SecurityIdentifier])
- if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -or ($owner -ne $adminsSid -and $owner -ne $systemSid)) { throw "Untrusted existing $dataRoot (owner $owner). Inspect and remove it as an administrator, then retry." }
-}
-New-Item -ItemType Directory -Path $installRoot,$dataRoot,(Join-Path $installRoot 'core') -Force | Out-Null
-$acl = [Security.AccessControl.DirectorySecurity]::new()
-$acl.SetOwner($adminsSid)
-$acl.SetAccessRuleProtection($true,$false)
-foreach ($sidType in @([Security.Principal.WellKnownSidType]::LocalSystemSid,[Security.Principal.WellKnownSidType]::BuiltinAdministratorsSid)) {
- $sid = [Security.Principal.SecurityIdentifier]::new($sidType,$null)
- $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($sid,'FullControl','ContainerInherit,ObjectInherit','None','Allow'))
-}
-Set-Acl -LiteralPath $dataRoot -AclObject $acl
+New-Item -ItemType Directory -Path $installRoot,(Join-Path $installRoot 'core') -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $Artifacts 'client') -Destination $installRoot -Recurse -Force
 Copy-Item -LiteralPath (Join-Path $Artifacts 'service') -Destination $installRoot -Recurse -Force
-$coreTarget = Join-Path $installRoot 'core/mihomo.exe'
-Copy-Item -LiteralPath $MihomoPath -Destination $coreTarget -Force
-@{control_url=$ControlUrl;core_path=$coreTarget;core_sha256=$MihomoSha256.ToLowerInvariant();data_dir=(Join-Path $dataRoot 'runtime');allow_local_http=$false} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $dataRoot 'service.json') -Encoding utf8
-$serviceExe = Join-Path $installRoot 'service/FlowLight.Service.exe'
-if (-not $existing) { New-Service -Name FlowLightAccelerator -BinaryPathName ('"' + $serviceExe + '"') -DisplayName 'FlowLight Accelerator Network Service' -StartupType Automatic | Out-Null }
-Start-Service FlowLightAccelerator
+Copy-Item -LiteralPath $configure -Destination (Join-Path $installRoot 'service') -Force
+Copy-Item -LiteralPath $MihomoPath -Destination (Join-Path $installRoot 'core/mihomo.exe') -Force
+& $configure -Install -InstallRoot $installRoot -ControlUrl $ControlUrl -CoreSha256 $MihomoSha256
+if ($LASTEXITCODE -ne 0) { throw 'Service configuration failed' }
 Write-Host ('Installed. Launch ' + (Join-Path $installRoot 'client/FlowLight.Client.exe'))

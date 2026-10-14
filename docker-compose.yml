@@ -40,6 +40,12 @@ services:
     depends_on: [control-api]
     networks:
       internal: {ipv4_address: 172.31.250.10}
+  probe:
+    build: {context: ., dockerfile: deploy/probe.Dockerfile}
+    # Validation endpoint for line publication. Node agents must be able to
+    # reach it: point PROBE_URL and PROBE_UDP at an address they can see.
+    ports: ["127.0.0.1:9080:9080", "127.0.0.1:9081:9081/udp"]
+    networks: [internal]
 networks:
   internal:
     ipam:

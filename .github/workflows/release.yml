@@ -1,0 +1,104 @@
+name: release
+# Every push to main builds the Windows installer as a workflow artifact and
+# publishes :latest container images. A v* tag additionally creates a GitHub
+# Release with the installer attached and tags the images with the version.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: write
+  packages: write
+jobs:
+  windows-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Resolve version
+        id: version
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF -like 'refs/tags/v*') {
+            $version = $env:GITHUB_REF.Substring('refs/tags/v'.Length)
+            $numeric = (($version -split '[-+]')[0] -split '\.' | Select-Object -First 3) -join '.'
+            $fileVersion = "$numeric.0"
+          } else {
+            $version = '0.1.0-' + $env:GITHUB_SHA.Substring(0, 7)
+            $fileVersion = '0.1.0.0'
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "file_version=$fileVersion" >> $env:GITHUB_OUTPUT
+      - name: Fetch pinned Mihomo kernel
+        id: kernel
+        shell: pwsh
+        run: ./installer/fetch-kernel.ps1
+      - name: Build client and service
+        shell: pwsh
+        run: ./scripts/build-windows.ps1 -Version '${{ steps.version.outputs.version }}'
+      - name: Compile installer
+        shell: pwsh
+        env:
+          # Optional repository variable; pre-fills the control service address.
+          DEFAULT_CONTROL_URL: ${{ vars.CONTROL_URL }}
+        run: |
+          $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $iscc)) { choco install innosetup --no-progress -y; }
+          & $iscc /Qp `
+            "/DAppVersion=${{ steps.version.outputs.version }}" `
+            "/DFileVersion=${{ steps.version.outputs.file_version }}" `
+            "/DCoreSha256=${{ steps.kernel.outputs.core_sha256 }}" `
+            "/DDefaultControlUrl=$env:DEFAULT_CONTROL_URL" `
+            installer/FlowLight.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed with $LASTEXITCODE" }
+          Get-ChildItem artifacts/installer
+      - uses: actions/upload-artifact@v4
+        with:
+          name: flowlight-windows-installer
+          path: artifacts/installer/*.exe
+          if-no-files-found: error
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/installer/*.exe
+          generate_release_notes: true
+  images:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - name: flowlight-control
+            dockerfile: deploy/control.Dockerfile
+          - name: flowlight-admin
+            dockerfile: deploy/admin.Dockerfile
+          - name: flowlight-probe
+            dockerfile: deploy/probe.Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/${{ matrix.name }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+            type=sha
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}

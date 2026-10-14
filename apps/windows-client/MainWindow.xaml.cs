@@ -52,7 +52,7 @@ public partial class MainWindow : Window
         trayMenu.Items.Add("退出并停止加速", null, (_, _) => Dispatcher.InvokeAsync(Exit));
         tray = new System.Windows.Forms.NotifyIcon
         {
-            Icon = System.Drawing.SystemIcons.Application,
+            Icon = TrayIcon(),
             Text = "流光加速器 · FlowLight Accelerator",
             Visible = true,
             ContextMenuStrip = trayMenu,
@@ -382,6 +382,23 @@ public partial class MainWindow : Window
     }
 
     static bool Flag(JsonElement element, string name) => Child(element, name).ValueKind == JsonValueKind.True;
+
+    // The executable carries the brand icon, so the tray uses the same one.
+    // Fall back to the generic system icon if it cannot be read.
+    static System.Drawing.Icon TrayIcon()
+    {
+        try
+        {
+            if (Environment.ProcessPath is { } path && System.Drawing.Icon.ExtractAssociatedIcon(path) is { } extracted)
+            {
+                return extracted;
+            }
+        }
+        catch (Exception e) when (e is ArgumentException or System.IO.IOException or System.Security.SecurityException)
+        {
+        }
+        return System.Drawing.SystemIcons.Application;
+    }
 
     static double Number(JsonElement element, string name)
     {

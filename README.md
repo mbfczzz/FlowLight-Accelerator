@@ -45,7 +45,29 @@ MySQL 保存权威状态，开发可用 SQLite。首版不依赖 Redis：原先�
 
 后台为 http://localhost:5173，API 为 127.0.0.1:8090。首次账号为 admin，密码取启动配置；已有账号不会被启动参数覆盖。开发数据库、加密密钥和节点 CA 位于 runtime/control。
 
-## 容器部署
+## 发布与镜像
+
+推送到 main 或打 v* 标签时，`.github/workflows/release.yml` 会：
+
+- 在 Windows 构建自包含的客户端与本地服务，按 installer/kernel.json 下载并双重校验固定版本的 Mihomo 内核，用 Inno Setup 生成 `FlowLight-Accelerator-Setup-<版本>.exe`。main 分支构建作为工作流产物（Actions 页面下载）；v* 标签构建附加到 GitHub Release。
+- 构建并推送三个镜像到 GitHub Packages：`ghcr.io/mbfczzz/flowlight-control`、`flowlight-admin`、`flowlight-probe`。main 分支为 `latest`，标签为版本号。
+
+镜像默认私有：在仓库 Packages 设置里改为 public，或在服务器上 `docker login ghcr.io`（PAT 需 read:packages）。
+
+安装程序固定安装到 `C:\Program Files\FlowLight Accelerator`（客户端只信任这个路径下的服务），安装时要求输入控制服务地址（必须 https://）。在仓库变量里设置 `CONTROL_URL` 可把默认地址预填进安装程序；静默安装用 `Setup.exe /VERYSILENT /CONTROLURL=https://...`。升级时直接运行新版安装程序，服务会先停止再替换；卸载会停止并删除服务及 ProgramData 下的配置。安装程序未签名，SmartScreen 会提示“未知发布者”，正式分发前需要代码签名。
+
+## 服务器部署（host 网络，复用已有 MySQL）
+
+`deploy/server/docker-compose.yml` 是面向生产服务器的 compose：三个容器都用 host 网络，连接本机 MySQL，不使用 Redis。按文件头部注释建库、放证书、开防火墙、填值，然后：
+
+    mkdir -p /opt/flowlight && cp deploy/server/docker-compose.yml /opt/flowlight/
+    cd /opt/flowlight && docker compose up -d
+
+端口约定：控制服务 TLS 监听 `0.0.0.0:8443`（节点 Agent 和 Windows 客户端直连，节点要做 mTLS，所以不能放在外层反向代理后面）；管理后台 nginx 只监听 `127.0.0.1:8088`，由你现有的反向代理把后台域名转发过来；探测端点 `9443/tcp`、`9081/udp`。证书放 `/etc/flowlight/tls/`，容器以 uid 10001 运行，用 `deploy/server/certbot-deploy-hook.sh` 复制并授权，续期后自动重启相关容器。
+
+Windows 客户端安装时填写的控制服务地址即 `https://控制服务域名:8443`。
+
+## 容器部署（开发 / 单机）
 
 复制 .env.example 为 .env，设置独立的数据库密码、管理员密码和 32 字节 base64 加密密钥。
 
@@ -97,13 +119,16 @@ MySQL 保存权威状态，开发可用 SQLite。首版不依赖 Redis：原先�
 
 ## Windows
 
+终端用户使用 Release 里的安装程序。手动安装（开发机、未签名环境）：
+
     .\scripts\build-windows.ps1
+    .\installer\fetch-kernel.ps1
 
 管理员终端安装本地服务，核心文件必须来自核验过的发布包：
 
-    .\scripts\install-windows-service.ps1 -ControlUrl 'https://control.example.com:8443' -MihomoPath 'C:\verified-core\mihomo.exe' -MihomoSha256 'YOUR_VERIFIED_EXECUTABLE_SHA256'
+    .\scripts\install-windows-service.ps1 -ControlUrl 'https://control.example.com:8443' -MihomoPath '.\artifacts\windows\core\mihomo.exe' -MihomoSha256 (Get-Content .\installer\kernel.json | ConvertFrom-Json).exe_sha256
 
-固定安装于 Program Files 下的 FlowLight Accelerator。客户端验证命名管道对端进程位置；本地服务按 Windows SID 隔离账号，服务配置目录仅 SYSTEM 和管理员可读写。
+服务注册、数据目录 ACL 和卸载都由 installer/configure-service.ps1 处理，安装程序和手动脚本共用同一份逻辑。固定安装于 Program Files 下的 FlowLight Accelerator。客户端验证命名管道对端进程位置；本地服务按 Windows SID 隔离账号，服务配置目录仅 SYSTEM 和管理员可读写。
 
 开发调试可用 FLOWLIGHT_SERVICE_CONFIG 指向独立配置。allow_local_http 仅放行回环地址；调试客户端用 FLOWLIGHT_DEV_PIPE=1 连接开发目录服务，生产安装无需此变量。
 
