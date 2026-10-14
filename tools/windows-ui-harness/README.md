@@ -6,6 +6,8 @@
   会话按计时器走 PREPARING → CONNECTING → ACTIVE。默认管道名 `FlowLight.Accelerator.dev`，可与真服务共存。登录密码 `pw`。
 - `drive.ps1`：UI Automation 驱动。输入账号密码、选第二个游戏和第二个区服、开始加速、等待连上、杀掉客户端再重开验证恢复选中、
   停止、关闭缩托盘、再次启动验证单实例唤醒；每步截图到 `-Ui` 目录，日志写 `drive.log`。
+- `explore.ps1`：探索式走查。输错密码、打开两个下拉框、选到不可用线路、选到未发布的游戏、服务拒绝开始、开始/停止、
+  诊断复制、已登录再点账号、退出登录、最小尺寸与最大化、本地服务中途消失再恢复；每个状态截图，供人工逐张审阅。
 - `capture.ps1`：把客户端窗口调整到指定尺寸并截图。
 
 运行（Windows PowerShell 5.1，UIAutomationClient 是 .NET Framework 程序集）：
@@ -13,6 +15,7 @@
     $ui = "$env:TEMP\fl-ui"; New-Item -ItemType Directory -Force $ui | Out-Null
     Start-Process powershell -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File','.\fake-service.ps1' -WindowStyle Hidden
     powershell -NoProfile -ExecutionPolicy Bypass -File .\drive.ps1 -Exe ..\..\artifacts\windows\client\FlowLight.Client.exe -Ui $ui
+    powershell -NoProfile -ExecutionPolicy Bypass -File .\explore.ps1 -Exe ..\..\artifacts\windows\client\FlowLight.Client.exe -Ui $ui -Harness (Get-Location)
 
 客户端通过 `FLOWLIGHT_DEV_PIPE=1` 跳过服务身份校验、`FLOWLIGHT_PIPE_NAME` 指向替身管道，驱动脚本会自动设置。
 框架依赖的构建输出需要先设置 `DOTNET_ROOT` 指向 .NET 10 运行时；自包含发布产物不需要。
