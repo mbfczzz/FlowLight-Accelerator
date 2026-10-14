@@ -76,7 +76,7 @@ func fixture(t *testing.T, s *Server, u User) {
 	s.Store.DB.Create(&Device{ID: "test-device", UserID: u.ID, Name: "test", Capabilities: c.Capabilities{TCP: true, UDP: true, IPv4: true}})
 	s.Store.DB.Model(&Game{}).Where("id = ?", "valorant").Updates(map[string]any{"regions": "[\"kr\"]", "published_version": 1})
 	s.Store.DB.Create(&GameVersion{ID: "profile-1", GameID: "valorant", Version: 1, Profile: c.Profile{Processes: []string{"VALORANT-Win64-Shipping.exe"}, UDP: true}})
-	s.Store.DB.Create(&Node{ID: "node-1", Name: "test", Address: "node.example", Enabled: true, Capabilities: c.Capabilities{TCP: true, UDP: true, IPv4: true, Managed: true}, LastSeen: now, TokenHash: hash("node-test-token")})
+	s.Store.DB.Create(&Node{ID: "node-1", Name: "test", Address: "node.example", Enabled: true, Capabilities: c.Capabilities{TCP: true, UDP: true, IPv4: true, Managed: true}, LastSeen: timePointer(now), TokenHash: hash("node-test-token")})
 	s.Store.DB.Create(&Endpoint{ID: "ep-1", NodeID: "node-1", Name: "exit", Kind: "ss2022", Host: "node.example", Port: 20000, PortEnd: 20005, Enabled: true, Capabilities: c.Capabilities{TCP: true, UDP: true, IPv4: true, Managed: true}})
 	s.Store.DB.Create(&Line{ID: "line-1", Name: "test line", Regions: []string{"kr"}, Capacity: 1, Mode: "managed", PublishedVersion: "version-1"})
 	s.Store.DB.Create(&LineVersion{ID: "version-1", LineID: "line-1", Number: 1, Status: "ready", Regions: []string{"kr"}, Mode: "managed", Hops: []c.Hop{{EndpointID: "ep-1", NodeID: "node-1", Kind: "ss2022", Host: "node.example", Port: 20000, PortEnd: 20005, Cipher: "2022-blake3-aes-128-gcm", Capabilities: c.Capabilities{TCP: true, UDP: true, IPv4: true, Managed: true}}}})

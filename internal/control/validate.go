@@ -9,7 +9,6 @@ import (
 	"net"
 	"slices"
 	"strings"
-	"time"
 )
 
 func validateProfile(p c.Profile) error {
@@ -104,7 +103,7 @@ func (s *Server) compile(tx *gorm.DB, l Line) ([]c.Hop, error) {
 		} else if e.Kind != "realm" {
 			return nil, errors.New("intermediate hops must be transparent Realm forwarding endpoints")
 		}
-		if (l.Mode == "managed" || (l.Mode == "hybrid" && i < len(l.EndpointIDs)-1)) && (!n.Capabilities.Managed || !e.Capabilities.Managed || time.Since(n.LastSeen) > s.Config.NodeTimeout) {
+		if (l.Mode == "managed" || (l.Mode == "hybrid" && i < len(l.EndpointIDs)-1)) && (!n.Capabilities.Managed || !e.Capabilities.Managed || timeSince(n.LastSeen) > s.Config.NodeTimeout) {
 			return nil, errors.New("managed node must be online and support leased runtimes")
 		}
 		if (l.Mode == "imported" || (l.Mode == "hybrid" && i == len(l.EndpointIDs)-1)) && e.CredentialID == "" {

@@ -27,7 +27,7 @@ type Device struct {
 	UserID       string         `json:"user_id" gorm:"index;size:64"`
 	Name         string         `json:"name"`
 	Capabilities c.Capabilities `json:"capabilities" gorm:"serializer:json;type:text"`
-	LastSeen     time.Time      `json:"last_seen" gorm:"default:null"`
+	LastSeen     *time.Time     `json:"last_seen" gorm:"default:null"`
 }
 type Game struct {
 	ID               string    `json:"id" gorm:"primaryKey;size:64"`
@@ -46,7 +46,7 @@ type GameVersion struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 type Node struct {
-	BootstrapUntil  time.Time      `json:"-" gorm:"default:null"`
+	BootstrapUntil  *time.Time     `json:"-" gorm:"default:null"`
 	ID              string         `json:"id" gorm:"primaryKey;size:64"`
 	Name            string         `json:"name"`
 	Region          string         `json:"region"`
@@ -56,7 +56,7 @@ type Node struct {
 	BootstrapHash   string         `json:"-"`
 	TokenHash       string         `json:"-"`
 	CertificateHash string         `json:"-"`
-	LastSeen        time.Time      `json:"last_seen" gorm:"default:null"`
+	LastSeen        *time.Time     `json:"last_seen" gorm:"default:null"`
 	AgentVersion    string         `json:"agent_version"`
 	ActualVersions  []string       `json:"actual_versions" gorm:"serializer:json;type:text"`
 }
@@ -133,7 +133,7 @@ type Session struct {
 	ConnectionCipher string        `json:"-" gorm:"type:text"`
 	LeaseUntil       time.Time     `json:"lease_until"`
 	PrepareUntil     time.Time     `json:"prepare_until"`
-	StopUntil        time.Time     `json:"stop_until" gorm:"default:null"`
+	StopUntil        *time.Time    `json:"stop_until" gorm:"default:null"`
 	CreatedAt        time.Time     `json:"created_at"`
 	UpdatedAt        time.Time     `json:"updated_at"`
 	EndReason        string        `json:"end_reason,omitempty"`
@@ -152,18 +152,18 @@ type Idempotency struct {
 	RequestHash string
 }
 type Job struct {
-	ID            string    `json:"id" gorm:"primaryKey;size:64"`
-	NodeID        string    `json:"node_id" gorm:"index;size:64"`
-	SessionID     string    `json:"session_id" gorm:"index;size:64"`
-	VersionID     string    `json:"version_id"`
-	Kind          string    `json:"kind"`
-	PayloadCipher string    `json:"-" gorm:"type:text"`
-	Status        string    `json:"status" gorm:"index;size:24"`
-	ClaimHash     string    `json:"-"`
-	ClaimUntil    time.Time `json:"claim_until" gorm:"default:null"`
-	Attempts      int       `json:"attempts"`
-	Result        string    `json:"result,omitempty" gorm:"type:text"`
-	CreatedAt     time.Time `json:"created_at"`
+	ID            string     `json:"id" gorm:"primaryKey;size:64"`
+	NodeID        string     `json:"node_id" gorm:"index;size:64"`
+	SessionID     string     `json:"session_id" gorm:"index;size:64"`
+	VersionID     string     `json:"version_id"`
+	Kind          string     `json:"kind"`
+	PayloadCipher string     `json:"-" gorm:"type:text"`
+	Status        string     `json:"status" gorm:"index;size:24"`
+	ClaimHash     string     `json:"-"`
+	ClaimUntil    *time.Time `json:"claim_until" gorm:"default:null"`
+	Attempts      int        `json:"attempts"`
+	Result        string     `json:"result,omitempty" gorm:"type:text"`
+	CreatedAt     time.Time  `json:"created_at"`
 }
 type Audit struct {
 	ID        string    `json:"id" gorm:"primaryKey;size:64"`
@@ -187,4 +187,13 @@ type Release struct {
 type Gate struct {
 	ID       int `gorm:"primaryKey"`
 	Revision int64
+}
+
+// Unobserved timestamps are SQL NULL, including full-row updates in strict MySQL.
+func timePointer(value time.Time) *time.Time { return &value }
+func timeSince(value *time.Time) time.Duration {
+	if value == nil {
+		return time.Duration(1<<63 - 1)
+	}
+	return time.Since(*value)
 }

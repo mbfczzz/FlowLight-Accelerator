@@ -226,7 +226,7 @@ func (s *Server) device(w http.ResponseWriter, r *http.Request) {
 		fail(w, 400, "device identifier and name required")
 		return
 	}
-	out := Device{ID: in.ID, UserID: actor(r).ID, Name: in.Name, Capabilities: in.Capabilities, LastSeen: time.Now().UTC()}
+	out := Device{ID: in.ID, UserID: actor(r).ID, Name: in.Name, Capabilities: in.Capabilities, LastSeen: timePointer(time.Now().UTC())}
 	e := s.Store.Tx(func(tx *gorm.DB) error {
 		old, e := load[Device](tx, in.ID)
 		if e == nil && old.UserID != out.UserID {
@@ -262,7 +262,7 @@ func (s *Server) clientLines(w http.ResponseWriter, r *http.Request) {
 		for _, h := range v.Hops {
 			if h.Capabilities.Managed {
 				n, e := load[Node](s.Store.DB, h.NodeID)
-				healthy = healthy && e == nil && n.Enabled && time.Since(n.LastSeen) < s.Config.NodeTimeout
+				healthy = healthy && e == nil && n.Enabled && timeSince(n.LastSeen) < s.Config.NodeTimeout
 			}
 		}
 		out = append(out, map[string]any{"id": l.ID, "name": l.Name, "version": v.ID, "regions": v.Regions, "mode": v.Mode, "available": healthy, "capacity": l.Capacity, "active_sessions": count, "probe": v.Probe, "priority": l.Priority})
@@ -422,7 +422,7 @@ func (s *Server) publishLine(w http.ResponseWriter, r *http.Request) {
 		}
 		if l.Mode == "imported" {
 			probeNode, err := load[Node](tx, s.Config.ProbeNodeID)
-			if err != nil || !probeNode.Enabled || time.Since(probeNode.LastSeen) > s.Config.NodeTimeout {
+			if err != nil || !probeNode.Enabled || timeSince(probeNode.LastSeen) > s.Config.NodeTimeout {
 				return errors.New("configure an online PROBE_NODE_ID for imported line validation")
 			}
 		}

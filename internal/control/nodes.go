@@ -18,7 +18,7 @@ func (s *Server) enrollment(w http.ResponseWriter, r *http.Request) {
 			return e
 		}
 		n.BootstrapHash = hash(token)
-		n.BootstrapUntil = time.Now().UTC().Add(15 * time.Minute)
+		n.BootstrapUntil = timePointer(time.Now().UTC().Add(15 * time.Minute))
 		if e = tx.Save(&n).Error; e != nil {
 			return e
 		}
@@ -39,7 +39,7 @@ func (s *Server) registerNode(w http.ResponseWriter, r *http.Request) {
 	var certificate string
 	e := s.Store.Tx(func(tx *gorm.DB) error {
 		n, e := load[Node](tx, in.NodeID)
-		if e != nil || !n.Enabled || in.Bootstrap == "" || n.BootstrapHash != hash(in.Bootstrap) || time.Now().After(n.BootstrapUntil) {
+		if e != nil || !n.Enabled || in.Bootstrap == "" || n.BootstrapHash != hash(in.Bootstrap) || n.BootstrapUntil == nil || time.Now().After(*n.BootstrapUntil) {
 			return errors.New("invalid enrollment identity")
 		}
 		var fingerprint string
@@ -69,7 +69,7 @@ func (s *Server) nodeHeartbeat(w http.ResponseWriter, r *http.Request) {
 	n := r.Context().Value(nodeKey).(Node)
 	leases := map[string]time.Time{}
 	e := s.Store.Tx(func(tx *gorm.DB) error {
-		n.LastSeen = time.Now().UTC()
+		n.LastSeen = timePointer(time.Now().UTC())
 		n.AgentVersion = in.Version
 		n.ActualVersions = in.Versions
 		n.Capabilities.TCP = n.Capabilities.TCP && in.Capabilities.TCP
@@ -119,7 +119,7 @@ func (s *Server) claimJobs(w http.ResponseWriter, r *http.Request) {
 			claim := secret()
 			j.Status = "running"
 			j.ClaimHash = hash(claim)
-			j.ClaimUntil = now.Add(60 * time.Second)
+			j.ClaimUntil = timePointer(now.Add(60 * time.Second))
 			j.Attempts++
 			if e := tx.Save(&j).Error; e != nil {
 				return e
@@ -156,7 +156,7 @@ func (s *Server) jobResult(w http.ResponseWriter, r *http.Request) {
 		if j.Status == "succeeded" || j.Status == "failed" {
 			return nil
 		}
-		if j.Status != "running" || time.Now().After(j.ClaimUntil) {
+		if j.Status != "running" || j.ClaimUntil == nil || time.Now().After(*j.ClaimUntil) {
 			return errors.New("job claim expired")
 		}
 		x, e := load[Session](tx, j.SessionID)

@@ -70,7 +70,7 @@ func (s *Server) provision(tx *gorm.DB, x *Session, v LineVersion, p c.Profile) 
 				continue
 			}
 			var node Node
-			if tx.First(&node, "id = ?", h.NodeID).Error != nil || !node.Enabled || time.Since(node.LastSeen) > s.Config.NodeTimeout {
+			if tx.First(&node, "id = ?", h.NodeID).Error != nil || !node.Enabled || timeSince(node.LastSeen) > s.Config.NodeTimeout {
 				return errors.New("node offline")
 			}
 			allocated := false
@@ -310,7 +310,7 @@ func (s *Server) stopping(tx *gorm.DB, x *Session, reason string) error {
 			return e
 		}
 	}
-	x.StopUntil = x.LeaseUntil.Add(s.Config.ReclaimGrace)
+	x.StopUntil = timePointer(x.LeaseUntil.Add(s.Config.ReclaimGrace))
 	x.UpdatedAt = time.Now().UTC()
 	if e := tx.Save(x).Error; e != nil {
 		return e
@@ -365,7 +365,7 @@ func (s *Server) Reap() error {
 		}
 		now := time.Now().UTC()
 		for _, x := range sessions {
-			if x.State == "STOPPING" && now.After(x.StopUntil) {
+			if x.State == "STOPPING" && x.StopUntil != nil && now.After(*x.StopUntil) {
 				if e := s.closeSession(tx, &x); e != nil {
 					return e
 				}
