@@ -130,7 +130,7 @@ public static class TunnelProbe
         var domain = Encoding.ASCII.GetBytes(uri.Host);
         if (domain.Length > 253 || uri.Port < 1)
         {
-            throw new IOException("Invalid UDP probe target");
+            throw new IOException("UDP 探测目标无效");
         }
 
         using var tcp = new TcpClient();
@@ -142,7 +142,7 @@ public static class TunnelProbe
         await stream.ReadExactlyAsync(greeting, ct);
         if (greeting[0] != 5 || greeting[1] != 0)
         {
-            throw new IOException("SOCKS handshake rejected");
+            throw new IOException("本地代理握手被拒绝");
         }
 
         await stream.WriteAsync(new byte[] { 5, 3, 0, 1, 0, 0, 0, 0, 0, 0 }, ct);
@@ -150,7 +150,7 @@ public static class TunnelProbe
         await stream.ReadExactlyAsync(header, ct);
         if (header[1] != 0)
         {
-            throw new IOException("SOCKS UDP association rejected");
+            throw new IOException("本地代理拒绝 UDP 关联");
         }
         var host = await ReadAddress(stream, header[3], ct);
         var portBytes = new byte[2];
@@ -252,7 +252,7 @@ public static class TunnelProbe
         }
         if (length == 0)
         {
-            throw new IOException("Unsupported SOCKS address");
+            throw new IOException("本地代理返回了不支持的地址类型");
         }
         var bytes = new byte[length];
         await stream.ReadExactlyAsync(bytes, ct);

@@ -35,6 +35,14 @@ catch (ArgumentException)
 {
 }
 
+// Control-service phrases a player can trigger are shown in Chinese; unknown
+// ones pass through unchanged and a missing message gets a generic one.
+Check(ApiClient.Localize("invalid credentials") == "账号或密码错误", "known API error translated");
+Check(ApiClient.Localize("line capacity exhausted") == "该线路已满员，请选择其他线路", "capacity error translated");
+Check(ApiClient.Localize("invalid JSON request: unknown field") == "请求格式错误，请更新客户端", "decode error translated");
+Check(ApiClient.Localize("some future message") == "some future message", "unknown API error passed through");
+Check(ApiClient.Localize(null) == "控制服务请求失败" && ApiClient.Localize(" ") == "控制服务请求失败", "missing API error gets a default");
+
 var profile = new GameProfile(["VALORANT-Win64-Shipping.exe"], [], [], [], [], true);
 var conn = new Connection(
     "node.example",
@@ -496,7 +504,7 @@ if (OperatingSystem.IsWindows())
 }
 
 Console.WriteLine(
-    "PASS: HTTPS restriction, wire contract, rule validation, tunnel-pinned probe inbound, torn kernel journal, " +
+    "PASS: HTTPS restriction, API message translation, wire contract, rule validation, tunnel-pinned probe inbound, torn kernel journal, " +
     "token rotation, stable idempotency, transient gateway errors, UDP 4-of-5 sampling and loss, UDP nonce " +
     "framing, warm-connection TCP probe, Windows child lifetime, kernel failure diagnostics and cleanup " +
     $"({kernelChecks}), absent-pipe fast fail, foreign pipe server rejected, SCM service lookup, release path " +

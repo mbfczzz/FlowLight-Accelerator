@@ -8,7 +8,7 @@ Add-Type -AssemblyName UIAutomationTypes
 $log = Join-Path $Ui 'drive.log'
 Remove-Item $log -ErrorAction SilentlyContinue
 function Log($m) { Add-Content -LiteralPath $log -Encoding UTF8 -Value ((Get-Date -Format HH:mm:ss.fff) + ' ' + $m) }
-function Shot($name) { & "$Ui\capture.ps1" -Width 1120 -Height 750 -Out (Join-Path $Ui "$name.png") -Wait 1 | Out-Null; Log "shot $name" }
+function Shot($name) { & "$PSScriptRoot\capture.ps1" -Width 1120 -Height 750 -Out (Join-Path $Ui "$name.png") -Wait 1 | Out-Null; Log "shot $name" }
 $AE = [System.Windows.Automation.AutomationElement]
 $CT = [System.Windows.Automation.ControlType]
 

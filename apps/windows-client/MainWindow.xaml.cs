@@ -722,6 +722,8 @@ public partial class MainWindow : Window
         {
             Username.Text = loggedIn && AccountLabel.Text != SignedOutLabel ? AccountLabel.Text : prefs.Username ?? "";
         }
+        LoginTitle.Text = loggedIn ? "切换账号" : "登录流光加速器";
+        LoginSubtitle.Text = loggedIn ? "登录另一个账号后，当前账号会退出。" : "使用平台账号获取游戏与线路授权。";
         LoginError.Text = "";
         LoginOverlay.Visibility = Visibility.Visible;
         if (Username.Text.Length > 0)

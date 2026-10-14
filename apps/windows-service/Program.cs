@@ -170,7 +170,7 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
             "FlowLightAccelerator",
             "service.json");
         config = JsonSerializer.Deserialize<ServiceConfig>(await File.ReadAllTextAsync(path, ct), Wire.Json)
-            ?? throw new InvalidOperationException("Service configuration missing");
+            ?? throw new InvalidOperationException("本地服务配置缺失，请重新安装");
         Directory.CreateDirectory(config.DataDir);
         kernel = new MihomoKernel(config.CorePath, config.CoreSha256, config.DataDir);
 
@@ -188,7 +188,7 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
             PipeAccessRights.FullControl,
             AccessControlType.Allow));
         var serviceSid = WindowsIdentity.GetCurrent().User
-            ?? throw new InvalidOperationException("Service identity unavailable");
+            ?? throw new InvalidOperationException("本地服务身份信息不可用，请重新安装");
         security.AddAccessRule(new PipeAccessRule(serviceSid, PipeAccessRights.FullControl, AccessControlType.Allow));
 
         // A client that disconnects early, or all instances being busy, must
@@ -628,7 +628,7 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
                 Update(v => v with { State = current, Error = "", LeaseUntil = lease });
                 if (current == "CLOSED" || current == "STOPPING")
                 {
-                    throw new InvalidOperationException(session.GetProperty("end_reason").GetString());
+                    throw new InvalidOperationException(EndReason(session.GetProperty("end_reason").GetString()));
                 }
                 if (current == "CONNECTING")
                 {
@@ -759,6 +759,23 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
     // stopped; worth retrying until the lease or deadline runs out.
     static bool Transient(Exception ex, CancellationToken ct) =>
         !ct.IsCancellationRequested && (ex is HttpRequestException || ex is OperationCanceledException);
+
+    // The control service ends sessions with short English reasons; the
+    // client shows them to the player.
+    static string EndReason(string? reason) => reason switch
+    {
+        null or "" => "会话已被控制服务结束",
+        "lease or preparation timeout" => "节点准备或租约超时",
+        "node task failed: prepare" => "节点准备转发失败",
+        "node task failed: probe" => "线路探测未通过",
+        "node task failed: revoke" => "节点回收失败",
+        "runtime_failed" => "节点转发进程异常退出",
+        "lease_expired" => "节点租约已过期",
+        "requested" => "已按请求停止",
+        "line terminated by operator" => "线路已被运营方下线",
+        "validation complete" => "线路验证已完成",
+        _ => "会话已结束：" + reason,
+    };
 
     static string KernelStopped(MihomoKernel kernel)
     {
