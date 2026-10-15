@@ -774,7 +774,7 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
         "node task failed: prepare" => "节点准备转发失败",
         "node task failed: probe" => "线路探测未通过",
         "node task failed: revoke" => "节点回收失败",
-        "runtime_failed" => "节点转发进程异常退出",
+        "runtime_failed" => "节点服务器上的服务进程异常退出",
         "lease_expired" => "节点租约已过期",
         "requested" => "已按请求停止",
         "line terminated by operator" => "线路已被运营方下线",

@@ -10,7 +10,7 @@ export type Names = Record<string, string>;
 export type Covers = Record<string, { index?: number; image?: string }>;
 
 /**
- * Display names for ids that appear in other rows (操作人, 所属节点, 线路 …),
+ * Display names for ids that appear in other rows (操作人, 所在服务器, 线路 …),
  * so lists show "admin" rather than a 32-character id. A list that fails to
  * load leaves its ids as they are.
  */

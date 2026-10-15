@@ -75,11 +75,11 @@ export function validate(kind: string, body: Row, initial: Row): Problem | null 
     );
   }
   if (kind === "nodes")
-    checks.push(["name", name(body.name, "节点名称")], ["address", host(body.address, "节点地址")]);
+    checks.push(["name", name(body.name, "服务器名称")], ["address", host(body.address, "服务器地址")]);
   if (kind === "endpoints")
     checks.push(
       ["name", name(body.name, "端点名称")],
-      ["node_id", body.node_id ? "" : "请选择所属节点"],
+      ["node_id", body.node_id ? "" : "请选择所在的节点服务器"],
       ["host", host(body.host, "服务地址")],
       ["port", range(body.port, 1, 65535, "起始端口须在 1–65535 之间")],
       ["port", body.capabilities?.managed && body.port < 1024

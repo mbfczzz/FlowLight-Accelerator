@@ -361,15 +361,16 @@ export function Editor({
         return (
           <>
             <Section icon={<Server size={16} />} title="基本信息">
-              {text("name", "节点名称", { placeholder: "例如 首尔-01" })}
+              {text("name", "服务器名称", { placeholder: "例如 首尔-01" })}
               {text("region", "所在地区", { placeholder: "例如 kr" })}
-              {text("address", "节点地址", { placeholder: "公网 IP 或域名", wide: true, note: "节点 Agent 注册后，控制服务用它识别这台机器。" })}
-              {toggle("enabled", "启用节点", "停用后不再向它下发新任务。")}
+              {text("address", "服务器地址", { placeholder: "公网 IP 或域名", wide: true, note: "节点 Agent 注册后，控制服务用它识别这台机器。" })}
+              {toggle("enabled", "启用", "停用后不再向这台服务器下发新任务。")}
             </Section>
-            <Section icon={<ShieldCheck size={16} />} title="能力" note="节点注册后会上报实际能力，平台取两者都支持的部分。">
+            <Section icon={<ShieldCheck size={16} />} title="能力" note="服务器注册后会上报实际能力，平台取两者都支持的部分。">
               {capabilities()}
-              {toggle("capabilities.managed", "支持托管进程", "平台可在这台节点上按会话启动和回收转发进程。")}
+              {toggle("capabilities.managed", "支持托管服务", "平台可在这台服务器上按会话启动和回收端点的服务进程。")}
             </Section>
+            <p className="hint">节点服务器本身不转发流量。保存后到“服务端点”里为它添加 Realm 中转或 SS2022 落地，同一台服务器可以同时开多个。</p>
           </>
         );
       case "endpoints": {
@@ -378,7 +379,7 @@ export function Editor({
           <>
             <Section icon={<Cable size={16} />} title="基本信息">
               {text("name", "端点名称", { placeholder: "例如 首尔落地-A" })}
-              {pick("node_id", "所属节点", options("nodes"), "选择节点")}
+              {pick("node_id", "所在服务器", options("nodes"), "选择节点服务器")}
               <Field group label="服务类型" wide name="kind" error={err("kind")}>
                 <RadioCards
                   label="服务类型"
@@ -419,7 +420,7 @@ export function Editor({
             )}
             <Section icon={<ShieldCheck size={16} />} title="能力">
               {capabilities()}
-              {toggle("capabilities.managed", "由平台管理", "开启后平台会在所属节点上为每个会话开通端口；导入的端点请关闭。")}
+              {toggle("capabilities.managed", "由平台管理", "开启后平台会在所在服务器上为每个会话开通端口；导入的端点请关闭。")}
             </Section>
           </>
         );

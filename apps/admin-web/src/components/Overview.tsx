@@ -61,12 +61,12 @@ const steps: Step[] = [
   },
   {
     key: "nodes",
-    title: "接入转发节点",
+    title: "接入节点服务器",
     done: (o) => (known(count(o, "online_nodes")) ? count(o, "online_nodes")! > 0 : undefined),
     detail: (o) =>
       known(count(o, "nodes"), count(o, "online_nodes"))
-        ? `已添加 ${count(o, "nodes")} 个，在线 ${count(o, "online_nodes")} 个。添加节点后生成注册凭据，在服务器上运行 Agent。`
-        : "添加节点后生成注册凭据，在服务器上运行 Agent。",
+        ? `已添加 ${count(o, "nodes")} 台，在线 ${count(o, "online_nodes")} 台。添加服务器后生成注册凭据，在服务器上运行节点 Agent。`
+        : "添加服务器后生成注册凭据，在服务器上运行节点 Agent。",
     section: "nodes",
     action: "管理节点",
   },
@@ -76,8 +76,8 @@ const steps: Step[] = [
     done: (o) => (known(count(o, "endpoints")) ? count(o, "endpoints")! > 0 : undefined),
     detail: (o) =>
       known(count(o, "endpoints"))
-        ? `已有 ${count(o, "endpoints")} 个端点。每条线路至少需要一个 SS2022 落地端点。`
-        : "每条线路至少需要一个 SS2022 落地端点。",
+        ? `已有 ${count(o, "endpoints")} 个端点。在节点服务器上开入口、中转或落地服务；每条线路至少需要一个 SS2022 落地端点。`
+        : "在节点服务器上开入口、中转或落地服务；每条线路至少需要一个 SS2022 落地端点。",
     section: "endpoints",
     action: "管理端点",
   },

@@ -117,10 +117,10 @@ func (s *Server) save(kind string) http.HandlerFunc {
 				if json.Unmarshal(raw, &in) != nil {
 					return errInvalid
 				}
-				if e := checkName(in.Name, "节点名称"); e != nil {
+				if e := checkName(in.Name, "服务器名称"); e != nil {
 					return e
 				}
-				if e := checkHost(in.Address, "节点地址"); e != nil {
+				if e := checkHost(in.Address, "服务器地址"); e != nil {
 					return e
 				}
 				old, _ := load[Node](tx, id)
@@ -163,7 +163,7 @@ func (s *Server) save(kind string) http.HandlerFunc {
 				}
 				var n Node
 				if tx.First(&n, "id = ?", in.NodeID).Error != nil {
-					return badRequest("所属节点不存在，请重新选择")
+					return badRequest("所在的节点服务器不存在，请重新选择")
 				}
 				old, _ := load[Endpoint](tx, id)
 				in.ID = id

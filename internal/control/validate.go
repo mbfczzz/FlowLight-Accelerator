@@ -77,16 +77,16 @@ func (s *Server) compile(tx *gorm.DB, l Line) ([]c.Hop, error) {
 		}
 		var n Node
 		if tx.First(&n, "id = ?", e.NodeID).Error != nil || !n.Enabled {
-			return nil, badRequest("端点所属节点不存在或已停用")
+			return nil, badRequest("端点所在的节点服务器不存在或已停用")
 		}
 		if !e.Capabilities.TCP || !n.effective().TCP {
 			return nil, badRequest("线路的每一跳都必须支持 TCP")
 		}
 		if e.Capabilities.UDP && !n.effective().UDP {
-			return nil, badRequest("端点声明支持 UDP，但所属节点不支持")
+			return nil, badRequest("端点声明支持 UDP，但所在的节点服务器不支持")
 		}
 		if e.Capabilities.IPv6 && !n.effective().IPv6 {
-			return nil, badRequest("端点声明支持 IPv6，但所属节点不支持")
+			return nil, badRequest("端点声明支持 IPv6，但所在的节点服务器不支持")
 		}
 		if net.ParseIP(e.Host) != nil && strings.Contains(e.Host, ":") && !e.Capabilities.IPv6 {
 			return nil, badRequest("入口地址是 IPv6，但端点未声明支持 IPv6")

@@ -16,7 +16,7 @@ export const labels: Record<string, string> = {
   host: "服务地址",
   port: "起始端口",
   port_end: "结束端口",
-  node_id: "所属节点",
+  node_id: "所在服务器",
   user_id: "所属用户",
   endpoint_id: "落地端点",
   device_id: "设备",
@@ -95,7 +95,7 @@ const endReasons: Record<string, string> = {
   "lease or preparation timeout": "准备或租约超时",
   "line terminated by operator": "线路被终止",
   "validation complete": "验证完成",
-  runtime_failed: "转发进程异常退出",
+  runtime_failed: "端点服务进程异常退出",
   lease_expired: "节点租约过期",
 };
 
