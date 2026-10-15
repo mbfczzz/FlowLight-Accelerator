@@ -72,37 +72,57 @@ func (s *Server) compile(tx *gorm.DB, l Line) ([]c.Hop, error) {
 		if e.Capabilities.Managed {
 			minimumPort = 1024
 		}
+		ep := "服务端点「" + e.Name + "」"
 		if !validHost(e.Host) || e.Port < minimumPort || e.PortEnd < e.Port || e.PortEnd > 65535 {
-			return nil, badRequest("服务端点的地址或端口范围不正确")
+			return nil, badRequest(ep + "的地址或端口范围不正确")
 		}
 		var n Node
 		if tx.First(&n, "id = ?", e.NodeID).Error != nil || !n.Enabled {
-			return nil, badRequest("端点所在的节点服务器不存在或已停用")
+			return nil, badRequest(ep + "所在的节点服务器不存在或已停用")
 		}
+		srv := "节点服务器「" + n.Name + "」"
 		if !e.Capabilities.TCP || !n.effective().TCP {
-			return nil, badRequest("线路的每一跳都必须支持 TCP")
+			return nil, badRequest(ep + "必须支持 TCP：线路的每一跳都要走 TCP。请在它和" + srv + "的“支持的协议”里勾选 TCP")
 		}
 		if e.Capabilities.UDP && !n.effective().UDP {
-			return nil, badRequest("端点声明支持 UDP，但所在的节点服务器不支持")
+			return nil, badRequest(ep + "勾选了 UDP，但" + srv + "不支持 UDP。请为" + srv + "勾选 UDP，或取消这个端点的 UDP")
 		}
 		if e.Capabilities.IPv6 && !n.effective().IPv6 {
-			return nil, badRequest("端点声明支持 IPv6，但所在的节点服务器不支持")
+			// A registered node agent reports what it can do; it listens on
+			// IPv4 only. A server without the agent has only the operator's
+			// declaration.
+			if n.Reported != nil {
+				return nil, badRequest(ep + "勾选了 IPv6，但" + srv + "上的节点程序目前只支持 IPv4。请在“服务端点”里编辑「" + e.Name + "」，取消 IPv6 后保存")
+			}
+			return nil, badRequest(ep + "勾选了 IPv6，但" + srv + "没有勾选 IPv6。请为" + srv + "勾选 IPv6，或取消这个端点的 IPv6")
 		}
 		if net.ParseIP(e.Host) != nil && strings.Contains(e.Host, ":") && !e.Capabilities.IPv6 {
-			return nil, badRequest("入口地址是 IPv6，但端点未声明支持 IPv6")
+			if e.Capabilities.Managed {
+				return nil, badRequest(ep + "的地址是 IPv6，平台托管的端点目前只支持 IPv4，请改用 IPv4 地址或域名")
+			}
+			return nil, badRequest(ep + "的地址是 IPv6，请在端点和" + srv + "的“支持的协议”里勾选 IPv6")
 		}
 		if i == len(l.EndpointIDs)-1 {
 			if e.Kind != "ss2022" {
-				return nil, badRequest("线路最后一跳必须是 SS2022 落地端点")
+				return nil, badRequest("线路最后一跳必须是 SS2022 落地端点，" + ep + "是 Realm 中转")
 			}
 			if e.Cipher != "2022-blake3-aes-128-gcm" && e.Cipher != "2022-blake3-aes-256-gcm" {
 				return nil, badRequest("不支持的 SS2022 加密方法")
 			}
 		} else if e.Kind != "realm" {
-			return nil, badRequest("入口和中转必须是 Realm 透明中转端点")
+			return nil, badRequest("入口和中转必须是 Realm 透明中转端点，" + ep + "是 SS2022 落地")
 		}
-		if (l.Mode == "managed" || (l.Mode == "hybrid" && i < len(l.EndpointIDs)-1)) && (!n.effective().Managed || !e.Capabilities.Managed || timeSince(n.LastSeen) > s.Config.NodeTimeout) {
-			return nil, badRequest("平台托管的节点必须在线并支持托管进程")
+		if l.Mode == "managed" || (l.Mode == "hybrid" && i < len(l.EndpointIDs)-1) {
+			switch {
+			case !e.Capabilities.Managed:
+				return nil, badRequest(ep + "没有打开“由平台管理”，平台托管的线路无法使用它")
+			case n.LastSeen == nil:
+				return nil, badRequest(srv + "还没有接入。请在“节点服务器”里点“接入命令”，在这台服务器上运行后再发布")
+			case timeSince(n.LastSeen) > s.Config.NodeTimeout:
+				return nil, badRequest(srv + "不在线（最近 45 秒内没有心跳）。请检查这台服务器上的节点程序（systemctl status flowlight-node）")
+			case !n.effective().Managed:
+				return nil, badRequest(srv + "不支持托管服务。请在它的设置里打开“支持托管服务”")
+			}
 		}
 		if (l.Mode == "imported" || (l.Mode == "hybrid" && i == len(l.EndpointIDs)-1)) && e.CredentialID == "" {
 			return nil, badRequest("导入的端点需要填写线路密钥")

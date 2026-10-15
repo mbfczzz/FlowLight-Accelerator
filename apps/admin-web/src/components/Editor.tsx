@@ -199,10 +199,21 @@ export function Editor({
     <SwitchRow label={label} note={note} checked={!!val(k)} onChange={(v) => update(k, v)} />
   );
   const capabilities = (label = "支持的协议") => (
-    <Field group label={label} wide>
+    <Field
+      group
+      label={label}
+      wide
+      note={
+        val("capabilities.ipv6") && val("capabilities.managed")
+          ? "平台托管的服务目前只支持 IPv4，勾着 IPv6 会让使用它的线路无法发布，请取消。"
+          : undefined
+      }
+    >
       <Toggles
         label={label}
-        options={capabilityOptions}
+        // Managed services listen on IPv4 only: IPv6 is offered there only
+        // to switch it off.
+        options={capabilityOptions.filter(([k]) => k !== "ipv6" || val("capabilities.ipv6") || !val("capabilities.managed"))}
         isOn={(k) => !!val("capabilities." + k)}
         onToggle={(k) => update("capabilities." + k, !val("capabilities." + k))}
       />
