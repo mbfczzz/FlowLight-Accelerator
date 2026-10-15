@@ -297,6 +297,16 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
         OperationCanceledException { InnerException: TimeoutException } => "本地服务响应超时",
         OperationCanceledException when timedOut => "本地服务响应超时",
         OperationCanceledException => "操作被取消",
+        _ => PlayerMessage(e),
+    };
+
+    // A transport failure's own message names the host it tried; players
+    // get a plain sentence instead (the service log keeps the original).
+    static string PlayerMessage(Exception e) => e switch
+    {
+        HttpRequestException { StatusCode: null } h when h.Message != ApiClient.Unreachable => ApiClient.Unreachable,
+        System.Security.Authentication.AuthenticationException => ApiClient.Unreachable,
+        System.Net.Sockets.SocketException => ApiClient.Unreachable,
         _ => e.Message,
     };
 
@@ -717,7 +727,7 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
         {
             // A request timeout is an OperationCanceledException too, but it is
             // a failure, not a stop, and must be reported as one.
-            var message = e is OperationCanceledException ? "控制服务未在规定时间内响应" : e.Message;
+            var message = e is OperationCanceledException ? "控制服务未在规定时间内响应" : PlayerMessage(e);
             Update(v => v with { State = "FAILED", Error = message });
         }
         finally

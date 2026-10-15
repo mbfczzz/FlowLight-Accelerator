@@ -429,7 +429,6 @@ public partial class MainWindow : Window
         }
         if (Text(result, "control_url") is { } control && Uri.TryCreate(control, UriKind.Absolute, out var uri))
         {
-            MenuServer.Text = "服务器 " + uri.Host;
             CoverArt.SetServer(uri);
             // The first time the control service is known, look for an update.
             var first = controlUri is null;
@@ -1765,7 +1764,11 @@ public partial class MainWindow : Window
         try
         {
             var result = await Wire.CallAsync("status");
-            var text = JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
+            // The server address is not shown to players, here either.
+            var copy = System.Text.Json.Nodes.JsonNode.Parse(result.GetRawText()) as System.Text.Json.Nodes.JsonObject;
+            copy?.Remove("control_url");
+            var text = copy?.ToJsonString(new JsonSerializerOptions { WriteIndented = true })
+                ?? JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
             System.Windows.Clipboard.SetText(text);
             ShowNotice("连接诊断已复制到剪贴板，不含密码和密钥", InfoHold, NoticeKind.Success);
         }

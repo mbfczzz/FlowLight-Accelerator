@@ -177,6 +177,23 @@ using (var listener = new HttpListener())
     await server.WaitAsync(TimeSpan.FromSeconds(15));
 }
 
+// A control service that cannot be reached: the message players read does
+// not name the host.
+{
+    var closed = FreeTcpPort();
+    using var api = new ApiClient($"http://127.0.0.1:{closed}", true);
+    try
+    {
+        await api.Send("games");
+        throw new Exception("request to a closed port succeeded");
+    }
+    catch (HttpRequestException e)
+    {
+        Check(e.Message == ApiClient.Unreachable && !e.Message.Contains("127.0.0.1"), "unreachable control service named in the message: " + e.Message);
+        Check(e.StatusCode is null && e.InnerException is HttpRequestException, "transport failure kept as inner exception");
+    }
+}
+
 // UDP accounting: the verdict and the loss come from five samples.
 for (var replies = 0; replies <= TunnelProbe.UdpSamples; replies++)
 {

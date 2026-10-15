@@ -12,6 +12,9 @@ public sealed class ApiClient : IDisposable
     string refreshToken = "";
     long serverOffsetTicks;
 
+    // What the player reads when the control service cannot be reached.
+    public const string Unreachable = "无法连接服务器，请检查网络后重试";
+
     public ApiClient(string baseUrl, bool allowLocal = false)
     {
         var uri = new Uri(baseUrl);
@@ -66,7 +69,18 @@ public sealed class ApiClient : IDisposable
             req.Content = new StringContent(json, Encoding.UTF8, "application/json");
         }
 
-        using var res = await http.SendAsync(req, ct);
+        HttpResponseMessage sent;
+        try
+        {
+            sent = await http.SendAsync(req, ct);
+        }
+        catch (HttpRequestException e) when (e.StatusCode is null)
+        {
+            // .NET names the host in these messages, and they reach the
+            // player; the address is not theirs to see.
+            throw new HttpRequestException(Unreachable, e);
+        }
+        using var res = sent;
         if (res.Headers.Date is { } serverDate)
         {
             Interlocked.Exchange(ref serverOffsetTicks, (serverDate.UtcDateTime - DateTime.UtcNow).Ticks);

@@ -225,7 +225,7 @@
    <Border x:Name="MenuPanel" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="84,0,0,16" Width="248" Background="{StaticResource Elevated}" CornerRadius="10" Padding="6" Effect="{StaticResource Shadow}"><StackPanel>
     <Grid Margin="10,10,10,12"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
      <Grid Width="38" Height="38"><Ellipse Fill="{StaticResource AccentSoft}"/><TextBlock x:Name="MenuInitial" Text="" Style="{StaticResource Number}" FontSize="16" Foreground="{StaticResource Accent}" HorizontalAlignment="Center" VerticalAlignment="Center"/></Grid>
-     <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center"><TextBlock x:Name="MenuAccount" Text="" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/><TextBlock x:Name="MenuServer" Text="" Style="{StaticResource Caption}" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/></StackPanel>
+     <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center"><TextBlock x:Name="MenuAccount" Text="" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/></StackPanel>
     </Grid>
     <Border Height="1" Background="{StaticResource Border}" Margin="4,0,4,6"/>
     <Button Style="{StaticResource Ghost}" AutomationProperties.Name="切换账号" Click="Switch_Click"><StackPanel Orientation="Horizontal"><local:Glyph Data="{StaticResource IconSwap}" IconSize="17" Ink="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" VerticalAlignment="Center"/><TextBlock Text="切换账号" Margin="10,0,0,0" VerticalAlignment="Center" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/></StackPanel></Button>

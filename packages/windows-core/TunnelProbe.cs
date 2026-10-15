@@ -57,6 +57,11 @@ public static class TunnelProbe
             // the session; callers treat OperationCanceledException as the latter.
             throw new TimeoutException("隧道探测超时", e);
         }
+        catch (HttpRequestException e)
+        {
+            // .NET's message names the probe host; players see this one.
+            throw new IOException("隧道探测失败：经这条线路连不上检测服务，请换一条线路或稍后重试", e);
+        }
     }
 
     internal static void ApplyUdp(ProbeResult result, int replies)

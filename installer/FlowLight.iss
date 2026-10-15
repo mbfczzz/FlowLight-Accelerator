@@ -110,7 +110,6 @@ zh.InstallTo=将安装到 %1
 zh.UpgradeFrom=已安装 v%1，将升级到 v%2，账号和设置都会保留
 zh.ReinstallSame=已安装 v%1，将重新安装以修复程序文件
 zh.DesktopIcon=创建桌面快捷方式
-zh.CustomServer=自定义服务器地址
 zh.AdminNote=安装需要管理员权限，并会注册“流光加速器网络服务”。如果安全软件询问，请选择允许。
 zh.ButtonInstall=立即安装
 zh.ButtonUpgrade=立即升级
@@ -125,8 +124,8 @@ zh.UpgradedTitle=升级完成
 zh.DoneBody=打开流光加速器，用运营方提供的账号登录，选好游戏和区服就可以开始加速。
 zh.FailedTitle=已安装，但加速服务没有启动
 zh.LogAt=安装记录：%1
-zh.ControlPageCaption=自定义服务器地址
-zh.ControlPageDescription=一般不需要修改。只有运营方给了单独的地址时才填写。
+zh.ControlPageCaption=服务器地址
+zh.ControlPageDescription=这个安装包没有内置服务器地址，请填写运营方提供的地址。
 zh.ControlPageSubCaption=控制服务地址必须以 https:// 开头。
 zh.ControlPagePrompt=控制服务地址：
 zh.ControlUrlInvalid=控制服务地址必须以 https:// 开头，且不含空格或引号。
@@ -145,7 +144,6 @@ en.InstallTo=Installs to %1
 en.UpgradeFrom=Version %1 is installed and will be upgraded to %2; your account and settings stay.
 en.ReinstallSame=Version %1 is installed and will be reinstalled to repair it.
 en.DesktopIcon=Create a desktop shortcut
-en.CustomServer=Custom server address
 en.AdminNote=Setup needs administrator rights and registers the FlowLight network service. Allow it if your security software asks.
 en.ButtonInstall=Install
 en.ButtonUpgrade=Upgrade
@@ -160,8 +158,8 @@ en.UpgradedTitle=Upgraded
 en.DoneBody=Open FlowLight Accelerator, sign in with the account from your operator, pick a game and a region, and start.
 en.FailedTitle=Installed, but the network service did not start
 en.LogAt=Setup log: %1
-en.ControlPageCaption=Custom server address
-en.ControlPageDescription=Only change this if your operator gave you a separate address.
+en.ControlPageCaption=Server address
+en.ControlPageDescription=This installer has no built-in server address. Enter the one from your operator.
 en.ControlPageSubCaption=The control service address must start with https://.
 en.ControlPagePrompt=Control service address:
 en.ControlUrlInvalid=The control service address must start with https:// and contain no spaces or quotes.
@@ -204,10 +202,9 @@ const
   UninstallKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{7F2B6C0D-3A1E-4C7B-9E55-2A9F0C4D1B61}_is1';
 
 var
+  { Players never see the server address: the page asking for it appears
+    only when this build has none (operators can pass /CONTROLURL=). }
   ControlPage: TInputQueryWizardPage;
-  { The custom server page is shown only when asked for (or when no valid
-    address was baked in). }
-  CustomServer: Boolean;
   { Version already installed, '' on a first install. }
   InstalledVersion: String;
   { Why the service is not running after install, '' when it is. }
@@ -392,12 +389,6 @@ begin
   WizardForm.NextButton.OnClick(WizardForm.NextButton);
 end;
 
-procedure CustomServerClick(Sender: TObject);
-begin
-  CustomServer := True;
-  ClickNext(Sender);
-end;
-
 procedure BuildWelcomePage();
 var
   Page: TNewNotebookPage;
@@ -443,11 +434,6 @@ begin
   { Upgrades keep the shortcut as the player left it. }
   DesktopCheck.Checked := (InstalledVersion = '')
     or FileExists(ExpandConstant('{autodesktop}\{#AppNameZh}.lnk'));
-
-  Text := NewText(Page, CustomMessage('CustomServer'), Left + ScaleX(168), Top + ScaleY(63), 9, False, '#8F889C');
-  Text.Font.Style := [fsUnderline];
-  Text.Cursor := crHand;
-  Text.OnClick := @CustomServerClick;
 
   NewWrappedText(Page, CustomMessage('AdminNote'), Left, Top + ScaleY(90), Page.Width - 2 * Left, 8, '#7F798B');
 end;
@@ -656,7 +642,7 @@ end;
 
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
-  Result := (PageID = ControlPage.ID) and not CustomServer and ValidControlUrl(ControlUrl());
+  Result := (PageID = ControlPage.ID) and ValidControlUrl(ControlUrl());
 end;
 
 procedure CurPageChanged(CurPageID: Integer);
