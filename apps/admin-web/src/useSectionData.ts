@@ -37,6 +37,12 @@ export function useSectionData(section: string) {
 
   async function fetchFromStart(kind: string, target: number) {
     const g = ++generation.current;
+    // The statistics page loads its own report.
+    if (kind === "traffic") {
+      setLoading(false);
+      setError("");
+      return;
+    }
     setLoading(true);
     setLoadingMore(false);
     setError("");
@@ -79,7 +85,7 @@ export function useSectionData(section: string) {
     const { section: kind, rows: loaded } = latest.current;
     const g = generation.current;
     // One page request per generation; a reload starts a new generation.
-    if (kind === "overview" || moreFor.current === g) return;
+    if (kind === "overview" || kind === "traffic" || moreFor.current === g) return;
     moreFor.current = g;
     setLoadingMore(true);
     setMoreError("");

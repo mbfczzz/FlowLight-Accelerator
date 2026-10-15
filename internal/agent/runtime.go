@@ -46,6 +46,13 @@ type Process struct {
 	started  time.Time
 	restarts int
 	output   *tail
+	// Counted is the runtime's traffic so far (see usage.go): base from
+	// earlier processes plus current from this one.
+	Counted int64 `json:"counted,omitempty"`
+	base    int64
+	current int64
+	// When Counted was last written to the journal (throttled, usage.go).
+	persisted time.Time
 }
 type Manager struct {
 	sync.Mutex
@@ -56,6 +63,12 @@ type Manager struct {
 	failed    []c.Runtime
 	timers    map[string]*time.Timer
 	verified  sync.Map // binary path -> fileStamp of the last matching hash
+	// Traffic accounting (usage.go): where ssserver reports, totals carried
+	// into a runtime's next process, and totals of stopped runtimes not
+	// reported yet.
+	statsAddr string
+	carry     map[string]Usage
+	finished  map[string]Usage
 }
 
 // fileStamp identifies a file version cheaply. A binary is re-hashed only
@@ -69,7 +82,7 @@ func NewManager(dir string, b Binaries) (*Manager, error) {
 	if e := os.MkdirAll(dir, 0700); e != nil {
 		return nil, e
 	}
-	m := &Manager{Dir: dir, Binaries: b, Processes: map[string]*Process{}, timers: map[string]*time.Timer{}}
+	m := &Manager{Dir: dir, Binaries: b, Processes: map[string]*Process{}, timers: map[string]*time.Timer{}, carry: map[string]Usage{}, finished: map[string]Usage{}}
 	entries, e := os.ReadDir(dir)
 	if e != nil {
 		return nil, e
@@ -119,7 +132,13 @@ func NewManager(dir string, b Binaries) (*Manager, error) {
 		// Reconcile against the control service before restarting a persisted
 		// runtime. A stale local wall clock must not revive an expired grant.
 		m.pending = append(m.pending, p.Runtime)
+		if p.Counted > 0 {
+			m.carry[p.Runtime.ID] = Usage{p.Runtime.ID, p.Runtime.SessionID, p.Counted}
+			m.finish(p.Runtime.ID, p.Runtime.SessionID, p.Counted)
+		}
 	}
+	m.loadPending()
+	m.listenStats()
 	return m, nil
 }
 func (m *Manager) binary(kind string) (string, error) {
@@ -223,14 +242,20 @@ func (m *Manager) start(rt c.Runtime, restarts int) (*Process, error) {
 		return nil, fmt.Errorf("port %d is already in use", rt.ListenPort)
 	}
 	output := &tail{}
-	cmd := exec.Command(binary, "-c", path)
+	args := []string{"-c", path}
+	if rt.Kind == "ss2022" && m.statsAddr != "" {
+		// Before -c: the config path stays the last argument.
+		args = append([]string{"--manager-addr", m.statsAddr}, args...)
+	}
+	cmd := exec.Command(binary, args...)
 	constrainChild(cmd)
 	cmd.Stdout = output
 	cmd.Stderr = output
 	if e = cmd.Start(); e != nil {
 		return nil, e
 	}
-	p := &Process{Runtime: rt, PID: cmd.Process.Pid, Binary: binary, Config: path, cmd: cmd, done: make(chan struct{}), started: time.Now(), restarts: restarts, output: output}
+	base := m.carry[rt.ID].Bytes
+	p := &Process{Runtime: rt, PID: cmd.Process.Pid, Binary: binary, Config: path, cmd: cmd, done: make(chan struct{}), started: time.Now(), restarts: restarts, output: output, Counted: base, base: base}
 	m.Processes[rt.ID] = p
 	record, _ := json.Marshal(p)
 	if e = atomicWrite(filepath.Join(m.Dir, rt.ID+".runtime"), record); e != nil {
@@ -239,6 +264,9 @@ func (m *Manager) start(rt c.Runtime, restarts int) (*Process, error) {
 		delete(m.Processes, rt.ID)
 		return nil, e
 	}
+	// Only now does the new process own the carried total.
+	delete(m.carry, rt.ID)
+	p.persisted = time.Now()
 	go func() {
 		err := cmd.Wait()
 		close(p.done)
@@ -295,8 +323,11 @@ func (m *Manager) exited(p *Process, err error) {
 	rt := p.Runtime
 	if restarts >= maxRestarts || !time.Now().Before(rt.ExpiresAt) {
 		m.failed = append(m.failed, rt)
+		m.finish(rt.ID, rt.SessionID, p.Counted)
 		return
 	}
+	// The next process counts from zero; its total continues from here.
+	m.carry[rt.ID] = Usage{rt.ID, rt.SessionID, p.Counted}
 	var timer *time.Timer
 	timer = time.AfterFunc(restartDelay<<restarts, func() {
 		m.Lock()
@@ -312,6 +343,10 @@ func (m *Manager) exited(p *Process, err error) {
 			log.Printf("runtime %s restart failed: %v", rt.ID, e)
 			m.Lock()
 			m.failed = append(m.failed, rt)
+			if c, ok := m.carry[rt.ID]; ok {
+				m.finish(rt.ID, c.SessionID, c.Bytes)
+				delete(m.carry, rt.ID)
+			}
 			m.Unlock()
 		}
 	})
@@ -364,8 +399,17 @@ func (m *Manager) Stop(id string) error {
 		if m.Processes[id] == p {
 			delete(m.Processes, id)
 		}
+		m.finish(id, p.Runtime.SessionID, p.Counted)
 		m.Unlock()
 	}
+	// Stopped between processes (restart backoff, or never resumed after an
+	// agent restart): the carried total is all there is.
+	m.Lock()
+	if c, ok := m.carry[id]; ok {
+		m.finish(id, c.SessionID, c.Bytes)
+		delete(m.carry, id)
+	}
+	m.Unlock()
 	for _, suffix := range []string{".json", ".runtime"} {
 		e := os.Remove(filepath.Join(m.Dir, id+suffix))
 		if e != nil && !os.IsNotExist(e) {
@@ -385,6 +429,9 @@ func (m *Manager) Shutdown() {
 	}
 	running := []*Process{}
 	for _, p := range m.Processes {
+		if record, e := json.Marshal(p); e == nil {
+			_ = atomicWrite(filepath.Join(m.Dir, p.Runtime.ID+".runtime"), record)
+		}
 		p.stopping = true
 		if p.cmd != nil && p.cmd.Process != nil {
 			_ = p.cmd.Process.Kill()

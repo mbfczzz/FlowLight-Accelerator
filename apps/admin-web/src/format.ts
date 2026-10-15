@@ -1,5 +1,33 @@
+/** Bytes in binary units: 512 B, 3.4 MB, 1.2 GB. */
+export function formatBytes(n: unknown) {
+  const v = typeof n === "number" && n > 0 ? n : 0;
+  if (v < 1024) return Math.round(v) + " B";
+  const units = ["KB", "MB", "GB", "TB", "PB"];
+  let x = v / 1024;
+  let i = 0;
+  while (x >= 1024 && i < units.length - 1) {
+    x /= 1024;
+    i++;
+  }
+  return (x >= 100 ? x.toFixed(0) : x.toFixed(1)) + " " + units[i];
+}
+
+/** A span of time: 不到 1 分钟, 35 分钟, 2 小时 5 分. */
+export function formatDuration(ms: number) {
+  const minutes = Math.floor(ms / 60000);
+  if (minutes < 1) return "不到 1 分钟";
+  if (minutes < 60) return minutes + " 分钟";
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (hours < 24) return hours + " 小时" + (rest ? " " + rest + " 分" : "");
+  const days = Math.floor(hours / 24);
+  return days + " 天 " + (hours % 24) + " 小时";
+}
+
 export const labels: Record<string, string> = {
   id: "标识",
+  bytes: "流量",
+  duration: "时长",
   name: "名称",
   username: "账号",
   role: "角色",

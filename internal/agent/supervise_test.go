@@ -37,6 +37,22 @@ func fakeRuntime(mode string) {
 	if e != nil {
 		os.Exit(4)
 	}
+	// Like ssserver with --manager-addr: report this process's traffic,
+	// growing 1000 bytes per report.
+	for i, a := range os.Args {
+		if a == "--manager-addr" && i+1 < len(os.Args) {
+			go func(addr string) {
+				conn, e := net.Dial("udp", addr)
+				if e != nil {
+					return
+				}
+				for n := int64(1000); ; n += 1000 {
+					fmt.Fprintf(conn, "stat: {\"%d\":%d}", cfg.Port, n)
+					time.Sleep(40 * time.Millisecond)
+				}
+			}(os.Args[i+1])
+		}
+	}
 	if mode == "crash" {
 		// Outlive the readiness grace, then die as a crashing runtime would.
 		time.Sleep(time.Second)
@@ -112,6 +128,164 @@ func TestCrashedRuntimeIsRestartedThenReported(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 	}
 	t.Fatal("crashed runtime was never reported")
+}
+
+func usageOf(m *Manager, id string) int64 {
+	for _, u := range m.Usage() {
+		if u.RuntimeID == id {
+			return u.Bytes
+		}
+	}
+	return 0
+}
+
+func waitUsage(t *testing.T, m *Manager, id string, above int64) int64 {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		if v := usageOf(m, id); v > above {
+			return v
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("traffic of %s never passed %d", id, above)
+	return 0
+}
+
+func TestTrafficTotalSurvivesRestartsStopAndAgentRestart(t *testing.T) {
+	restartDelay = 20 * time.Millisecond
+	defer func() { restartDelay = time.Second }()
+	dir := t.TempDir()
+	m := fakeManager(t, dir, "crash")
+	rt := fakeRuntimeSpec(t)
+	if e := m.Prepare(rt); e != nil {
+		t.Fatal(e)
+	}
+	// The crashing process counts up to ~25 reports, then is restarted and
+	// its successor starts again from 1000: the total must keep growing.
+	first := waitUsage(t, m, rt.ID, 5000)
+	m.Lock()
+	beforeCrash := m.Processes[rt.ID]
+	m.Unlock()
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		m.Lock()
+		p := m.Processes[rt.ID]
+		m.Unlock()
+		if p != nil && p != beforeCrash {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	m.Lock()
+	p := m.Processes[rt.ID]
+	base := int64(0)
+	if p != nil {
+		base = p.base
+	}
+	m.Unlock()
+	if base < first {
+		t.Fatalf("restarted runtime lost its earlier traffic: carried %d, had %d", base, first)
+	}
+	// The new process counts from zero; the total continues past the carry.
+	afterRestart := waitUsage(t, m, rt.ID, base)
+
+	// Stopped: the final total stays reportable until control has it.
+	if e := m.Stop(rt.ID); e != nil {
+		t.Fatal(e)
+	}
+	final := usageOf(m, rt.ID)
+	if final < afterRestart {
+		t.Fatalf("stopped runtime's total dropped: %d < %d", final, afterRestart)
+	}
+	m.UsageReported([]Usage{{rt.ID, rt.SessionID, final}})
+	if usageOf(m, rt.ID) != 0 {
+		t.Fatal("reported total of a stopped runtime was kept")
+	}
+}
+
+func TestTrafficTotalResumesAfterAgentRestart(t *testing.T) {
+	dir := t.TempDir()
+	m := fakeManager(t, dir, "listen")
+	rt := fakeRuntimeSpec(t)
+	if e := m.Prepare(rt); e != nil {
+		t.Fatal(e)
+	}
+	before := waitUsage(t, m, rt.ID, 3000)
+	m.Shutdown()
+	// The journal holds the total across the agent restart.
+	again, e := NewManager(dir, m.Binaries)
+	if e != nil {
+		t.Fatal(e)
+	}
+	persisted := usageOf(again, rt.ID)
+	if persisted < before {
+		t.Fatalf("restarted agent lost the journal total: %d (had %d)", persisted, before)
+	}
+	if e := again.Renew(map[string]time.Time{rt.SessionID: time.Now().Add(time.Minute)}, time.Now()); e != nil {
+		t.Fatal(e)
+	}
+	resumed := waitUsage(t, again, rt.ID, persisted+1000)
+	if resumed <= persisted {
+		t.Fatalf("resumed runtime did not continue from %d: %d", persisted, resumed)
+	}
+	again.Shutdown()
+}
+
+func TestTrafficTotalKeptWhenStoppedBetweenProcesses(t *testing.T) {
+	// A long backoff: the runtime is stopped while waiting to restart.
+	restartDelay = 5 * time.Second
+	defer func() { restartDelay = time.Second }()
+	dir := t.TempDir()
+	m := fakeManager(t, dir, "crash")
+	rt := fakeRuntimeSpec(t)
+	if e := m.Prepare(rt); e != nil {
+		t.Fatal(e)
+	}
+	counted := waitUsage(t, m, rt.ID, 3000)
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		m.Lock()
+		running := len(m.Processes)
+		m.Unlock()
+		if running == 0 {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if e := m.Stop(rt.ID); e != nil {
+		t.Fatal(e)
+	}
+	got := usageOf(m, rt.ID)
+	if got < counted {
+		t.Fatalf("total lost when stopped during restart backoff: %d < %d", got, counted)
+	}
+	// Still there after an agent restart, until reported.
+	again, e := NewManager(dir, m.Binaries)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if usageOf(again, rt.ID) != got {
+		t.Fatalf("unreported final total lost over an agent restart: %d, want %d", usageOf(again, rt.ID), got)
+	}
+	again.UsageReported([]Usage{{rt.ID, rt.SessionID, got}})
+	third, e := NewManager(dir, m.Binaries)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if usageOf(third, rt.ID) != 0 {
+		t.Fatal("a reported total came back after a restart")
+	}
+}
+
+func TestParseStat(t *testing.T) {
+	got, ok := parseStat([]byte(`stat: {"20000": 1234, "x": 5, "70000": 9}`))
+	if !ok || len(got) != 1 || got[20000] != 1234 {
+		t.Fatalf("parse: %v %v", got, ok)
+	}
+	if _, ok := parseStat([]byte("ping")); ok {
+		t.Fatal("non-stat datagram accepted")
+	}
 }
 
 func TestShutdownKeepsJournalsAndRestartResumes(t *testing.T) {

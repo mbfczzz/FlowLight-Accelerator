@@ -52,6 +52,8 @@ type Client struct {
 	roots       *x509.CertPool
 	http        atomic.Pointer[http.Client]
 	notAfter    atomic.Int64
+	// usageFailed quiets repeated traffic report errors (heartbeat goroutine only).
+	usageFailed bool
 }
 
 func Open(cfg Config) (*Client, error) {
@@ -228,7 +230,7 @@ func (c *Client) heartbeat(ctx context.Context) error {
 	}
 	sentAt := time.Now()
 	// The managed listeners bind IPv4 only, so IPv6 is never reported.
-	e := c.call(ctx, "POST", "/api/node/v1/heartbeat", map[string]any{"version": "0.1.0", "capabilities": map[string]bool{"tcp": true, "udp": true, "ipv4": true, "managed": true}, "actual_versions": c.Manager.ActualVersions()}, &out)
+	e := c.call(ctx, "POST", "/api/node/v1/heartbeat", map[string]any{"version": AgentVersion, "capabilities": map[string]bool{"tcp": true, "udp": true, "ipv4": true, "managed": true}, "actual_versions": c.Manager.ActualVersions()}, &out)
 	if e != nil {
 		return e
 	}
@@ -240,7 +242,37 @@ func (c *Client) heartbeat(ctx context.Context) error {
 	if e = c.Manager.Renew(out.Leases, sentAt); e != nil {
 		return e
 	}
-	return c.reportFailures(ctx)
+	if e = c.reportFailures(ctx); e != nil {
+		return e
+	}
+	c.reportUsage(ctx)
+	return nil
+}
+
+// AgentVersion is reported in heartbeats; 0.2.0 counts traffic.
+const AgentVersion = "0.2.0"
+
+// reportUsage sends traffic totals. It is a separate request, not part of
+// the heartbeat, so a control service that predates it (and rejects
+// unknown heartbeat fields) keeps this node online; failures only delay
+// the numbers, since the totals are resent.
+func (c *Client) reportUsage(ctx context.Context) {
+	usage := c.Manager.Usage()
+	if len(usage) == 0 {
+		return
+	}
+	if len(usage) > 500 {
+		usage = usage[:500]
+	}
+	if e := c.call(ctx, "POST", "/api/node/v1/usage", map[string]any{"usage": usage}, &map[string]any{}); e != nil {
+		if !c.usageFailed {
+			log.Printf("traffic report failed: %v", e)
+		}
+		c.usageFailed = true
+		return
+	}
+	c.usageFailed = false
+	c.Manager.UsageReported(usage)
 }
 
 // reportFailures tells control about runtimes that died and could not be

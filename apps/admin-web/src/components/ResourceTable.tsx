@@ -238,6 +238,7 @@ function columnLabel(section: string, col: string) {
   if (section === "nodes" && col === "name") return "服务器";
   if (section === "endpoints" && col === "name") return "端点";
   if (section === "sessions" && col === "user_id") return "玩家";
+  if (section === "sessions" && col === "created_at") return "开始时间";
   if (section === "bindings" && col === "user_id") return "用户";
   if (section === "devices" && col === "user_id") return "用户";
   if (section === "games" && col === "published_version") return "规则状态";

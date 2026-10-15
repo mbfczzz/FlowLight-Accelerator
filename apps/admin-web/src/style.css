@@ -554,6 +554,199 @@ main {
   color: var(--text-2);
 }
 
+/* ---------- Traffic ---------- */
+.traffic {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  transition: opacity 0.15s;
+}
+/* A reload keeps the previous numbers on screen, dimmed. */
+.traffic.is-loading {
+  opacity: 0.55;
+}
+.traffic-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  font-size: 12.5px;
+}
+.callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 14px;
+  border-radius: 9px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.callout > svg {
+  flex: none;
+  margin-top: 2px;
+}
+.callout.warn {
+  background: var(--warn-soft);
+  color: #7a4308;
+}
+.chart-panel {
+  padding: 18px 20px 14px;
+}
+.chart-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 16px;
+  margin-bottom: 10px;
+}
+.chart-head h2 {
+  font-size: 16px;
+}
+.chart-head span {
+  font-size: 12.5px;
+}
+.chart {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+}
+.chart svg {
+  display: block;
+}
+.chart svg rect:focus {
+  outline: none;
+}
+.chart svg rect:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.chart-grid {
+  stroke: #efedf3;
+  stroke-width: 1;
+}
+.chart-base {
+  stroke: var(--line-strong);
+  stroke-width: 1;
+}
+.chart-axis {
+  font-family: var(--figures);
+  font-size: 11px;
+  fill: var(--text-3);
+}
+.chart-peak {
+  font-family: var(--figures);
+  font-size: 11px;
+  font-weight: 600;
+  fill: var(--text-2);
+}
+.chart-tip {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  display: grid;
+  gap: 1px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--side);
+  color: #fff;
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 6px 18px rgb(19 18 23 / 22%);
+}
+.chart-tip.below {
+  transform: translate(-50%, 0);
+}
+.chart-tip b {
+  font-family: var(--figures);
+  font-size: 14px;
+}
+.chart-tip span {
+  color: var(--side-text);
+}
+.chart-table {
+  margin-top: 6px;
+}
+.chart-table summary {
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+.chart-table table {
+  min-width: 0;
+  max-width: 420px;
+  margin-top: 8px;
+}
+.chart-table th,
+.chart-table td {
+  padding: 7px 12px;
+}
+.rankings {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.ranking {
+  padding: 16px 18px 12px;
+}
+.ranking h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14.5px;
+  margin-bottom: 10px;
+}
+.ranking h3 svg {
+  color: var(--accent-text);
+}
+.ranking ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.ranking-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+}
+.ranking-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ranking-meta {
+  font-size: 12px;
+  color: var(--text-3);
+}
+.ranking-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: #efedf3;
+  color: var(--text-2);
+}
+.ranking-bar {
+  display: block;
+  height: 5px;
+  margin-top: 6px;
+  border-radius: 3px;
+  background: #f1eff5;
+  overflow: hidden;
+}
+.ranking-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+}
+
 /* ---------- Tables ---------- */
 .table-toolbar {
   display: flex;
@@ -637,6 +830,8 @@ td:last-child {
 }
 .entity b {
   display: block;
+  /* Room for descenders and underscores under the clipped line. */
+  line-height: 1.4;
   font-size: 13.5px;
   font-weight: 600;
   white-space: nowrap;
@@ -1734,6 +1929,9 @@ dialog.confirm {
     width: 100%;
   }
   .fields {
+    grid-template-columns: 1fr;
+  }
+  .rankings {
     grid-template-columns: 1fr;
   }
   .cover-previews {

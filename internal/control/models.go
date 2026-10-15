@@ -183,6 +183,9 @@ type Session struct {
 	EndReason        string        `json:"end_reason,omitempty"`
 	Probe            c.ProbeResult `json:"probe" gorm:"serializer:json;type:text"`
 	Enforcement      string        `json:"enforcement"`
+	// Bytes is the traffic the exit node measured, upload and download
+	// together (traffic.go).
+	Bytes int64 `json:"bytes" gorm:"not null;default:0"`
 }
 type Reservation struct {
 	ID        string `gorm:"primaryKey;size:64"`

@@ -6,7 +6,7 @@ import {
   Server,
 } from "lucide-react";
 import type { Row } from "./api";
-import { stateNames, text } from "./format";
+import { formatBytes, formatDuration, stateNames, text } from "./format";
 import {
   Ago,
   Avatar,
@@ -158,6 +158,18 @@ export function renderCell(
       }
       if (col === "line_id") return <Ref id={v} names={names} />;
       if (col === "state") return <Pill value={v} />;
+      if (col === "bytes")
+        return v > 0 ? <span className="figure">{formatBytes(v)}</span> : <span className="muted">—</span>;
+      if (col === "duration") {
+        const start = Date.parse(row.created_at);
+        // A closed session ended when it was last written.
+        const end = row.state === "CLOSED" ? Date.parse(row.updated_at) : Date.now();
+        return Number.isFinite(start) && Number.isFinite(end) && end >= start ? (
+          <span className="figure">{formatDuration(end - start)}</span>
+        ) : (
+          <span className="muted">—</span>
+        );
+      }
       if (col === "end_reason") return v ? <span className="muted">{text(v, col)}</span> : <span className="muted">—</span>;
       break;
     case "jobs":

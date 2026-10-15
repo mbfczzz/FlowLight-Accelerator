@@ -27,6 +27,7 @@ import { Overview } from "./components/Overview";
 import { ResourceTable } from "./components/ResourceTable";
 import { RowActions } from "./components/RowActions";
 import { Sidebar } from "./components/Sidebar";
+import { Traffic } from "./components/Traffic";
 
 const EXPIRED = "登录已过期，请重新登录";
 
@@ -86,6 +87,7 @@ function Workspace({
   const data = useSectionData(section);
   const { names, covers, reloadNames } = useNames(section);
   const [search, setSearch] = useState("");
+  const [trafficTick, setTrafficTick] = useState(0);
   const [editing, setEditing] = useState<Row | null>(null);
   const [detail, setDetail] = useState<Row | null>(null);
   const [enroll, setEnroll] = useState<Row | null>(null);
@@ -173,7 +175,8 @@ function Workspace({
 
   function reload() {
     setActionError("");
-    void data.reload();
+    if (section === "traffic") setTrafficTick((t) => t + 1);
+    else void data.reload();
   }
 
   async function logout() {
@@ -240,7 +243,9 @@ function Workspace({
               )}
             </div>
           )}
-          {section === "overview" ? (
+          {section === "traffic" ? (
+            <Traffic names={names} covers={covers} tick={trafficTick} />
+          ) : section === "overview" ? (
             <Overview
               overview={data.overview}
               loading={data.loading}

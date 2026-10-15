@@ -113,6 +113,7 @@ func (s *Server) Handler() http.Handler {
 		m.HandleFunc("PATCH /api/admin/v1/"+kind+"/{id}", s.auth(s.save(kind), roles...))
 	}
 	m.HandleFunc("GET /api/admin/v1/overview", s.auth(s.overview, "viewer", "operator", "publisher"))
+	m.HandleFunc("GET /api/admin/v1/traffic", s.auth(s.traffic, "viewer", "operator", "publisher"))
 	m.HandleFunc("GET /api/admin/v1/jobs/{id}", s.auth(s.getJob, "viewer", "operator", "publisher"))
 	m.HandleFunc("PUT /api/admin/v1/games/{id}/cover", s.auth(s.setCover, "operator", "publisher"))
 	m.HandleFunc("DELETE /api/admin/v1/games/{id}/cover", s.auth(s.clearCover, "operator", "publisher"))
@@ -132,6 +133,7 @@ func (s *Server) Handler() http.Handler {
 	m.HandleFunc("GET /api/node/v1/jobs", s.nodeAuth(s.claimJobs))
 	m.HandleFunc("POST /api/node/v1/jobs/{id}/result", s.nodeAuth(s.jobResult))
 	m.HandleFunc("POST /api/node/v1/session-events", s.nodeAuth(s.nodeEvents))
+	m.HandleFunc("POST /api/node/v1/usage", s.nodeAuth(s.nodeUsage))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if failure := recover(); failure != nil {
