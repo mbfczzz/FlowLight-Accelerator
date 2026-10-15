@@ -2,6 +2,7 @@ package control
 
 import (
 	c "github.com/mbfczzz/FlowLight-Accelerator/packages/contracts"
+	"gorm.io/gorm"
 	"time"
 )
 
@@ -37,7 +38,20 @@ type Game struct {
 	PublishedVersion int       `json:"published_version"`
 	Enabled          bool      `json:"enabled"`
 	UpdatedAt        time.Time `json:"updated_at"`
+	// CoverSlot fixes the game's cover colour when it is first stored: one
+	// more than the highest slot so far, so adding games never recolours
+	// the others. 0 until assigned.
+	CoverSlot int `json:"-" gorm:"not null;default:0"`
+	// CoverIndex is CoverSlot - 1. The client and the admin colour a game's
+	// cover from it, so it looks the same in both.
+	CoverIndex int `json:"cover_index" gorm:"-"`
 }
+
+func (g *Game) AfterFind(*gorm.DB) error {
+	g.CoverIndex = g.CoverSlot - 1
+	return nil
+}
+
 type GameVersion struct {
 	ID        string    `json:"id" gorm:"primaryKey;size:64"`
 	GameID    string    `json:"game_id" gorm:"uniqueIndex:game_version;size:64"`
@@ -107,6 +121,11 @@ type Line struct {
 	Draining         bool      `json:"draining"`
 	ExpectedExit     string    `json:"expected_exit"`
 	UpdatedAt        time.Time `json:"updated_at"`
+	// The newest version's verification state, filled in for the admin
+	// list: a line can be published and have a newer version still
+	// validating or failed.
+	LatestStatus string `json:"latest_status,omitempty" gorm:"-"`
+	LatestError  string `json:"latest_error,omitempty" gorm:"-"`
 }
 type LineVersion struct {
 	ID           string        `json:"id" gorm:"primaryKey;size:64"`

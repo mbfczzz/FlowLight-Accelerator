@@ -45,8 +45,8 @@ static class Palette
 
     public static double CoverHue(uint seed) => CoverHues[seed % (uint)CoverHues.Length] + (seed >> 8) % 11 - 5.0;
 
-    // Games take hues in catalogue order; consecutive entries of the list are
-    // far apart, so neighbouring cards never share a colour family.
+    // Games take hues by the control service's cover index, fixed when the
+    // game is created; consecutive entries of the list are far apart in hue.
     public static double SteppedHue(int index) => CoverHues[index % CoverHues.Length];
 
     public static Color Hsl(double h, double s, double l, byte alpha = 255)

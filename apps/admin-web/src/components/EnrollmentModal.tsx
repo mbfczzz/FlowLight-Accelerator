@@ -1,4 +1,6 @@
+import { Copy } from "lucide-react";
 import type { Row } from "../api";
+import { Field } from "./controls";
 import { Modal } from "./Modal";
 
 export function EnrollmentModal({
@@ -11,26 +13,24 @@ export function EnrollmentModal({
   onClose: () => void;
 }) {
   return (
-    <Modal title="节点一次性注册凭据" close={onClose}>
-      <p>交给对应节点的部署人员。注册成功后，此引导凭据自动失效。</p>
-      <label>
-        节点标识
-        <input readOnly value={enroll.node_id} />
-      </label>
-      <label>
-        引导凭据
-        <input readOnly value={enroll.bootstrap_secret} />
-      </label>
-      <button
-        className="primary"
-        onClick={() =>
-          navigator.clipboard
-            .writeText(JSON.stringify(enroll, null, 2))
-            .then(onCopied)
-        }
-      >
-        复制注册信息
-      </button>
+    <Modal title="节点注册凭据" subtitle="交给这台节点的部署人员；注册成功后凭据自动失效。" close={onClose}>
+      <div className="secret">
+        <Field label="节点标识">
+          <input readOnly value={enroll.node_id} onFocus={(e) => e.target.select()} />
+        </Field>
+        <Field label="一次性引导凭据" note="只显示这一次，关闭后无法再次查看，需要时重新生成。">
+          <input readOnly value={enroll.bootstrap_secret} onFocus={(e) => e.target.select()} />
+        </Field>
+        <button
+          className="primary"
+          onClick={() =>
+            navigator.clipboard.writeText(JSON.stringify(enroll, null, 2)).then(onCopied)
+          }
+        >
+          <Copy size={15} />
+          复制注册信息
+        </button>
+      </div>
     </Modal>
   );
 }

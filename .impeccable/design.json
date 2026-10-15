@@ -1,40 +1,28 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-15T01:31:08.277440+00:00",
+  "generatedAt": "2026-10-15T07:15:07.969617+00:00",
   "title": "Design System: FlowLight Accelerator",
   "extensions": {
     "colorMeta": {
-      "admin-accent": {
-        "role": "primary",
-        "displayName": "Operator Cyan",
-        "tonalRamp": [
-          "oklch(15.00% 0.09499 215.05)",
-          "oklch(26.43% 0.09499 215.05)",
-          "oklch(37.86% 0.09499 215.05)",
-          "oklch(49.29% 0.09499 215.05)",
-          "oklch(60.71% 0.09499 215.05)",
-          "oklch(72.14% 0.09499 215.05)",
-          "oklch(83.57% 0.09499 215.05)",
-          "oklch(95.00% 0.09499 215.05)"
-        ]
-      },
       "admin-background": {
         "role": "neutral",
-        "displayName": "Admin Background",
+        "displayName": "Mist",
+        "canonical": "oklch(96.61% 0.00540 297.73)",
         "tonalRamp": [
-          "oklch(15.00% 0.00342 247.86)",
-          "oklch(26.43% 0.00342 247.86)",
-          "oklch(37.86% 0.00342 247.86)",
-          "oklch(49.29% 0.00342 247.86)",
-          "oklch(60.71% 0.00342 247.86)",
-          "oklch(72.14% 0.00342 247.86)",
-          "oklch(83.57% 0.00342 247.86)",
-          "oklch(95.00% 0.00342 247.86)"
+          "oklch(15.00% 0.00540 297.73)",
+          "oklch(26.43% 0.00540 297.73)",
+          "oklch(37.86% 0.00540 297.73)",
+          "oklch(49.29% 0.00540 297.73)",
+          "oklch(60.71% 0.00540 297.73)",
+          "oklch(72.14% 0.00540 297.73)",
+          "oklch(83.57% 0.00540 297.73)",
+          "oklch(95.00% 0.00540 297.73)"
         ]
       },
       "admin-surface": {
         "role": "neutral",
-        "displayName": "Admin Surface",
+        "displayName": "Card White",
+        "canonical": "oklch(100.00% 0.00000 89.88)",
         "tonalRamp": [
           "oklch(15.00% 0.00000 89.88)",
           "oklch(26.43% 0.00000 89.88)",
@@ -46,130 +34,364 @@
           "oklch(95.00% 0.00000 89.88)"
         ]
       },
-      "admin-text": {
+      "admin-surface-2": {
         "role": "neutral",
-        "displayName": "Admin Text",
+        "displayName": "Paper",
+        "canonical": "oklch(98.37% 0.00409 301.43)",
         "tonalRamp": [
-          "oklch(15.00% 0.03311 254.41)",
-          "oklch(26.43% 0.03311 254.41)",
-          "oklch(37.86% 0.03311 254.41)",
-          "oklch(49.29% 0.03311 254.41)",
-          "oklch(60.71% 0.03311 254.41)",
-          "oklch(72.14% 0.03311 254.41)",
-          "oklch(83.57% 0.03311 254.41)",
-          "oklch(95.00% 0.03311 254.41)"
-        ]
-      },
-      "admin-muted": {
-        "role": "neutral",
-        "displayName": "Admin Muted",
-        "tonalRamp": [
-          "oklch(15.00% 0.03349 257.79)",
-          "oklch(26.43% 0.03349 257.79)",
-          "oklch(37.86% 0.03349 257.79)",
-          "oklch(49.29% 0.03349 257.79)",
-          "oklch(60.71% 0.03349 257.79)",
-          "oklch(72.14% 0.03349 257.79)",
-          "oklch(83.57% 0.03349 257.79)",
-          "oklch(95.00% 0.03349 257.79)"
+          "oklch(15.00% 0.00409 301.43)",
+          "oklch(26.43% 0.00409 301.43)",
+          "oklch(37.86% 0.00409 301.43)",
+          "oklch(49.29% 0.00409 301.43)",
+          "oklch(60.71% 0.00409 301.43)",
+          "oklch(72.14% 0.00409 301.43)",
+          "oklch(83.57% 0.00409 301.43)",
+          "oklch(95.00% 0.00409 301.43)"
         ]
       },
       "admin-line": {
         "role": "neutral",
-        "displayName": "Admin Line",
+        "displayName": "Hairline",
+        "canonical": "oklch(92.08% 0.01248 301.27)",
         "tonalRamp": [
-          "oklch(15.00% 0.00866 247.92)",
-          "oklch(26.43% 0.00866 247.92)",
-          "oklch(37.86% 0.00866 247.92)",
-          "oklch(49.29% 0.00866 247.92)",
-          "oklch(60.71% 0.00866 247.92)",
-          "oklch(72.14% 0.00866 247.92)",
-          "oklch(83.57% 0.00866 247.92)",
-          "oklch(95.00% 0.00866 247.92)"
+          "oklch(15.00% 0.01248 301.27)",
+          "oklch(26.43% 0.01248 301.27)",
+          "oklch(37.86% 0.01248 301.27)",
+          "oklch(49.29% 0.01248 301.27)",
+          "oklch(60.71% 0.01248 301.27)",
+          "oklch(72.14% 0.01248 301.27)",
+          "oklch(83.57% 0.01248 301.27)",
+          "oklch(95.00% 0.01248 301.27)"
         ]
       },
-      "success-background": {
+      "admin-line-strong": {
         "role": "neutral",
-        "displayName": "Success Background",
+        "displayName": "Strong Hairline",
+        "canonical": "oklch(86.43% 0.01692 301.18)",
         "tonalRamp": [
-          "oklch(15.00% 0.01834 166.37)",
-          "oklch(26.43% 0.01834 166.37)",
-          "oklch(37.86% 0.01834 166.37)",
-          "oklch(49.29% 0.01834 166.37)",
-          "oklch(60.71% 0.01834 166.37)",
-          "oklch(72.14% 0.01834 166.37)",
-          "oklch(83.57% 0.01834 166.37)",
-          "oklch(95.00% 0.01834 166.37)"
+          "oklch(15.00% 0.01692 301.18)",
+          "oklch(26.43% 0.01692 301.18)",
+          "oklch(37.86% 0.01692 301.18)",
+          "oklch(49.29% 0.01692 301.18)",
+          "oklch(60.71% 0.01692 301.18)",
+          "oklch(72.14% 0.01692 301.18)",
+          "oklch(83.57% 0.01692 301.18)",
+          "oklch(95.00% 0.01692 301.18)"
         ]
       },
-      "success-text": {
+      "admin-text": {
         "role": "neutral",
-        "displayName": "Success Text",
+        "displayName": "Ink",
+        "canonical": "oklch(22.20% 0.01358 291.81)",
         "tonalRamp": [
-          "oklch(15.00% 0.09343 157.00)",
-          "oklch(26.43% 0.09343 157.00)",
-          "oklch(37.86% 0.09343 157.00)",
-          "oklch(49.29% 0.09343 157.00)",
-          "oklch(60.71% 0.09343 157.00)",
-          "oklch(72.14% 0.09343 157.00)",
-          "oklch(83.57% 0.09343 157.00)",
-          "oklch(95.00% 0.09343 157.00)"
+          "oklch(15.00% 0.01358 291.81)",
+          "oklch(26.43% 0.01358 291.81)",
+          "oklch(37.86% 0.01358 291.81)",
+          "oklch(49.29% 0.01358 291.81)",
+          "oklch(60.71% 0.01358 291.81)",
+          "oklch(72.14% 0.01358 291.81)",
+          "oklch(83.57% 0.01358 291.81)",
+          "oklch(95.00% 0.01358 291.81)"
         ]
       },
-      "failure-background": {
+      "admin-text-secondary": {
         "role": "neutral",
-        "displayName": "Failure Background",
+        "displayName": "Slate",
+        "canonical": "oklch(46.55% 0.02965 300.46)",
         "tonalRamp": [
-          "oklch(15.00% 0.01678 31.08)",
-          "oklch(26.43% 0.01678 31.08)",
-          "oklch(37.86% 0.01678 31.08)",
-          "oklch(49.29% 0.01678 31.08)",
-          "oklch(60.71% 0.01678 31.08)",
-          "oklch(72.14% 0.01678 31.08)",
-          "oklch(83.57% 0.01678 31.08)",
-          "oklch(95.00% 0.01678 31.08)"
+          "oklch(15.00% 0.02965 300.46)",
+          "oklch(26.43% 0.02965 300.46)",
+          "oklch(37.86% 0.02965 300.46)",
+          "oklch(49.29% 0.02965 300.46)",
+          "oklch(60.71% 0.02965 300.46)",
+          "oklch(72.14% 0.02965 300.46)",
+          "oklch(83.57% 0.02965 300.46)",
+          "oklch(95.00% 0.02965 300.46)"
         ]
       },
-      "failure-text": {
+      "admin-text-tertiary": {
         "role": "neutral",
-        "displayName": "Failure Text",
+        "displayName": "Haze",
+        "canonical": "oklch(54.30% 0.02853 300.65)",
         "tonalRamp": [
-          "oklch(15.00% 0.13485 33.56)",
-          "oklch(26.43% 0.13485 33.56)",
-          "oklch(37.86% 0.13485 33.56)",
-          "oklch(49.29% 0.13485 33.56)",
-          "oklch(60.71% 0.13485 33.56)",
-          "oklch(72.14% 0.13485 33.56)",
-          "oklch(83.57% 0.13485 33.56)",
-          "oklch(95.00% 0.13485 33.56)"
+          "oklch(15.00% 0.02853 300.65)",
+          "oklch(26.43% 0.02853 300.65)",
+          "oklch(37.86% 0.02853 300.65)",
+          "oklch(49.29% 0.02853 300.65)",
+          "oklch(60.71% 0.02853 300.65)",
+          "oklch(72.14% 0.02853 300.65)",
+          "oklch(83.57% 0.02853 300.65)",
+          "oklch(95.00% 0.02853 300.65)"
         ]
       },
-      "progress-background": {
+      "admin-sidebar": {
         "role": "neutral",
-        "displayName": "Progress Background",
+        "displayName": "Sidebar Graphite",
+        "canonical": "oklch(18.57% 0.01018 294.56)",
         "tonalRamp": [
-          "oklch(15.00% 0.01719 248.01)",
-          "oklch(26.43% 0.01719 248.01)",
-          "oklch(37.86% 0.01719 248.01)",
-          "oklch(49.29% 0.01719 248.01)",
-          "oklch(60.71% 0.01719 248.01)",
-          "oklch(72.14% 0.01719 248.01)",
-          "oklch(83.57% 0.01719 248.01)",
-          "oklch(95.00% 0.01719 248.01)"
+          "oklch(15.00% 0.01018 294.56)",
+          "oklch(26.43% 0.01018 294.56)",
+          "oklch(37.86% 0.01018 294.56)",
+          "oklch(49.29% 0.01018 294.56)",
+          "oklch(60.71% 0.01018 294.56)",
+          "oklch(72.14% 0.01018 294.56)",
+          "oklch(83.57% 0.01018 294.56)",
+          "oklch(95.00% 0.01018 294.56)"
         ]
       },
-      "progress-text": {
+      "admin-sidebar-hover": {
         "role": "neutral",
-        "displayName": "Progress Text",
+        "displayName": "Sidebar Hover",
+        "canonical": "oklch(23.06% 0.01345 291.86)",
         "tonalRamp": [
-          "oklch(15.00% 0.08530 247.50)",
-          "oklch(26.43% 0.08530 247.50)",
-          "oklch(37.86% 0.08530 247.50)",
-          "oklch(49.29% 0.08530 247.50)",
-          "oklch(60.71% 0.08530 247.50)",
-          "oklch(72.14% 0.08530 247.50)",
-          "oklch(83.57% 0.08530 247.50)",
-          "oklch(95.00% 0.08530 247.50)"
+          "oklch(15.00% 0.01345 291.86)",
+          "oklch(26.43% 0.01345 291.86)",
+          "oklch(37.86% 0.01345 291.86)",
+          "oklch(49.29% 0.01345 291.86)",
+          "oklch(60.71% 0.01345 291.86)",
+          "oklch(72.14% 0.01345 291.86)",
+          "oklch(83.57% 0.01345 291.86)",
+          "oklch(95.00% 0.01345 291.86)"
+        ]
+      },
+      "admin-sidebar-active": {
+        "role": "neutral",
+        "displayName": "Sidebar Active",
+        "canonical": "oklch(26.68% 0.01861 294.27)",
+        "tonalRamp": [
+          "oklch(15.00% 0.01861 294.27)",
+          "oklch(26.43% 0.01861 294.27)",
+          "oklch(37.86% 0.01861 294.27)",
+          "oklch(49.29% 0.01861 294.27)",
+          "oklch(60.71% 0.01861 294.27)",
+          "oklch(72.14% 0.01861 294.27)",
+          "oklch(83.57% 0.01861 294.27)",
+          "oklch(95.00% 0.01861 294.27)"
+        ]
+      },
+      "admin-sidebar-text": {
+        "role": "neutral",
+        "displayName": "Sidebar Text",
+        "canonical": "oklch(75.79% 0.02487 301.83)",
+        "tonalRamp": [
+          "oklch(15.00% 0.02487 301.83)",
+          "oklch(26.43% 0.02487 301.83)",
+          "oklch(37.86% 0.02487 301.83)",
+          "oklch(49.29% 0.02487 301.83)",
+          "oklch(60.71% 0.02487 301.83)",
+          "oklch(72.14% 0.02487 301.83)",
+          "oklch(83.57% 0.02487 301.83)",
+          "oklch(95.00% 0.02487 301.83)"
+        ]
+      },
+      "admin-sidebar-muted": {
+        "role": "neutral",
+        "displayName": "Sidebar Muted",
+        "canonical": "oklch(58.75% 0.02798 300.73)",
+        "tonalRamp": [
+          "oklch(15.00% 0.02798 300.73)",
+          "oklch(26.43% 0.02798 300.73)",
+          "oklch(37.86% 0.02798 300.73)",
+          "oklch(49.29% 0.02798 300.73)",
+          "oklch(60.71% 0.02798 300.73)",
+          "oklch(72.14% 0.02798 300.73)",
+          "oklch(83.57% 0.02798 300.73)",
+          "oklch(95.00% 0.02798 300.73)"
+        ]
+      },
+      "admin-accent": {
+        "role": "primary",
+        "displayName": "Operator Amber",
+        "canonical": "oklch(78.42% 0.13559 79.91)",
+        "tonalRamp": [
+          "oklch(15.00% 0.13559 79.91)",
+          "oklch(26.43% 0.13559 79.91)",
+          "oklch(37.86% 0.13559 79.91)",
+          "oklch(49.29% 0.13559 79.91)",
+          "oklch(60.71% 0.13559 79.91)",
+          "oklch(72.14% 0.13559 79.91)",
+          "oklch(83.57% 0.13559 79.91)",
+          "oklch(95.00% 0.13559 79.91)"
+        ]
+      },
+      "admin-accent-hover": {
+        "role": "primary",
+        "displayName": "Operator Amber Hover",
+        "canonical": "oklch(82.57% 0.12830 81.39)",
+        "tonalRamp": [
+          "oklch(15.00% 0.12830 81.39)",
+          "oklch(26.43% 0.12830 81.39)",
+          "oklch(37.86% 0.12830 81.39)",
+          "oklch(49.29% 0.12830 81.39)",
+          "oklch(60.71% 0.12830 81.39)",
+          "oklch(72.14% 0.12830 81.39)",
+          "oklch(83.57% 0.12830 81.39)",
+          "oklch(95.00% 0.12830 81.39)"
+        ]
+      },
+      "admin-on-accent": {
+        "role": "primary",
+        "displayName": "On Operator Amber",
+        "canonical": "oklch(19.30% 0.03947 87.23)",
+        "tonalRamp": [
+          "oklch(15.00% 0.03947 87.23)",
+          "oklch(26.43% 0.03947 87.23)",
+          "oklch(37.86% 0.03947 87.23)",
+          "oklch(49.29% 0.03947 87.23)",
+          "oklch(60.71% 0.03947 87.23)",
+          "oklch(72.14% 0.03947 87.23)",
+          "oklch(83.57% 0.03947 87.23)",
+          "oklch(95.00% 0.03947 87.23)"
+        ]
+      },
+      "admin-accent-text": {
+        "role": "primary",
+        "displayName": "Amber Ink",
+        "canonical": "oklch(54.86% 0.11446 71.42)",
+        "tonalRamp": [
+          "oklch(15.00% 0.11446 71.42)",
+          "oklch(26.43% 0.11446 71.42)",
+          "oklch(37.86% 0.11446 71.42)",
+          "oklch(49.29% 0.11446 71.42)",
+          "oklch(60.71% 0.11446 71.42)",
+          "oklch(72.14% 0.11446 71.42)",
+          "oklch(83.57% 0.11446 71.42)",
+          "oklch(95.00% 0.11446 71.42)"
+        ]
+      },
+      "admin-accent-soft": {
+        "role": "primary",
+        "displayName": "Amber Cream",
+        "canonical": "oklch(96.04% 0.02966 85.56)",
+        "tonalRamp": [
+          "oklch(15.00% 0.02966 85.56)",
+          "oklch(26.43% 0.02966 85.56)",
+          "oklch(37.86% 0.02966 85.56)",
+          "oklch(49.29% 0.02966 85.56)",
+          "oklch(60.71% 0.02966 85.56)",
+          "oklch(72.14% 0.02966 85.56)",
+          "oklch(83.57% 0.02966 85.56)",
+          "oklch(95.00% 0.02966 85.56)"
+        ]
+      },
+      "admin-good": {
+        "role": "secondary",
+        "displayName": "Ledger Green",
+        "canonical": "oklch(52.94% 0.11600 156.55)",
+        "tonalRamp": [
+          "oklch(15.00% 0.11600 156.55)",
+          "oklch(26.43% 0.11600 156.55)",
+          "oklch(37.86% 0.11600 156.55)",
+          "oklch(49.29% 0.11600 156.55)",
+          "oklch(60.71% 0.11600 156.55)",
+          "oklch(72.14% 0.11600 156.55)",
+          "oklch(83.57% 0.11600 156.55)",
+          "oklch(95.00% 0.11600 156.55)"
+        ]
+      },
+      "admin-good-soft": {
+        "role": "secondary",
+        "displayName": "Ledger Green Tint",
+        "canonical": "oklch(94.88% 0.02231 160.22)",
+        "tonalRamp": [
+          "oklch(15.00% 0.02231 160.22)",
+          "oklch(26.43% 0.02231 160.22)",
+          "oklch(37.86% 0.02231 160.22)",
+          "oklch(49.29% 0.02231 160.22)",
+          "oklch(60.71% 0.02231 160.22)",
+          "oklch(72.14% 0.02231 160.22)",
+          "oklch(83.57% 0.02231 160.22)",
+          "oklch(95.00% 0.02231 160.22)"
+        ]
+      },
+      "admin-warn": {
+        "role": "secondary",
+        "displayName": "Rust Orange",
+        "canonical": "oklch(55.40% 0.12875 57.82)",
+        "tonalRamp": [
+          "oklch(15.00% 0.12875 57.82)",
+          "oklch(26.43% 0.12875 57.82)",
+          "oklch(37.86% 0.12875 57.82)",
+          "oklch(49.29% 0.12875 57.82)",
+          "oklch(60.71% 0.12875 57.82)",
+          "oklch(72.14% 0.12875 57.82)",
+          "oklch(83.57% 0.12875 57.82)",
+          "oklch(95.00% 0.12875 57.82)"
+        ]
+      },
+      "admin-warn-soft": {
+        "role": "secondary",
+        "displayName": "Rust Orange Tint",
+        "canonical": "oklch(95.73% 0.02876 77.55)",
+        "tonalRamp": [
+          "oklch(15.00% 0.02876 77.55)",
+          "oklch(26.43% 0.02876 77.55)",
+          "oklch(37.86% 0.02876 77.55)",
+          "oklch(49.29% 0.02876 77.55)",
+          "oklch(60.71% 0.02876 77.55)",
+          "oklch(72.14% 0.02876 77.55)",
+          "oklch(83.57% 0.02876 77.55)",
+          "oklch(95.00% 0.02876 77.55)"
+        ]
+      },
+      "admin-bad": {
+        "role": "secondary",
+        "displayName": "Alarm Red",
+        "canonical": "oklch(53.47% 0.16147 19.65)",
+        "tonalRamp": [
+          "oklch(15.00% 0.16147 19.65)",
+          "oklch(26.43% 0.16147 19.65)",
+          "oklch(37.86% 0.16147 19.65)",
+          "oklch(49.29% 0.16147 19.65)",
+          "oklch(60.71% 0.16147 19.65)",
+          "oklch(72.14% 0.16147 19.65)",
+          "oklch(83.57% 0.16147 19.65)",
+          "oklch(95.00% 0.16147 19.65)"
+        ]
+      },
+      "admin-bad-soft": {
+        "role": "secondary",
+        "displayName": "Alarm Red Tint",
+        "canonical": "oklch(94.45% 0.02198 10.61)",
+        "tonalRamp": [
+          "oklch(15.00% 0.02198 10.61)",
+          "oklch(26.43% 0.02198 10.61)",
+          "oklch(37.86% 0.02198 10.61)",
+          "oklch(49.29% 0.02198 10.61)",
+          "oklch(60.71% 0.02198 10.61)",
+          "oklch(72.14% 0.02198 10.61)",
+          "oklch(83.57% 0.02198 10.61)",
+          "oklch(95.00% 0.02198 10.61)"
+        ]
+      },
+      "admin-info": {
+        "role": "secondary",
+        "displayName": "Note Blue",
+        "canonical": "oklch(48.71% 0.13051 258.29)",
+        "tonalRamp": [
+          "oklch(15.00% 0.13051 258.29)",
+          "oklch(26.43% 0.13051 258.29)",
+          "oklch(37.86% 0.13051 258.29)",
+          "oklch(49.29% 0.13051 258.29)",
+          "oklch(60.71% 0.13051 258.29)",
+          "oklch(72.14% 0.13051 258.29)",
+          "oklch(83.57% 0.13051 258.29)",
+          "oklch(95.00% 0.13051 258.29)"
+        ]
+      },
+      "admin-info-soft": {
+        "role": "secondary",
+        "displayName": "Note Blue Tint",
+        "canonical": "oklch(94.39% 0.01954 260.17)",
+        "tonalRamp": [
+          "oklch(15.00% 0.01954 260.17)",
+          "oklch(26.43% 0.01954 260.17)",
+          "oklch(37.86% 0.01954 260.17)",
+          "oklch(49.29% 0.01954 260.17)",
+          "oklch(60.71% 0.01954 260.17)",
+          "oklch(72.14% 0.01954 260.17)",
+          "oklch(83.57% 0.01954 260.17)",
+          "oklch(95.00% 0.01954 260.17)"
         ]
       },
       "client-background": {
@@ -458,15 +680,39 @@
         ]
       }
     },
-    "colorRampNote": "Tonal ramps are synthesized for panel inspection; they are not additional shipped palette tokens. Client state colors also ship as 14% alpha tints (WPF #24RRGGBB) used only behind round icon badges; the ready dial is an amber gradient #F7CB72 -> #E6AE45 -> #CC8C2B.",
+    "colorRampNote": "Tonal ramps are synthesized for panel inspection; they are not additional shipped palette tokens. Client state colors also ship as 14% alpha tints (WPF #24RRGGBB) used only behind round icon badges; the ready dial is an amber gradient #F7CB72 -> #E6AE45 -> #CC8C2B. Admin state tones ship as ink + soft pairs (good, warn, bad, info); the neutral tone is admin-text-secondary on #efedf3. admin-sidebar equals client-background, admin-sidebar-text equals client-text-secondary, admin-text equals client-surface, and admin-accent, admin-accent-hover and admin-on-accent equal their client counterparts.",
     "typographyMeta": {
+      "admin-headline": {
+        "displayName": "Admin headline",
+        "purpose": "Page titles beside the graphite icon tile; drawer titles 18, confirm titles 17."
+      },
+      "admin-title": {
+        "displayName": "Admin section title",
+        "purpose": "Drawer section titles led by an Amber Ink icon; the checklist heading at 16."
+      },
       "admin-body": {
         "displayName": "Admin body",
-        "purpose": "Paragraphs and supporting copy."
+        "purpose": "Tables, buttons and descriptions; entity names 13.5 SemiBold, fields and navigation 13.5, root 14."
       },
       "admin-label": {
-        "displayName": "Admin labels",
-        "purpose": "Tables and supporting labels."
+        "displayName": "Admin field label",
+        "purpose": "Field labels above controls, in Slate (admin-text-secondary)."
+      },
+      "admin-meta": {
+        "displayName": "Admin meta",
+        "purpose": "Table heads, sub lines, notes, pills and counts, 12-12.5."
+      },
+      "admin-figure-display": {
+        "displayName": "Admin overview figure",
+        "purpose": "Metric tile counts, tabular numerals; 26 at 560px and below."
+      },
+      "admin-figure": {
+        "displayName": "Admin cell figure",
+        "purpose": "Counts, ports, capacity, attempts, versions, step numbers and avatar initials."
+      },
+      "admin-mono": {
+        "displayName": "Admin identifier",
+        "purpose": "Ids, hosts, addresses, hashes and enrollment secrets."
       },
       "client-headline": {
         "displayName": "Client headline",
@@ -503,6 +749,21 @@
     },
     "shadows": [
       {
+        "name": "admin-rest",
+        "value": "0 1px 2px rgb(27 26 33 / 4%), 0 4px 16px rgb(27 26 33 / 5%)",
+        "purpose": "Metric tiles, the checklist panel and list cards; on phones each row card and the empty-state card. Replaces outlines."
+      },
+      {
+        "name": "admin-menu",
+        "value": "0 12px 32px rgb(19 18 23 / 16%), 0 2px 6px rgb(19 18 23 / 6%)",
+        "purpose": "The 更多 row menu, with a 1px admin-line edge."
+      },
+      {
+        "name": "admin-overlay",
+        "value": "0 18px 50px rgb(19 18 23 / 22%)",
+        "purpose": "Drawers and dialogs, over a rgb(19 18 23 / 45%) backdrop."
+      },
+      {
         "name": "client-float",
         "value": "0 8px 28px rgb(0 0 0 / 50%)",
         "purpose": "WPF DropShadowEffect BlurRadius 28, ShadowDepth 8, Direction 270, Opacity 0.5: toast, account menu, sign-in dialog, cover hover bolt disc. Nothing that sits in the page."
@@ -514,6 +775,31 @@
       }
     ],
     "motion": [
+      {
+        "name": "admin-feedback",
+        "value": "0.15s on background, border-color, color and box-shadow",
+        "purpose": "Buttons, fields, navigation items, switches and choices."
+      },
+      {
+        "name": "admin-drawer-in",
+        "value": "0.22s cubic-bezier(0.2, 0.8, 0.2, 1), from translateX(32px) and opacity 0",
+        "purpose": "Editor, detail and version drawers."
+      },
+      {
+        "name": "admin-menu-in",
+        "value": "0.12s ease-out, from translateY(-4px) and opacity 0",
+        "purpose": "The 更多 menu."
+      },
+      {
+        "name": "admin-sheet-in",
+        "value": "0.16s ease-out, from translateY(-8px) and opacity 0",
+        "purpose": "The phone navigation sheet."
+      },
+      {
+        "name": "admin-reduced-motion",
+        "value": "none",
+        "purpose": "prefers-reduced-motion removes every web animation and transition."
+      },
       {
         "name": "dial-comet-ready",
         "value": "80deg arc, one turn per 6s, linear, infinite, #F0BD5C",
@@ -542,12 +828,20 @@
     ],
     "breakpoints": [
       {
-        "name": "admin-compact-max",
-        "value": "1000px"
+        "name": "admin-tiles-two-up",
+        "value": "1100px"
       },
       {
-        "name": "admin-mobile-max",
-        "value": "680px"
+        "name": "admin-top-bar",
+        "value": "860px"
+      },
+      {
+        "name": "admin-stacked-rows",
+        "value": "720px"
+      },
+      {
+        "name": "admin-compact-tiles",
+        "value": "560px"
       },
       {
         "name": "client-dashboard-two-column",
@@ -565,13 +859,13 @@
       "dial": "168 DIP button in a 208 DIP frame, 6 DIP track"
     },
     "focus": {
-      "webButtons": "3px solid #5dbac8; offset 3px",
-      "webFields": "2px solid #75c5d1; offset 1px",
+      "webButtons": ":focus-visible 2px solid #e6ae45; offset 2px; keyboard only",
+      "webFields": "1px edge #d4d0dc at rest, #bdb7c8 on hover, #e6ae45 on focus with 0 0 0 3px rgb(230 174 69 / 22%); invalid #b83a45 with 0 0 0 3px rgb(184 58 69 / 18%)",
       "nativeKeyboard": "1.5 DIP #E6AE45 ring, 8 DIP corners, 2 DIPs outside; round controls 5 DIPs outside; keyboard only",
       "nativeFields": "1 DIP edge: transparent at rest, #3D3948 on hover, #E6AE45 on keyboard focus"
     },
     "backdrops": {
-      "webDialog": "rgb(16 32 46 / 35%)",
+      "webDialog": "rgb(19 18 23 / 45%)",
       "nativeLogin": "rgb(13 12 16 / 88%) (WPF #E00D0C10)",
       "nativeOnArtPill": "rgb(13 12 16 / 55%), hover 80%",
       "nativeHeroStatus": "rgb(13 12 16 / 70%)",
@@ -583,49 +877,65 @@
       "name": "Primary button",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "Cyan actions such as add, save, and login.",
-      "html": "<button class=\"ds-primary\">保存</button>",
-      "css": ".ds-primary{font-family:\"Segoe UI\",\"Microsoft YaHei\",sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:7px;padding:10px 15px;font-weight:600;font-size:13px;cursor:pointer;background:var(--accent,#087e93);color:#fff}.ds-primary:hover{background:#066b7e}.ds-primary:focus-visible{outline:3px solid #5dbac8;outline-offset:3px}.ds-primary:disabled{opacity:.5;cursor:not-allowed}"
+      "description": "Amber action with near-black ink: 新增, 保存, 登录 and non-risky confirms; one per view.",
+      "html": "<button class=\"ds-primary\">保存</button> <button class=\"ds-primary\" disabled>正在保存…</button>",
+      "css": ".ds-primary{font-family:\"Microsoft YaHei UI\",\"PingFang SC\",\"Segoe UI\",system-ui,sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:36px;border-radius:8px;padding:0 14px;font-weight:600;font-size:13px;white-space:nowrap;cursor:pointer;transition:background .15s,border-color .15s;border:0;background:#e6ae45;color:#1c1300}.ds-primary:hover:not(:disabled){background:#f0bd5c}.ds-primary:focus-visible{outline:2px solid #e6ae45;outline-offset:2px}.ds-primary:disabled{opacity:.5;cursor:not-allowed}"
     },
     {
       "name": "Secondary button",
       "kind": "button",
       "refersTo": "button-secondary",
-      "description": "Refresh and cancel actions.",
+      "description": "White with a strong hairline edge: 刷新, 取消, 加载更多, an undone checklist step.",
       "html": "<button class=\"ds-secondary\">刷新</button>",
-      "css": ".ds-secondary{font-family:\"Segoe UI\",\"Microsoft YaHei\",sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid #d6dee6;border-radius:7px;padding:10px 15px;font-weight:600;font-size:13px;cursor:pointer;background:#fff;color:#182433}.ds-secondary:hover{background:#edf3f5}.ds-secondary:focus-visible{outline:3px solid #5dbac8;outline-offset:3px}.ds-secondary:disabled{opacity:.5;cursor:not-allowed}"
+      "css": ".ds-secondary{font-family:\"Microsoft YaHei UI\",\"PingFang SC\",\"Segoe UI\",system-ui,sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:36px;border-radius:8px;padding:0 14px;font-weight:600;font-size:13px;white-space:nowrap;cursor:pointer;transition:background .15s,border-color .15s;border:1px solid #d4d0dc;background:#fff;color:#1b1a21}.ds-secondary:hover:not(:disabled){background:#faf9fc;border-color:#bdb7c8}.ds-secondary:focus-visible{outline:2px solid #e6ae45;outline-offset:2px}.ds-secondary:disabled{opacity:.5;cursor:not-allowed}"
+    },
+    {
+      "name": "Danger button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Brick red, only as the confirm button of a risky action (排空, 终止线路, 停止会话).",
+      "html": "<button class=\"ds-danger\">终止线路</button>",
+      "css": ".ds-danger{font-family:\"Microsoft YaHei UI\",\"PingFang SC\",\"Segoe UI\",system-ui,sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:36px;border-radius:8px;padding:0 14px;font-weight:600;font-size:13px;white-space:nowrap;cursor:pointer;transition:background .15s,border-color .15s;border:0;background:#b83a45;color:#fff}.ds-danger:hover:not(:disabled){background:#9e2f39}.ds-danger:focus-visible{outline:2px solid #e6ae45;outline-offset:2px}.ds-danger:disabled{opacity:.5;cursor:not-allowed}"
     },
     {
       "name": "Labeled input",
       "kind": "input",
       "refersTo": "input",
-      "description": "Visible label and focus treatment used in forms.",
-      "html": "<label class=\"ds-field\">名称<input placeholder=\"输入名称\"></label>",
-      "css": ".ds-field{font-family:\"Segoe UI\",\"Microsoft YaHei\",sans-serif;display:flex;flex-direction:column;gap:8px;font-size:13px;font-weight:600;color:#182433}.ds-field input{font:inherit;min-width:0;border:1px solid #ccd5df;background:#fff;border-radius:7px;padding:10px 12px;color:#182433;caret-color:var(--accent,#087e93)}.ds-field input:focus{outline:2px solid #75c5d1;outline-offset:1px}"
+      "description": "Label above in Slate, note below in Haze; an invalid field turns label and edge red and shows its message in place of the note.",
+      "html": "<div class=\"ds-fields\"><label class=\"ds-field\"><span>并发容量</span><input type=\"number\" value=\"100\"><small>同时在这条线路上加速的玩家上限，1–10000。</small></label><label class=\"ds-field ds-invalid\"><span>账号</span><input value=\"new player\" aria-invalid=\"true\"><small>账号不能包含空格</small></label></div>",
+      "css": ".ds-fields{font-family:\"Microsoft YaHei UI\",\"PingFang SC\",\"Segoe UI\",system-ui,sans-serif;display:grid;grid-template-columns:1fr 1fr;gap:16px;width:520px}.ds-field{display:grid;gap:7px;align-content:start}.ds-field span{font-size:13px;font-weight:500;color:#5c5668}.ds-field small{font-size:12px;line-height:1.55;color:#726c7e}.ds-field input{font:inherit;font-size:13.5px;min-width:0;border:1px solid #d4d0dc;background:#fff;border-radius:8px;padding:9px 12px;color:#1b1a21;caret-color:#9a640b;transition:border-color .15s,box-shadow .15s}.ds-field input:hover{border-color:#bdb7c8}.ds-field input:focus{outline:none;border-color:#e6ae45;box-shadow:0 0 0 3px rgb(230 174 69 / 22%)}.ds-invalid span,.ds-invalid small{color:#b83a45}.ds-invalid input,.ds-invalid input:hover{border-color:#b83a45}.ds-invalid input:focus{border-color:#b83a45;box-shadow:0 0 0 3px rgb(184 58 69 / 18%)}"
     },
     {
       "name": "Selected navigation",
       "kind": "nav",
       "refersTo": "navigation-item",
-      "description": "Persistent resource navigation, horizontal on narrow screens.",
-      "html": "<nav class=\"ds-nav\"><button class=\"ds-selected\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><path d=\"M22 12h-4l-3 9L9 3l-3 9H2\"/></svg>运行总览</button><button>游戏与规则</button></nav>",
-      "css": ".ds-nav{display:grid;gap:4px}.ds-nav button{font-family:\"Segoe UI\",\"Microsoft YaHei\",sans-serif;display:flex;align-items:center;gap:12px;text-align:left;padding:11px 12px;border:0;border-radius:7px;font-size:13px;color:#4b5d70;background:transparent;cursor:pointer}.ds-nav button:hover{background:#f1f5f7}.ds-nav .ds-selected{background:#e8f4f5;color:#086c7e;font-weight:650}.ds-nav button:focus-visible{outline:3px solid #5dbac8;outline-offset:3px}"
+      "description": "Graphite sidebar grouped 配置 / 账号 / 运行; the active item is raised with an amber icon and a 3px amber edge bar. On phones it becomes the top bar's menu sheet.",
+      "html": "<nav class=\"ds-nav\"><span>配置</span><button class=\"ds-on\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"2\" y=\"6\" width=\"20\" height=\"12\" rx=\"2\"/><path d=\"M6 12h4M8 10v4M15 13h.01M18 11h.01\"/></svg>游戏与规则</button><button><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"6\" cy=\"19\" r=\"3\"/><path d=\"M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15\"/><circle cx=\"18\" cy=\"5\" r=\"3\"/></svg>加速线路</button></nav>",
+      "css": ".ds-nav{font-family:\"Microsoft YaHei UI\",\"PingFang SC\",\"Segoe UI\",system-ui,sans-serif;display:grid;gap:2px;width:220px;padding:14px;background:#131217}.ds-nav span{padding:0 12px 6px;font-size:11.5px;color:#7f798b}.ds-nav button{position:relative;display:flex;align-items:center;gap:11px;width:100%;padding:9px 12px;border:0;border-radius:8px;background:transparent;font:inherit;font-size:13.5px;color:#b3adbe;text-align:left;cursor:pointer;transition:background .15s,color .15s}.ds-nav button svg{flex:none;color:#7f798b}.ds-nav button:hover{background:#1d1c23;color:#fff}.ds-nav .ds-on{background:#26242e;color:#fff;font-weight:600}.ds-nav .ds-on svg{color:#e6ae45}.ds-nav .ds-on::before{content:'';position:absolute;left:-14px;top:9px;bottom:9px;width:3px;border-radius:0 3px 3px 0;background:#e6ae45}.ds-nav button:focus-visible{outline:2px solid #e6ae45;outline-offset:2px}"
     },
     {
-      "name": "State badges",
+      "name": "State pills",
       "kind": "chip",
-      "refersTo": "badge-ready",
-      "description": "Noninteractive labels identify verified, failed, and running states.",
-      "html": "<div class=\"ds-badges\"><span class=\"ds-ready\">已验证</span><span class=\"ds-failed\">失败</span><span class=\"ds-running\">执行中</span></div>",
-      "css": ".ds-badges{display:flex;gap:8px}.ds-badges span{font-family:\"Segoe UI\",\"Microsoft YaHei\",sans-serif;display:inline-block;padding:4px 7px;border-radius:4px;font-size:11px;white-space:nowrap}.ds-ready{background:#e5f4ed;color:#216944}.ds-failed{background:#fff0ed;color:#ac4934}.ds-running{background:#e8f2fc;color:#34638d}"
+      "refersTo": "pill-good",
+      "description": "A dot and a word on the state's wash; tones report state only. Categories use a plain grey pill without the dot.",
+      "html": "<div class=\"ds-pills\"><span class=\"ds-pill ds-good\">已验证上线</span><span class=\"ds-pill ds-warn\">新版本验证中</span><span class=\"ds-pill ds-bad\">验证未通过</span><span class=\"ds-pill ds-neutral\">未发布</span><span class=\"ds-pill ds-neutral ds-plain\">平台托管</span></div>",
+      "css": ".ds-pills{font-family:\"Microsoft YaHei UI\",\"PingFang SC\",\"Segoe UI\",system-ui,sans-serif;display:flex;flex-wrap:wrap;gap:8px}.ds-pill{display:inline-flex;align-items:center;gap:6px;padding:3px 9px 3px 8px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}.ds-pill::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor}.ds-plain::before{display:none}.ds-good{background:#e2f3e9;color:#1d7f4f}.ds-warn{background:#fcefdc;color:#a95c0c}.ds-bad{background:#fbe7e9;color:#b83a45}.ds-neutral{background:#efedf3;color:#5c5668}"
     },
     {
       "name": "Resource table",
       "kind": "card",
       "refersTo": "resource-table",
-      "description": "Scrollable resource list with readable headers and row actions.",
-      "html": "<div class=\"ds-table-wrap\"><table class=\"ds-table\"><thead><tr><th>名称</th><th>发布版本</th><th>操作</th></tr></thead><tbody><tr><td>英雄联盟</td><td>草稿</td><td><button>详情</button></td></tr></tbody></table></div>",
-      "css": ".ds-table-wrap{background:#fff;border:1px solid var(--line,#e2e7ec);border-radius:9px;overflow:auto}.ds-table{font-family:\"Segoe UI\",\"Microsoft YaHei\",sans-serif;border-collapse:collapse;width:100%;min-width:640px;font-size:12px;text-align:left;color:#182433}.ds-table th{color:#657388;font-weight:500;background:#fafbfd;padding:14px 18px;white-space:nowrap;border-bottom:1px solid var(--line,#e2e7ec)}.ds-table td{padding:18px;overflow-wrap:anywhere}.ds-table tbody tr:hover{background:#fafcfd}.ds-table button{font:inherit;background:transparent;border:0;color:var(--accent,#087e93);padding:3px 0;cursor:pointer}.ds-table button:focus-visible{outline:3px solid #5dbac8;outline-offset:3px}"
+      "description": "Shadowed list card: entity first column (cover, name, sub line), region badges coloured by position, a dotted state pill, and row actions with the next step emphasised and an icon-only 详情. At 720px and below each row becomes a stacked card labelled by column.",
+      "html": "<div class=\"ds-card\"><table class=\"ds-table\"><thead><tr><th>游戏</th><th>区服</th><th>规则状态</th><th>操作</th></tr></thead><tbody><tr><td><span class=\"ds-entity\"><svg width=\"64\" height=\"36\" viewBox=\"0 0 64 36\" aria-hidden=\"true\"><defs><linearGradient id=\"ds-cover-g\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"hsl(222 52% 33%)\"/><stop offset=\"1\" stop-color=\"hsl(250 58% 11%)\"/></linearGradient><radialGradient id=\"ds-cover-r\" cx=\"0.82\" cy=\"0.15\" r=\"0.75\"><stop offset=\"0\" stop-color=\"hsl(210 80% 64% / 0.59)\"/><stop offset=\"1\" stop-color=\"hsl(210 80% 64% / 0)\"/></radialGradient></defs><rect width=\"64\" height=\"36\" fill=\"url(#ds-cover-g)\"/><rect width=\"64\" height=\"36\" fill=\"url(#ds-cover-r)\"/><text x=\"61\" y=\"33\" text-anchor=\"end\" font-size=\"26\" font-weight=\"700\" fill=\"#fff\" fill-opacity=\"0.15\" font-family=\"Bahnschrift, sans-serif\">V</text></svg><span><b>VALORANT</b><small>VALORANT-Win64-Shipping.exe</small></span></span></td><td><span class=\"ds-chips\"><span class=\"ds-chip\"><b style=\"background:hsl(205 45% 42%)\">KR</b>韩服</span><span class=\"ds-chip\"><b style=\"background:hsl(345 45% 42%)\">JP</b>日服</span></span></td><td><span class=\"ds-t-pill\">草稿</span></td><td><span class=\"ds-actions\"><button class=\"ds-em\">发布规则</button><button>编辑</button><button class=\"ds-icon\" aria-label=\"详情\" title=\"详情\"><svg width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/></svg></button></span></td></tr></tbody></table></div>",
+      "css": ".ds-card{font-family:\"Microsoft YaHei UI\",\"PingFang SC\",\"Segoe UI\",system-ui,sans-serif;background:#fff;border-radius:10px;box-shadow:0 1px 2px rgb(27 26 33 / 4%),0 4px 16px rgb(27 26 33 / 5%);overflow:auto}.ds-table{border-collapse:collapse;width:100%;min-width:640px;font-size:13px;text-align:left;color:#1b1a21}.ds-table th{padding:11px 16px;background:#faf9fc;border-bottom:1px solid #e6e3ec;color:#726c7e;font-size:12px;font-weight:500;white-space:nowrap}.ds-table td{padding:13px 16px;vertical-align:middle}.ds-table tbody tr:hover{background:#fbfaf7}.ds-table th:last-child,.ds-table td:last-child{text-align:right}.ds-entity{display:flex;align-items:center;gap:12px}.ds-entity svg{flex:none;display:block;border-radius:7px}.ds-entity b{display:block;font-size:13.5px;font-weight:600}.ds-entity small{display:block;margin-top:2px;font-size:12px;color:#726c7e}.ds-chips{display:flex;flex-wrap:wrap;gap:5px}.ds-chip{display:inline-flex;align-items:center;gap:5px;padding:2px 8px 2px 3px;border-radius:6px;background:#f1eff5;color:#5c5668;font-size:12px;white-space:nowrap}.ds-chip b{display:inline-grid;place-items:center;min-width:27px;height:17px;padding:0 4px;border-radius:4px;font-family:Bahnschrift,\"DIN Alternate\",\"Segoe UI\",system-ui,sans-serif;font-size:10.5px;font-weight:600;letter-spacing:.04em;color:#fff}.ds-t-pill{display:inline-flex;align-items:center;gap:6px;padding:3px 9px 3px 8px;border-radius:999px;background:#fcefdc;color:#a95c0c;font-size:12px;font-weight:600}.ds-t-pill::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor}.ds-actions{display:inline-flex;gap:2px}.ds-actions button{display:inline-flex;align-items:center;gap:5px;min-height:30px;padding:0 9px;border:0;border-radius:7px;background:transparent;font:inherit;font-size:12.5px;color:#5c5668;cursor:pointer}.ds-actions button:hover{background:#efedf3;color:#1b1a21}.ds-actions .ds-em{color:#9a640b;font-weight:600}.ds-actions .ds-em:hover{background:#fbf1dc;color:#9a640b}.ds-actions .ds-icon{width:30px;padding:0;justify-content:center}.ds-actions button:focus-visible{outline:2px solid #e6ae45;outline-offset:2px}"
+    },
+    {
+      "name": "Metric tile",
+      "kind": "card",
+      "refersTo": "metric-tile",
+      "description": "Overview count; the icon badge's tone follows the value (orange here: two nodes added, none online). An unknown count stays an em dash.",
+      "html": "<div class=\"ds-tile-bg\"><div class=\"ds-tile\"><div class=\"ds-tile-head\"><span class=\"ds-tile-icon\"><svg width=\"17\" height=\"17\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"2\" y=\"2\" width=\"20\" height=\"8\" rx=\"2\"/><rect x=\"2\" y=\"14\" width=\"20\" height=\"8\" rx=\"2\"/><path d=\"M6 6h.01M6 18h.01\"/></svg></span>在线节点</div><strong>0</strong><small>共 2 个节点 · 45 秒内有心跳</small></div></div>",
+      "css": ".ds-tile-bg{background:#f4f3f7;padding:16px;width:300px}.ds-tile{font-family:\"Microsoft YaHei UI\",\"PingFang SC\",\"Segoe UI\",system-ui,sans-serif;background:#fff;border-radius:10px;box-shadow:0 1px 2px rgb(27 26 33 / 4%),0 4px 16px rgb(27 26 33 / 5%);padding:18px 18px 16px;color:#1b1a21}.ds-tile-head{display:flex;align-items:center;gap:10px;font-size:13px;color:#5c5668}.ds-tile-icon{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:#fcefdc;color:#a95c0c}.ds-tile strong{display:block;margin-top:14px;font-family:Bahnschrift,\"DIN Alternate\",\"Segoe UI\",system-ui,sans-serif;font-size:32px;font-weight:500;line-height:1.1;font-variant-numeric:tabular-nums}.ds-tile small{display:block;margin-top:6px;font-size:12px;color:#726c7e}"
     },
     {
       "name": "Client primary button",
@@ -678,17 +988,24 @@
   ],
   "narrative": {
     "northStar": "Operate",
-    "overview": "FlowLight has two surfaces with one job each. Operators work in a light administration of compact resource tables, persistent navigation and modal editors, where deep cyan marks actions and selection. Players use a dark native Windows client that sits beside a running game, usually in the evening: a game library rather than a settings form. Generated cover art opens each game, region and line choices are tiles and rows that carry their own evidence, and one round dial starts acceleration and then becomes the live latency readout.\n\nThe client's material is warm graphite with a faint violet cast, separated by tone rather than outlines and lit by a single amber, the \"flowing light\" of the product's name. Amber means brand, action, selection and keyboard focus; latency quality and session state speak in a separate green, orange, red and blue set. Pictures carry recognition: cover art drawn per game from a hue and a few light streaks, outline icons on one 24 px grid, four signal bars, a latency chart. No game artwork is bundled, and no figure appears without saying what it measures.",
+    "overview": "FlowLight has two surfaces with one job each, and they read as one product. Operators work in a light administration framed by a graphite sidebar: an overview that says what is ready and what is missing, lists whose first column shows the thing itself (a game's cover, a player's initial, a line's icon) with its state in a dotted pill, and a side drawer for editing so the list stays in view. Players use a dark native Windows client that sits beside a running game, usually in the evening: a game library rather than a settings form. Generated cover art opens each game, region and line choices are tiles and rows that carry their own evidence, and one round dial starts acceleration and then becomes the live latency readout.\n\nThe client's material is warm graphite with a faint violet cast, separated by tone rather than outlines and lit by a single amber, the \"flowing light\" of the product's name. The administration borrows that material instead of inventing its own: its sidebar is the client's window graphite, its work area a lilac-tinted white whose surfaces lift on a soft shadow rather than an outline, and the same amber marks its brand, actions, selection and focus. On both surfaces latency, health and publication state speak in a separate green, orange, red and blue set. Pictures carry recognition: cover art drawn per game from a hue and a few light streaks (the same hue for the same game on both surfaces), outline icons on one 24 px grid, four signal bars, a latency chart. No game artwork is bundled, and no figure appears without saying what it measures.",
     "keyCharacteristics": [
-      "Light administration with deep cyan actions; dark graphite client with one amber accent.",
+      "One product, one amber: a light administration in a graphite frame and a dark graphite client; amber is brand, action, selection and focus on both, never state.",
+      "Administration: 248 px graphite sidebar grouped 配置 / 账号 / 运行, an overview of four metric tiles and a 上线准备 checklist, card lists with entity first columns and row actions, side-drawer editors, and phone layouts down to stacked row cards.",
       "Client: 80 DIP icon rail, a library of 16:9 cover cards, a game page with a hero banner, region tiles, line rows and the dial.",
+      "A game's generated cover takes the same hue in both apps, from a cover slot fixed when the game is first stored.",
       "Every client figure is a probe with a visible provenance label; missing evidence is an em dash.",
       "Unknown, draft, unavailable, refused, historical and current states remain explicit."
     ],
     "rules": [
       {
         "name": "The One Amber Rule",
-        "body": "Amber marks the brand, the action, the selection and keyboard focus, and nothing else. It never reports quality: latency, load and connection state speak only in green, orange, red and blue.",
+        "body": "Amber marks the brand, the action, the selection and keyboard focus, on both surfaces, and nothing else. It never reports quality or state: latency, load, connection, publication and health speak only in green, orange, red and blue.",
+        "section": "colors"
+      },
+      {
+        "name": "The State-Tone Rule",
+        "body": "In the administration a tone is a reading, never decoration. A pill shows a dot and a word, so colour is never the only signal; an overview tile's icon badge is green when its count is above zero, orange when it is zero but what it depends on exists (节点 added, none online), and grey while the count is unknown or there is nothing to have yet. Identity is not state: an avatar takes a soft colour of its own from the cover palette (its hue picked from the name, a 92% lightness wash under a 32% initial), roles and release channels are plain grey pills without a dot, and the line editor's hop labels (入口, 中转, 落地) are grey.",
         "section": "colors"
       },
       {
@@ -697,13 +1014,18 @@
         "section": "colors"
       },
       {
+        "name": "The Shared Cover Rule",
+        "body": "A game wears one colour everywhere, and adding a game never recolours another. When a game is first stored, the control service gives it a cover slot one above the highest so far, inside the save transaction; edits keep the slot, and games stored before slots existed (and the built-in drafts) are backfilled in id order when the store opens and after seeding. The service sends cover_index (the slot minus one) to the administration's lists and the client's catalogue alike, and the admin's `Cover` and the client's `Palette.SteppedHue` both take the hue at that index in one nine-hue list (222, 340, 168, 22, 252, 140, 312, 192, 6) whose neighbours sit far apart. Only a game without an index falls back to a hash of its id. Region code badges are coloured by position in their own list (hues 205, 345, 155, 25, 270, 120 at 45% saturation and 42% lightness), so neighbours sit at least 100° apart in both apps; in the editor's suggestions a region not yet chosen is grey.",
+        "section": "colors"
+      },
+      {
         "name": "The Instrument Figures Rule",
-        "body": "Every measured or coded value (milliseconds, percent, elapsed time, exit IP, region codes, the avatar initial, the version string) is set in Bahnschrift, and words never are. The unit follows the figure at label size in Ash Text, bottom-aligned, and disappears with the figure when there is no measurement.",
+        "body": "Every measured or coded value (milliseconds, percent, elapsed time, exit IP, region codes, the avatar initial, the version string) is set in Bahnschrift, and words never are. The unit follows the figure at label size in Ash Text, bottom-aligned, and disappears with the figure when there is no measurement. The administration follows the same rule for its counts and codes, and sets ids and hosts in Cascadia Mono.",
         "section": "typography"
       },
       {
         "name": "The Tone-Not-Line Rule",
-        "body": "Surfaces separate by tone, not outline. An edge appears only to say something: an amber 1.5 DIP edge for selection, a field's hover or focus edge, a 12% white hairline around cover art.",
+        "body": "Surfaces separate by tone, not outline. An edge appears only to say something: an amber 1.5 DIP edge for selection, a field's hover or focus edge, a 12% white hairline around cover art. The administration keeps the rule with shadow in place of tone: no resting surface is outlined, and edges belong to controls (fields, secondary buttons, choices, switch rows) and to dividers inside a surface.",
         "section": "elevation"
       },
       {
@@ -723,20 +1045,23 @@
       }
     ],
     "dos": [
-      "**Do** preserve the light administration and dark native-client surface roles.",
-      "**Do** keep status labels, provenance, empty states, and errors visible beside the affected resource or action.",
-      "**Do** retain horizontally scrollable tables on narrow web screens, and a fixed hero over a scrolling game page at the client's minimum size.",
-      "**Do** use local Chinese-capable fonts: Segoe UI with Microsoft YaHei on the web; Microsoft YaHei UI for client words and Bahnschrift for client figures.",
+      "**Do** preserve the light administration and dark native-client surface roles, and keep the administration framed in the client's graphite.",
+      "**Do** keep status labels, provenance, empty states, and errors visible beside the affected resource or action; in a form, under the field at fault.",
+      "**Do** let narrow web screens reflow rather than scroll sideways (a top bar and menu sheet at 860px, stacked row cards labelled by column at 720px), and keep a fixed hero over a scrolling game page at the client's minimum size.",
+      "**Do** use local Chinese-capable fonts: Microsoft YaHei UI for words and Bahnschrift for figures on both surfaces, and Cascadia Mono for ids and hosts on the web.",
       "**Do** color every client latency by one scale (60 ms or less green, to 120 ms orange, above red) and light signal bars at 60, 100 and 160 ms.",
       "**Do** draw new client icons as 24 px outline geometry at a 1.8 stroke with round caps, and regenerate brand rasters from the three-streak mark in `installer/make-brand-assets.ps1`.",
-      "**Do** give each new game a generated cover from its hue."
+      "**Do** give each new game a generated cover from the hue at its cover_index, the same in both apps, and colour region badges by their position in the list.",
+      "**Do** lead every admin list with an entity column (picture, name, sub line), put the row's next step first as its emphasised action, and keep destructive actions last, separated and red."
     ],
     "donts": [
       "**Don't** replace unknown counts or missing probe evidence with zero or invented healthy measurements.",
       "**Don't** conflate a published rule, verified path, historical probe, and current connection.",
       "**Don't** claim tested game compatibility or bundle proprietary game artwork without established evidence or assets.",
-      "**Don't** use amber to report quality or state, or cyan anywhere in the client.",
-      "**Don't** outline resting client surfaces or shadow anything that sits in the page; the Float shadow is for layers above it.",
+      "**Don't** use amber to report quality or state on either surface, or a state tone as decoration; and don't bring back the retired cyan.",
+      "**Don't** outline resting surfaces: the client separates by tone and the administration by the Rest shadow; the Float shadow is for client layers above the page.",
+      "**Don't** pick a game's cover hue from list order or a hash when the service supplies cover_index, or renumber the slots of existing games; a game must not change colour between the two apps or when another game is added.",
+      "**Don't** edit in a centred modal or ask with the browser's confirm(); edits go in the side drawer, state changes through the risk-coloured confirm dialog.",
       "**Don't** brand with a letter monogram; the brand is the three-streak amber mark, and first characters appear only inside generated covers.",
       "**Don't** leave a focus ring after a mouse click, or hide it from keyboard focus."
     ]

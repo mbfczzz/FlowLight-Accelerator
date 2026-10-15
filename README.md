@@ -9,7 +9,7 @@
 | 目录 | 内容 |
 |---|---|
 | apps/control-api | 账号、权限、设备、游戏规则、线路发布、会话、节点任务 |
-| apps/admin-web | 浅色后台：资源表格、编辑、发布、排空、版本切换、审计 |
+| apps/admin-web | 管理后台：深色侧栏＋浅色工作区，与客户端同一套流光标志与琥珀色；上线准备清单、资源列表、侧边编辑抽屉、发布、排空、版本切换、审计 |
 | apps/windows-client | 深色 WPF：登录、游戏库、选线、开始/停止、托盘、诊断 |
 | apps/windows-service | Windows Service：命名管道、会话与内核生命周期 |
 | agents/node-agent | 一次性注册、mTLS、任务领取、真实转发进程、租约回收 |

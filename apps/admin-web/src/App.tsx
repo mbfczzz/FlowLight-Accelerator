@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ChevronRight, Plus, RefreshCw, X } from "lucide-react";
+import { CircleAlert, CircleCheck, Plus, RefreshCw, X } from "lucide-react";
 import {
   api,
   clearAuth,
@@ -13,6 +13,7 @@ import {
   isEditable,
   permissionsFor,
   sectionDescription,
+  sectionIcon,
   sectionTitle,
 } from "./sections";
 import { messageOf, useSectionData } from "./useSectionData";
@@ -83,7 +84,7 @@ function Workspace({
   onLoggedOut: () => void;
 }) {
   const data = useSectionData(section);
-  const { names, reloadNames } = useNames(section);
+  const { names, covers, reloadNames } = useNames(section);
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<Row | null>(null);
   const [detail, setDetail] = useState<Row | null>(null);
@@ -102,6 +103,7 @@ function Workspace({
   const permissions = permissionsFor(user);
   const editable = isEditable(section, user);
   const title = sectionTitle(section);
+  const Icon = sectionIcon(section);
   const error = data.error || actionError;
 
   useEffect(() => {
@@ -192,25 +194,19 @@ function Workspace({
         onLogout={logout}
       />
       <main>
-        <header>
-          <div className="breadcrumb">
-            工作空间 <ChevronRight size={12} />
-            {title}
-          </div>
-          <div className="header-label">FlowLight / Control</div>
-        </header>
         <section className="content">
           <div className="page-head">
-            <div>
-              <h1>{title}</h1>
-              <p>{sectionDescription(section)}</p>
+            <div className="page-title">
+              <span className="page-icon" aria-hidden="true">
+                <Icon size={21} />
+              </span>
+              <div>
+                <h1>{title}</h1>
+                <p>{sectionDescription(section)}</p>
+              </div>
             </div>
             <div className="actions">
-              <button
-                className="secondary"
-                onClick={reload}
-                disabled={data.loading}
-              >
+              <button className="secondary" onClick={reload} disabled={data.loading}>
                 <RefreshCw size={15} />
                 刷新
               </button>
@@ -222,27 +218,36 @@ function Workspace({
               )}
             </div>
           </div>
-          {error && (
-            <div className="alert" role="alert">
-              {error}
-              <button onClick={reload} disabled={data.loading}>
-                重试
-              </button>
-            </div>
-          )}
-          {notice && (
-            <div className="notice" role="status">
-              {notice}
-              <button aria-label="关闭提示" onClick={() => setNotice("")}>
-                <X size={15} />
-              </button>
+          {(error || notice) && (
+            <div className="page-banners">
+              {error && (
+                <div className="alert" role="alert">
+                  <CircleAlert size={16} />
+                  <span>{error}</span>
+                  <button onClick={reload} disabled={data.loading}>
+                    重试
+                  </button>
+                </div>
+              )}
+              {notice && (
+                <div className="notice" role="status">
+                  <CircleCheck size={16} />
+                  <span>{notice}</span>
+                  <button aria-label="关闭提示" onClick={() => setNotice("")}>
+                    <X size={15} />
+                  </button>
+                </div>
+              )}
             </div>
           )}
           {section === "overview" ? (
             <Overview
               overview={data.overview}
               loading={data.loading}
-              onOpenNodes={() => onSection("nodes")}
+              onOpen={(id) => {
+                onSection(id);
+                setNotice("");
+              }}
             />
           ) : (
             <ResourceTable
@@ -257,7 +262,8 @@ function Workspace({
               search={search}
               onSearch={setSearch}
               names={names}
-              editable={editable}
+              covers={covers}
+              onCreate={editable ? () => setEditing({}) : undefined}
               renderActions={(row) => (
                 <RowActions
                   section={section}
@@ -274,9 +280,6 @@ function Workspace({
             />
           )}
         </section>
-        <footer>
-          FlowLight Accelerator <span>游戏流量由加速节点独立处理</span>
-        </footer>
       </main>
       {editing && (
         <Editor

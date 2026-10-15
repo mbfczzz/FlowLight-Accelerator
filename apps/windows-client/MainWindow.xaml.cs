@@ -30,7 +30,9 @@ public partial class MainWindow : Window
 
     sealed record Game(string ID, string Name, string[] Regions, int Version)
     {
-        // Cover colour, fixed by the game's place in the server's catalogue.
+        // Cover colour from the control service's cover index, so a game
+        // looks the same here and in the admin; an older service sends
+        // none and the colour comes from the game's id instead.
         public double Hue { get; init; } = double.NaN;
         public string RegionLabel => Regions.Length == 0 ? "暂未开放区服" : string.Join(" · ", Regions.Select(r => ToRegion(r).Name));
         public string Initial => Name.Length == 0 ? "?" : Name[..1].ToUpperInvariant();
@@ -943,7 +945,6 @@ public partial class MainWindow : Window
         var list = result.ValueKind == JsonValueKind.Array
             ? result.EnumerateArray().Select(ParseGame).OfType<Game>().Where(g => g.Version > 0).ToArray()
             : [];
-        list = list.Select((g, i) => g with { Hue = Palette.SteppedHue(i) }).ToArray();
         // The game played last comes first.
         list = list.OrderByDescending(g => g.ID == prefs.GameID).ToArray();
         catalogError = null;
@@ -1041,7 +1042,13 @@ public partial class MainWindow : Window
             : [];
         var version = Child(game, "published_version");
         var published = version.ValueKind == JsonValueKind.Number && version.TryGetInt32(out var v) ? v : 0;
-        return new Game(id, Text(game, "name") ?? id, regionNames, published);
+        var cover = Child(game, "cover_index");
+        return new Game(id, Text(game, "name") ?? id, regionNames, published)
+        {
+            Hue = cover.ValueKind == JsonValueKind.Number && cover.TryGetInt32(out var index) && index >= 0
+                ? Palette.SteppedHue(index)
+                : double.NaN,
+        };
     }
 
     // A line the control plane has not probed yet still belongs in the list;

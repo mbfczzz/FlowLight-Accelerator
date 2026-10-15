@@ -95,6 +95,14 @@ func (s *Server) save(kind string) http.HandlerFunc {
 				old, _ := load[Game](tx, id)
 				in.ID = id
 				in.PublishedVersion = old.PublishedVersion
+				in.CoverSlot = old.CoverSlot
+				if in.CoverSlot == 0 {
+					var e error
+					if in.CoverSlot, e = nextCoverSlot(tx); e != nil {
+						return e
+					}
+				}
+				in.CoverIndex = in.CoverSlot - 1
 				in.UpdatedAt = time.Now().UTC()
 				out = in
 				if e := validateProfile(in.Draft); e != nil {
@@ -338,7 +346,9 @@ func (s *Server) save(kind string) http.HandlerFunc {
 	}
 }
 func (s *Server) games(w http.ResponseWriter, r *http.Request) {
-	listRows[Game](w, s.Store.DB.Where("enabled = ?", true))
+	v := []Game{}
+	e := s.Store.DB.Where("enabled = ?", true).Order("id").Limit(1000).Find(&v).Error
+	respond(w, v, e)
 }
 func (s *Server) regions(w http.ResponseWriter, r *http.Request) {
 	g, e := load[Game](s.Store.DB, r.PathValue("id"))

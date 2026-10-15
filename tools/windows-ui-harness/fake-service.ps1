@@ -60,6 +60,11 @@ function Handle($cmd, $a) {
       for ($i = 3; $i -le $Games; $i++) { $list += @{ id = "g$i"; name = "测试游戏 $i"; regions = @('kr'); published_version = 1 } }
       # A game whose rules are still a draft: no regions, nothing to start.
       $list += @{ id = 'draft'; name = '待发布游戏'; regions = @(); published_version = 0 }
+      # Cover slots as the control service assigns them, so every app colours
+      # a game's cover the same way: the built-in games first in id order,
+      # then each game in the order it was added.
+      $order = @('lol', 'valorant') + @($list | Where-Object { $_.id -notin 'lol', 'valorant' } | ForEach-Object { $_.id })
+      foreach ($g in $list) { $g.cover_index = [array]::IndexOf($order, $g.id) }
       return $list
     }
     'lines' {

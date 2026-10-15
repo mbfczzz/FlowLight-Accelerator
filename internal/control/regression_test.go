@@ -350,6 +350,41 @@ func TestConfiguredProbeAgentValidatesManagedLines(t *testing.T) {
 	}
 }
 
+func TestCoverIndexIsFixedWhenAGameIsCreated(t *testing.T) {
+	s, token, _ := setup(t)
+	covers := func() map[string]float64 {
+		t.Helper()
+		w := request(s, token, "GET", "/api/admin/v1/games", nil, "")
+		var rows []map[string]any
+		if json.Unmarshal(w.Body.Bytes(), &rows) != nil {
+			t.Fatal(w.Body.String())
+		}
+		out := map[string]float64{}
+		for _, row := range rows {
+			out[row["id"].(string)] = row["cover_index"].(float64)
+		}
+		return out
+	}
+	before := covers()
+	if before["lol"] != 0 || before["valorant"] != 1 {
+		t.Fatalf("built-in games should take the first slots in id order: %v", before)
+	}
+	// New ids are hex, so they sort before the built-in ones; that must not
+	// shift the games already stored.
+	w := request(s, token, "POST", "/api/admin/v1/games", map[string]any{"name": "Apex", "regions": []string{}, "enabled": true, "draft": map[string]any{"processes": []string{"r5apex.exe"}}}, "")
+	var created Game
+	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &created) != nil || created.CoverIndex != 2 {
+		t.Fatalf("new game should take the next slot: %d %s", w.Code, w.Body.String())
+	}
+	if w := request(s, token, "PATCH", "/api/admin/v1/games/lol", map[string]any{"name": "英雄联盟 国际服"}, ""); w.Code != 200 {
+		t.Fatal(w.Body.String())
+	}
+	after := covers()
+	if after["lol"] != 0 || after["valorant"] != 1 || after[created.ID] != 2 {
+		t.Fatalf("cover indexes changed: before %v, after %v", before, after)
+	}
+}
+
 func TestPasswordLengthDependsOnRole(t *testing.T) {
 	s, token, _ := setup(t)
 	user := func(name, password, role string) map[string]any {

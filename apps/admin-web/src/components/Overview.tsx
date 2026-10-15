@@ -1,74 +1,165 @@
-import { ChevronRight, Network } from "lucide-react";
+import { Check, ChevronRight, Gamepad2, Route, Server, Zap } from "lucide-react";
+import type { ReactNode } from "react";
 import type { Row } from "../api";
 
-const metrics = [
-  ["games", "游戏规则"],
-  ["active_sessions", "当前会话"],
-  ["online_nodes", "在线节点"],
-  ["verified_versions", "已验证线路版本"],
-] as const;
+type Tile = {
+  key: string;
+  label: string;
+  note: string;
+  /** The count of what this tile is a part of, if any, and its unit. */
+  of?: string;
+  unit?: string;
+  icon: ReactNode;
+};
 
-function metricNote(key: string) {
-  if (key === "online_nodes") return "依据最近心跳";
-  if (key === "verified_versions") return "依据实际 TCP / UDP 探测";
-  return "控制服务记录";
+const tiles: Tile[] = [
+  { key: "active_sessions", label: "当前会话", note: "包含发布时的验证会话", icon: <Zap size={17} /> },
+  { key: "online_nodes", label: "在线节点", note: "45 秒内有心跳", of: "nodes", unit: "个节点", icon: <Server size={17} /> },
+  { key: "verified_versions", label: "已验证线路版本", note: "通过实际 TCP / UDP 探测", of: "lines", unit: "条线路", icon: <Route size={17} /> },
+  { key: "published_games", label: "已发布游戏", note: "客户端可见", of: "games", unit: "款游戏", icon: <Gamepad2 size={17} /> },
+];
+
+/**
+ * A tile's tone reports state: green when there is some, amber when there
+ * is something to have but none of it is working yet, grey otherwise.
+ */
+function tileTone(t: Tile, o: Row) {
+  const n = count(o, t.key);
+  if (n === undefined) return "tone-neutral";
+  if (n > 0) return "tone-good";
+  const whole = t.of ? count(o, t.of) : undefined;
+  return whole ? "tone-warn" : "tone-neutral";
 }
+
+type Step = {
+  key: string;
+  title: string;
+  done: (o: Row) => boolean | undefined;
+  detail: (o: Row) => string;
+  section: string;
+  action: string;
+};
+
+const count = (o: Row, k: string) => (typeof o[k] === "number" ? (o[k] as number) : undefined);
+const known = (...v: (number | undefined)[]) => v.every((x) => x !== undefined);
+
+/**
+ * Setup in the order it has to happen. Each step is done when the control
+ * service reports at least one of what it needs.
+ */
+const steps: Step[] = [
+  {
+    key: "games",
+    title: "发布游戏规则",
+    done: (o) => (known(count(o, "published_games")) ? count(o, "published_games")! > 0 : undefined),
+    detail: (o) =>
+      known(count(o, "games"), count(o, "published_games"))
+        ? `${count(o, "games")} 款游戏，已发布 ${count(o, "published_games")} 款。填好区服和进程后点“发布规则”。`
+        : "填好区服和进程后点“发布规则”。",
+    section: "games",
+    action: "去发布",
+  },
+  {
+    key: "nodes",
+    title: "接入转发节点",
+    done: (o) => (known(count(o, "online_nodes")) ? count(o, "online_nodes")! > 0 : undefined),
+    detail: (o) =>
+      known(count(o, "nodes"), count(o, "online_nodes"))
+        ? `已添加 ${count(o, "nodes")} 个，在线 ${count(o, "online_nodes")} 个。添加节点后生成注册凭据，在服务器上运行 Agent。`
+        : "添加节点后生成注册凭据，在服务器上运行 Agent。",
+    section: "nodes",
+    action: "管理节点",
+  },
+  {
+    key: "endpoints",
+    title: "配置服务端点",
+    done: (o) => (known(count(o, "endpoints")) ? count(o, "endpoints")! > 0 : undefined),
+    detail: (o) =>
+      known(count(o, "endpoints"))
+        ? `已有 ${count(o, "endpoints")} 个端点。每条线路至少需要一个 SS2022 落地端点。`
+        : "每条线路至少需要一个 SS2022 落地端点。",
+    section: "endpoints",
+    action: "管理端点",
+  },
+  {
+    key: "lines",
+    title: "发布并验证线路",
+    done: (o) => (known(count(o, "verified_versions")) ? count(o, "verified_versions")! > 0 : undefined),
+    detail: (o) =>
+      known(count(o, "lines"), count(o, "verified_versions"))
+        ? `${count(o, "lines")} 条线路，${count(o, "verified_versions")} 个版本通过验证。探测通过后玩家才能选择。`
+        : "探测通过后玩家才能选择。",
+    section: "lines",
+    action: "管理线路",
+  },
+  {
+    key: "players",
+    title: "开通玩家账号",
+    done: (o) => (known(count(o, "players")) ? count(o, "players")! > 0 : undefined),
+    detail: (o) =>
+      known(count(o, "players"))
+        ? `已有 ${count(o, "players")} 个玩家账号。玩家用它登录客户端。`
+        : "玩家用它登录客户端。",
+    section: "users",
+    action: "管理账号",
+  },
+];
 
 export function Overview({
   overview,
   loading,
-  onOpenNodes,
+  onOpen,
 }: {
   overview: Row;
   loading: boolean;
-  onOpenNodes: () => void;
+  onOpen: (section: string) => void;
 }) {
+  const states = steps.map((s) => (loading ? undefined : s.done(overview)));
+  const done = states.filter(Boolean).length;
+  const knownSteps = states.some((s) => s !== undefined);
   return (
     <>
-      <div className="metrics">
-        {metrics.map(([k, n]) => (
-          <div key={k}>
-            <span>{n}</span>
-            <strong>{loading ? "—" : (overview[k] ?? "—")}</strong>
-            <small>{metricNote(k)}</small>
+      <div className="tiles">
+        {tiles.map((t) => (
+          <div className="tile" key={t.key}>
+            <div className="tile-head">
+              <span className={"tile-icon " + (loading ? "tone-neutral" : tileTone(t, overview))}>{t.icon}</span>
+              {t.label}
+            </div>
+            <strong>{loading ? "—" : (overview[t.key] ?? "—")}</strong>
+            <small>
+              {!loading && t.of && count(overview, t.of) !== undefined
+                ? `共 ${count(overview, t.of)} ${t.unit} · ${t.note}`
+                : t.note}
+            </small>
           </div>
         ))}
       </div>
-      <div className="onboarding">
-        <div>
-          <Network size={28} />
-          <h2>从第一条可用线路开始</h2>
-          <p>
-            登记节点与服务端点，为游戏配置区服，组合线路并发布。节点完成执行与探测后，客户端才能选择该线路。
-          </p>
-          <button className="primary" onClick={onOpenNodes}>
-            管理转发节点
-            <ChevronRight size={16} />
-          </button>
+      <section className="panel checklist">
+        <div className="checklist-head">
+          <h2>上线准备</h2>
+          <span>{knownSteps ? `已完成 ${done} / ${steps.length}` : "—"}</span>
         </div>
-        <ol>
-          <li>
-            <b>01</b>
-            <span>
-              配置游戏规则
-              <small>VALORANT 与英雄联盟已提供初始草稿</small>
-            </span>
-          </li>
-          <li>
-            <b>02</b>
-            <span>
-              接入节点与端点
-              <small>按节点配置独立身份、协议和端口池</small>
-            </span>
-          </li>
-          <li>
-            <b>03</b>
-            <span>
-              发布并验证线路<small>实际探测通过后开放新会话</small>
-            </span>
-          </li>
-        </ol>
-      </div>
+        <div className="progress" aria-hidden="true">
+          <i style={{ width: knownSteps ? `${(done / steps.length) * 100}%` : "0%" }} />
+        </div>
+        {steps.map((s, i) => {
+          const isDone = states[i] === true;
+          return (
+            <div className={"step" + (isDone ? " done" : "")} key={s.key}>
+              <span className="step-mark">{isDone ? <Check size={16} /> : i + 1}</span>
+              <span>
+                <b>{s.title}</b>
+                <small>{s.detail(loading ? {} : overview)}</small>
+              </span>
+              <button className={isDone ? "ghost sm" : "secondary sm"} onClick={() => onOpen(s.section)}>
+                {isDone ? "查看" : s.action}
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          );
+        })}
+      </section>
     </>
   );
 }

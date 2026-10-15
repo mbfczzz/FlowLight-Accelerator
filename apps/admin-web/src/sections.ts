@@ -1,33 +1,38 @@
 import type { Row } from "./api";
 import {
-  Activity,
-  Box,
   Cable,
-  Clock,
   Gamepad2,
-  Layers,
-  Network,
+  History,
+  LayoutDashboard,
+  ListChecks,
+  MonitorSmartphone,
+  Package,
+  Route,
   Server,
-  Settings2,
-  Shield,
+  ShieldCheck,
   Users,
+  Waypoints,
+  Zap,
 } from "lucide-react";
 
-/** Sidebar entries: id, display name, icon. */
+/** Sidebar entries: id, display name, icon, group. */
 export const sections = [
-  ["overview", "运行总览", Activity],
-  ["games", "游戏与规则", Gamepad2],
-  ["lines", "加速线路", Network],
-  ["nodes", "转发节点", Server],
-  ["endpoints", "服务端点", Cable],
-  ["bindings", "落地绑定", Layers],
-  ["users", "用户与权限", Users],
-  ["devices", "连接设备", Box],
-  ["sessions", "加速会话", Activity],
-  ["jobs", "部署任务", Clock],
-  ["releases", "客户端版本", Settings2],
-  ["audits", "操作审计", Shield],
+  ["overview", "运行总览", LayoutDashboard, ""],
+  ["games", "游戏与规则", Gamepad2, "配置"],
+  ["lines", "加速线路", Route, "配置"],
+  ["nodes", "转发节点", Server, "配置"],
+  ["endpoints", "服务端点", Cable, "配置"],
+  ["bindings", "落地绑定", Waypoints, "配置"],
+  ["users", "用户与权限", Users, "账号"],
+  ["devices", "连接设备", MonitorSmartphone, "账号"],
+  ["sessions", "加速会话", Zap, "运行"],
+  ["jobs", "部署任务", ListChecks, "运行"],
+  ["releases", "客户端版本", Package, "运行"],
+  ["audits", "操作审计", History, "运行"],
 ] as const;
+
+export const sectionIcon = (section: string) =>
+  sections.find((s) => s[0] === section)?.[2] || ShieldCheck;
 
 /** Column order per list section; also drives the editor's field sections. */
 export const columns: Record<string, string[]> = {
@@ -52,13 +57,23 @@ export const columns: Record<string, string[]> = {
 };
 
 /** Per-section description under the page title. */
+const descriptions: Record<string, string> = {
+  overview: "平台的配置进度和运行状态，数据来自控制服务。",
+  games: "游戏的区服与分流规则。保存是草稿，发布后客户端才会显示。",
+  lines: "由入口、中转和落地组成的加速路径，发布并通过探测后开放。",
+  nodes: "运行转发进程的服务器，注册后通过心跳上报状态。",
+  endpoints: "节点上的入口、中转或落地服务，以及它们的端口范围。",
+  bindings: "把落地端点分配给指定用户，共享或独享。",
+  users: "玩家和运维人员的账号、角色与并发上限。",
+  devices: "登录过客户端的设备。",
+  sessions: "正在进行和最近结束的加速，以及发布时的验证会话。",
+  jobs: "控制服务下发给节点的准备、探测和回收任务。",
+  releases: "客户端新版本的下载地址与校验信息。",
+  audits: "后台的每一次修改：谁、做了什么、改了哪项。",
+};
+
 export function sectionDescription(section: string) {
-  if (section === "overview")
-    return "配置、连接与节点运行状态。所有数据来自控制服务。";
-  if (section === "games") return "规则先保存为草稿，发布后供新会话使用。";
-  if (section === "lines")
-    return "独立配置入口、中转和落地，发布前完成整条路径探测。";
-  return "查看并维护平台资源，操作会记录到审计日志。";
+  return descriptions[section] || "";
 }
 
 export const sectionTitle = (section: string) =>

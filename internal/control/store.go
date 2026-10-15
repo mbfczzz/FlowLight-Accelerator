@@ -77,7 +77,35 @@ func Open(driver, dsn, key string) (*Store, error) {
 		return nil, e
 	}
 	db.Clauses(clause.OnConflict{DoNothing: true}).Create(&Gate{ID: 1})
+	if e = assignCoverSlots(db); e != nil {
+		return nil, e
+	}
 	return &Store{DB: db, key: k}, nil
+}
+
+// assignCoverSlots gives games without a cover slot the next free ones in
+// id order: games stored before slots existed, and the built-in drafts.
+func assignCoverSlots(tx *gorm.DB) error {
+	var ids []string
+	if e := tx.Model(&Game{}).Where("cover_slot = 0").Order("id").Pluck("id", &ids).Error; e != nil {
+		return e
+	}
+	for _, id := range ids {
+		next, e := nextCoverSlot(tx)
+		if e != nil {
+			return e
+		}
+		if e = tx.Model(&Game{}).Where("id = ?", id).UpdateColumn("cover_slot", next).Error; e != nil {
+			return e
+		}
+	}
+	return nil
+}
+
+func nextCoverSlot(tx *gorm.DB) (int, error) {
+	var top int
+	e := tx.Model(&Game{}).Select("COALESCE(MAX(cover_slot), 0)").Scan(&top).Error
+	return top + 1, e
 }
 func (s *Store) Tx(fn func(*gorm.DB) error) error {
 	s.mu.Lock()
@@ -169,7 +197,7 @@ func (s *Store) Seed(username, password string) error {
 				return e
 			}
 		}
-		return nil
+		return assignCoverSlots(tx)
 	})
 }
 func audit(tx *gorm.DB, actor, action, id, detail string) error {

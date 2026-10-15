@@ -59,61 +59,64 @@ function password(body: Row, initial: Row) {
   return "";
 }
 
-/** First problem with `body`, or "" when it can be sent. */
-export function validate(kind: string, body: Row, initial: Row): string {
-  const checks: string[] = [];
+/** A problem and the field it belongs to. */
+export type Problem = { field: string; message: string };
+
+/** First problem with `body`, or null when it can be sent. */
+export function validate(kind: string, body: Row, initial: Row): Problem | null {
+  const checks: [string, string][] = [];
   if (kind === "games") {
     const draft = body.draft || {};
     checks.push(
-      name(body.name, "游戏名称"),
-      (draft.processes?.length || 0) + (draft.paths?.length || 0)
+      ["name", name(body.name, "游戏名称")],
+      ["draft.processes", (draft.processes?.length || 0) + (draft.paths?.length || 0)
         ? ""
-        : "请至少填写一个游戏进程名或完整程序路径",
+        : "请至少填写一个游戏进程名或完整程序路径"],
     );
   }
   if (kind === "nodes")
-    checks.push(name(body.name, "节点名称"), host(body.address, "节点地址"));
+    checks.push(["name", name(body.name, "节点名称")], ["address", host(body.address, "节点地址")]);
   if (kind === "endpoints")
     checks.push(
-      name(body.name, "端点名称"),
-      body.node_id ? "" : "请选择所属节点",
-      host(body.host, "服务地址"),
-      range(body.port, 1, 65535, "起始端口须在 1–65535 之间"),
-      body.capabilities?.managed && body.port < 1024
+      ["name", name(body.name, "端点名称")],
+      ["node_id", body.node_id ? "" : "请选择所属节点"],
+      ["host", host(body.host, "服务地址")],
+      ["port", range(body.port, 1, 65535, "起始端口须在 1–65535 之间")],
+      ["port", body.capabilities?.managed && body.port < 1024
         ? "平台管理的端点，起始端口不能低于 1024"
-        : "",
-      range(
+        : ""],
+      ["port_end", range(
         body.port_end,
         Number(body.port) || 1,
         65535,
         "结束端口须不小于起始端口，且不超过 65535",
-      ),
+      )],
     );
   if (kind === "lines") {
     const hops: string[] = body.endpoint_ids || [];
     checks.push(
-      name(body.name, "线路名称"),
-      range(body.capacity, 1, 10000, "并发容量须在 1–10000 之间"),
-      range(body.priority, -1000000, 1000000, "优先级须为整数"),
-      hops.some((h) => !h) ? "线路顺序里有未选择的服务端点" : "",
-      hops.length > 5 ? "一条线路最多 5 个服务端点" : "",
+      ["name", name(body.name, "线路名称")],
+      ["capacity", range(body.capacity, 1, 10000, "并发容量须在 1–10000 之间")],
+      ["priority", range(body.priority, -1000000, 1000000, "优先级须为整数")],
+      ["endpoint_ids", hops.some((h) => !h) ? "线路路径里有未选择的服务端点" : ""],
+      ["endpoint_ids", hops.length > 5 ? "一条线路最多 5 个服务端点" : ""],
     );
   }
   if (kind === "users") {
     const username = str(body.username).trim();
     checks.push(
-      name(username, "账号"),
-      /\s/.test(username) ? "账号不能包含空格" : "",
-      body.role ? "" : "请选择权限",
-      range(body.max_sessions, 1, 20, "并发会话上限须在 1–20 之间"),
-      password(body, initial),
+      ["username", name(username, "账号")],
+      ["username", /\s/.test(username) ? "账号不能包含空格" : ""],
+      ["role", body.role ? "" : "请选择权限"],
+      ["max_sessions", range(body.max_sessions, 1, 20, "并发会话上限须在 1–20 之间")],
+      ["password", password(body, initial)],
     );
   }
   if (kind === "bindings")
     checks.push(
-      body.user_id ? "" : "请选择用户",
-      body.endpoint_id ? "" : "请选择落地端点",
-      body.kind ? "" : "请选择来源（共享、独享或自带落地）",
+      ["user_id", body.user_id ? "" : "请选择用户"],
+      ["endpoint_id", body.endpoint_id ? "" : "请选择落地端点"],
+      ["kind", body.kind ? "" : "请选择来源（共享、独享或自带落地）"],
     );
   if (kind === "releases") {
     let https = false;
@@ -124,13 +127,14 @@ export function validate(kind: string, body: Row, initial: Row): string {
       https = false;
     }
     checks.push(
-      name(body.version, "版本号"),
-      https ? "" : "下载地址必须是 https:// 开头的完整地址",
-      /^[0-9a-fA-F]{64}$/.test(str(body.sha256))
+      ["version", name(body.version, "版本号")],
+      ["url", https ? "" : "下载地址必须是 https:// 开头的完整地址"],
+      ["sha256", /^[0-9a-fA-F]{64}$/.test(str(body.sha256))
         ? ""
-        : "安装包 SHA256 应为 64 位十六进制字符",
-      str(body.signature).trim() ? "" : "请填写可信发布清单签名",
+        : "安装包 SHA256 应为 64 位十六进制字符"],
+      ["signature", str(body.signature).trim() ? "" : "请填写可信发布清单签名"],
     );
   }
-  return checks.find(Boolean) || "";
+  const first = checks.find(([, message]) => message);
+  return first ? { field: first[0], message: first[1] } : null;
 }

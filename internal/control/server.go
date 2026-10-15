@@ -211,6 +211,18 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 	out["online_nodes"] = n
 	s.Store.DB.Model(&LineVersion{}).Where("status = ?", "ready").Count(&n)
 	out["verified_versions"] = n
+	// What the setup checklist needs: each step is done when its count is
+	// above zero.
+	s.Store.DB.Model(&Game{}).Where("published_version > ?", 0).Count(&n)
+	out["published_games"] = n
+	s.Store.DB.Model(&Node{}).Count(&n)
+	out["nodes"] = n
+	s.Store.DB.Model(&Endpoint{}).Count(&n)
+	out["endpoints"] = n
+	s.Store.DB.Model(&Line{}).Count(&n)
+	out["lines"] = n
+	s.Store.DB.Model(&User{}).Where("role = ?", "player").Count(&n)
+	out["players"] = n
 	write(w, 200, out)
 }
 func (s *Server) metrics(w http.ResponseWriter, r *http.Request) {
@@ -250,7 +262,7 @@ func listRows[T any](w http.ResponseWriter, db *gorm.DB) {
 // listPage serves one page of an admin list: ?limit= (default 200, at most
 // 1000) and ?offset=. Rows are ordered by the given column and then by id,
 // so consecutive pages neither repeat nor skip rows.
-func listPage[T any](w http.ResponseWriter, r *http.Request, db *gorm.DB, order string) {
+func listPage[T any](w http.ResponseWriter, r *http.Request, db *gorm.DB, order string, annotate ...func([]T) error) {
 	limit, offset := 200, 0
 	if n, e := strconv.Atoi(r.URL.Query().Get("limit")); e == nil && n > 0 {
 		limit = min(n, 1000)
@@ -263,7 +275,40 @@ func listPage[T any](w http.ResponseWriter, r *http.Request, db *gorm.DB, order 
 	}
 	v := []T{}
 	e := db.Order("id").Limit(limit).Offset(offset).Find(&v).Error
+	for _, add := range annotate {
+		if e == nil {
+			e = add(v)
+		}
+	}
 	respond(w, v, e)
+}
+
+// annotateLines attaches the newest version's status and failure reason.
+func (s *Server) annotateLines(rows []Line) error {
+	if len(rows) == 0 {
+		return nil
+	}
+	ids := make([]string, len(rows))
+	for i, l := range rows {
+		ids[i] = l.ID
+	}
+	var versions []LineVersion
+	if e := s.Store.DB.Select("line_id", "number", "status", "error").Where("line_id IN ?", ids).Order("number DESC").Find(&versions).Error; e != nil {
+		return e
+	}
+	latest := map[string]LineVersion{}
+	for _, v := range versions {
+		if _, seen := latest[v.LineID]; !seen {
+			latest[v.LineID] = v
+		}
+	}
+	for i := range rows {
+		if v, ok := latest[rows[i].ID]; ok {
+			rows[i].LatestStatus = v.Status
+			rows[i].LatestError = v.Error
+		}
+	}
+	return nil
 }
 func (s *Server) list(kind string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -276,7 +321,7 @@ func (s *Server) list(kind string) http.HandlerFunc {
 		case "endpoints":
 			listPage[Endpoint](w, r, db, "")
 		case "lines":
-			listPage[Line](w, r, db, "")
+			listPage(w, r, db, "", s.annotateLines)
 		case "bindings":
 			listPage[Binding](w, r, db, "")
 		case "users":

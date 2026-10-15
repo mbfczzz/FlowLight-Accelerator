@@ -1,19 +1,33 @@
 ---
 name: FlowLight Accelerator
-description: Light operational administration and a dark graphite Windows game client lit by one amber accent.
+description: A light administration framed in graphite and a dark graphite Windows game client, one product lit by one amber accent.
 colors:
-  admin-accent: "#087e93"
-  admin-background: "#f6f8fa"
+  admin-background: "#f4f3f7"
   admin-surface: "#ffffff"
-  admin-text: "#182433"
-  admin-muted: "#677487"
-  admin-line: "#e2e7ec"
-  success-background: "#e5f4ed"
-  success-text: "#216944"
-  failure-background: "#fff0ed"
-  failure-text: "#ac4934"
-  progress-background: "#e8f2fc"
-  progress-text: "#34638d"
+  admin-surface-2: "#faf9fc"
+  admin-line: "#e6e3ec"
+  admin-line-strong: "#d4d0dc"
+  admin-text: "#1b1a21"
+  admin-text-secondary: "#5c5668"
+  admin-text-tertiary: "#726c7e"
+  admin-sidebar: "#131217"
+  admin-sidebar-hover: "#1d1c23"
+  admin-sidebar-active: "#26242e"
+  admin-sidebar-text: "#b3adbe"
+  admin-sidebar-muted: "#7f798b"
+  admin-accent: "#e6ae45"
+  admin-accent-hover: "#f0bd5c"
+  admin-on-accent: "#1c1300"
+  admin-accent-text: "#9a640b"
+  admin-accent-soft: "#fbf1dc"
+  admin-good: "#1d7f4f"
+  admin-good-soft: "#e2f3e9"
+  admin-warn: "#a95c0c"
+  admin-warn-soft: "#fcefdc"
+  admin-bad: "#b83a45"
+  admin-bad-soft: "#fbe7e9"
+  admin-info: "#2c5ea8"
+  admin-info-soft: "#e5edfa"
   client-background: "#131217"
   client-sidebar: "#0D0C10"
   client-surface: "#1B1A21"
@@ -34,12 +48,33 @@ colors:
   client-bad: "#E4606A"
   client-info: "#7AA6E8"
 typography:
+  admin-headline:
+    fontFamily: '"Microsoft YaHei UI", "PingFang SC", "Segoe UI", system-ui, sans-serif'
+    fontSize: "22px"
+    fontWeight: 700
+  admin-title:
+    fontFamily: '"Microsoft YaHei UI", "PingFang SC", "Segoe UI", system-ui, sans-serif'
+    fontSize: "15.5px"
+    fontWeight: 700
   admin-body:
-    fontFamily: '"Segoe UI", "Microsoft YaHei", sans-serif'
+    fontFamily: '"Microsoft YaHei UI", "PingFang SC", "Segoe UI", system-ui, sans-serif'
     fontSize: "13px"
-    lineHeight: 1.8
   admin-label:
-    fontFamily: '"Segoe UI", "Microsoft YaHei", sans-serif'
+    fontFamily: '"Microsoft YaHei UI", "PingFang SC", "Segoe UI", system-ui, sans-serif'
+    fontSize: "13px"
+    fontWeight: 500
+  admin-meta:
+    fontFamily: '"Microsoft YaHei UI", "PingFang SC", "Segoe UI", system-ui, sans-serif'
+    fontSize: "12px"
+  admin-figure-display:
+    fontFamily: '"Bahnschrift", "DIN Alternate", "Segoe UI", system-ui, sans-serif'
+    fontSize: "32px"
+    fontWeight: 500
+  admin-figure:
+    fontFamily: '"Bahnschrift", "DIN Alternate", "Segoe UI", system-ui, sans-serif'
+    fontSize: "14px"
+  admin-mono:
+    fontFamily: '"Cascadia Mono", "Consolas", ui-monospace, monospace'
     fontSize: "12px"
   client-headline:
     fontFamily: "Microsoft YaHei UI, Segoe UI, Microsoft YaHei"
@@ -69,20 +104,27 @@ typography:
     fontSize: "19px"
 rounded:
   chip: "4px"
-  control: "7px"
-  container: "9px"
-  dialog: "12px"
+  tag: "6px"
+  control: "8px"
+  choice: "9px"
+  container: "10px"
+  icon-tile: "12px"
+  dialog: "14px"
+  pill: "999px"
   client-control: "8px"
   client-choice: "10px"
   client-panel: "12px"
   client-hero: "14px"
 spacing:
+  label-gap: "7px"
   compact: "8px"
   control-gap: "10px"
-  label-gap: "12px"
-  section-gap: "20px"
-  section: "24px"
+  tile-gap: "14px"
+  field-gap: "16px"
+  page-head-gap: "22px"
+  drawer: "26px"
   desktop-content: "36px"
+  mobile-content: "16px"
   client-row-gap: "8px"
   client-tile-gap: "10px"
   client-card-gap: "16px"
@@ -92,30 +134,71 @@ spacing:
 components:
   button-primary:
     backgroundColor: "{colors.admin-accent}"
-    textColor: "{colors.admin-surface}"
+    textColor: "{colors.admin-on-accent}"
     rounded: "{rounded.control}"
-    padding: "10px 15px"
+    padding: "0 14px"
+    height: "36px"
+  button-primary-hover:
+    backgroundColor: "{colors.admin-accent-hover}"
   button-secondary:
     backgroundColor: "{colors.admin-surface}"
     textColor: "{colors.admin-text}"
     rounded: "{rounded.control}"
-    padding: "10px 15px"
+    padding: "0 14px"
+    height: "36px"
+  button-danger:
+    backgroundColor: "{colors.admin-bad}"
+    textColor: "{colors.admin-surface}"
+    rounded: "{rounded.control}"
+    padding: "0 14px"
+    height: "36px"
   input:
     backgroundColor: "{colors.admin-surface}"
     textColor: "{colors.admin-text}"
     rounded: "{rounded.control}"
-    padding: "10px 12px"
+    padding: "9px 12px"
   navigation-item:
-    padding: "11px 12px"
+    textColor: "{colors.admin-sidebar-text}"
     rounded: "{rounded.control}"
-  badge-ready:
-    backgroundColor: "{colors.success-background}"
-    textColor: "{colors.success-text}"
-    rounded: "{rounded.chip}"
-    padding: "4px 7px"
+    padding: "9px 12px"
+  navigation-item-active:
+    backgroundColor: "{colors.admin-sidebar-active}"
+    textColor: "{colors.admin-surface}"
+  page-icon:
+    backgroundColor: "{colors.admin-sidebar}"
+    textColor: "{colors.admin-accent}"
+    rounded: "{rounded.icon-tile}"
+    size: "44px"
+  metric-tile:
+    backgroundColor: "{colors.admin-surface}"
+    rounded: "{rounded.container}"
+    padding: "18px 18px 16px"
+  pill-good:
+    backgroundColor: "{colors.admin-good-soft}"
+    textColor: "{colors.admin-good}"
+    rounded: "{rounded.pill}"
+    padding: "3px 9px 3px 8px"
   resource-table:
     backgroundColor: "{colors.admin-surface}"
     rounded: "{rounded.container}"
+  row-action-emphasis:
+    textColor: "{colors.admin-accent-text}"
+    padding: "0 9px"
+    height: "30px"
+  row-action-emphasis-hover:
+    backgroundColor: "{colors.admin-accent-soft}"
+  choice-selected:
+    backgroundColor: "{colors.admin-accent-soft}"
+    textColor: "{colors.admin-accent-text}"
+    rounded: "{rounded.choice}"
+  drawer:
+    backgroundColor: "{colors.admin-surface}"
+    rounded: "{rounded.dialog}"
+    width: "600px"
+  confirm-dialog:
+    backgroundColor: "{colors.admin-surface}"
+    rounded: "{rounded.dialog}"
+    width: "440px"
   button-client:
     backgroundColor: "{colors.client-elevated}"
     textColor: "{colors.client-text}"
@@ -204,25 +287,29 @@ components:
 
 **Creative North Star: "Operate"**
 
-FlowLight has two surfaces with one job each. Operators work in a light administration of compact resource tables, persistent navigation and modal editors, where deep cyan marks actions and selection. Players use a dark native Windows client that sits beside a running game, usually in the evening: a game library rather than a settings form. Generated cover art opens each game, region and line choices are tiles and rows that carry their own evidence, and one round dial starts acceleration and then becomes the live latency readout.
+FlowLight has two surfaces with one job each, and they read as one product. Operators work in a light administration framed by a graphite sidebar: an overview that says what is ready and what is missing, lists whose first column shows the thing itself (a game's cover, a player's initial, a line's icon) with its state in a dotted pill, and a side drawer for editing so the list stays in view. Players use a dark native Windows client that sits beside a running game, usually in the evening: a game library rather than a settings form. Generated cover art opens each game, region and line choices are tiles and rows that carry their own evidence, and one round dial starts acceleration and then becomes the live latency readout.
 
-The client's material is warm graphite with a faint violet cast, separated by tone rather than outlines and lit by a single amber, the "flowing light" of the product's name. Amber means brand, action, selection and keyboard focus; latency quality and session state speak in a separate green, orange, red and blue set. Pictures carry recognition: cover art drawn per game from a hue and a few light streaks, outline icons on one 24 px grid, four signal bars, a latency chart. No game artwork is bundled, and no figure appears without saying what it measures.
+The client's material is warm graphite with a faint violet cast, separated by tone rather than outlines and lit by a single amber, the "flowing light" of the product's name. The administration borrows that material instead of inventing its own: its sidebar is the client's window graphite, its work area a lilac-tinted white whose surfaces lift on a soft shadow rather than an outline, and the same amber marks its brand, actions, selection and focus. On both surfaces latency, health and publication state speak in a separate green, orange, red and blue set. Pictures carry recognition: cover art drawn per game from a hue and a few light streaks (the same hue for the same game on both surfaces), outline icons on one 24 px grid, four signal bars, a latency chart. No game artwork is bundled, and no figure appears without saying what it measures.
 
 **Key Characteristics:**
-- Light administration with deep cyan actions; dark graphite client with one amber accent.
+- One product, one amber: a light administration in a graphite frame and a dark graphite client; amber is brand, action, selection and focus on both, never state.
+- Administration: 248 px graphite sidebar grouped 配置 / 账号 / 运行, an overview of four metric tiles and a 上线准备 checklist, card lists with entity first columns and row actions, side-drawer editors, and phone layouts down to stacked row cards.
 - Client: 80 DIP icon rail, a library of 16:9 cover cards, a game page with a hero banner, region tiles, line rows and the dial.
+- A game's generated cover takes the same hue in both apps, from a cover slot fixed when the game is first stored.
 - Every client figure is a probe with a visible provenance label; missing evidence is an em dash.
 - Unknown, draft, unavailable, refused, historical and current states remain explicit.
 
 ## Colors
 
-The palette splits by surface: administration is cool white with a deep cyan; the client is a five-step graphite ladder with one warm amber and four semantic state hues.
+The palette splits by surface but shares its light: the administration is a lilac-tinted white work area inside a graphite sidebar; the client is a five-step graphite ladder. Both carry one warm amber and the same four state meanings, tuned as dark inks on pale washes for white and as bright hues for graphite.
 
 ### Primary
 
-- **Operator Cyan** (admin-accent): primary buttons, inline actions and navigation cues in the administration. It never appears in the client.
 - **Flowing-Light Amber** (client-accent): the client's only accent. It fills the brand mark, the ready dial (as a gradient from light gold #F7CB72 through the accent to burnt amber #CC8C2B), and primary buttons; it marks the selected rail item (icon, label and a 3 DIP edge bar), the selected region tile and line row (1.5 DIP edge plus tick or radio dot), section-title icons, region codes on the hero, the 推荐 chip, the avatar, the text caret and every keyboard focus ring. Hover lifts it to a lighter gold (client-accent-hover); press deepens it (client-accent-pressed). Text on amber is near-black brown (client-on-accent), never white.
 - **Amber Wash** (client-accent-soft): a solid dark amber-brown that fills selected tiles and rows, the avatar disc and the 推荐 chip. The ready dial's track and the avatar ring use the accent at 35% alpha.
+- **Flowing-Light Amber on the web** (admin-accent, admin-accent-hover, admin-on-accent): the client's amber, hover gold and near-black ink, unchanged. It fills primary buttons (ink text, never white), the switch when on, the 上线准备 progress bar, the brand mark's streaks and the icon on each page head's graphite tile; it marks the active navigation item (its icon and a 3 px bar on the sidebar's edge), a focused field (amber edge and a 3 px halo at 22%) and the 2 px focus outline.
+- **Amber Ink** (admin-accent-text): amber that must read as text or line art on white: the emphasised row action, drawer section icons, the text caret, and the label of a selected toggle or a hovered suggestion.
+- **Amber Cream** (admin-accent-soft): the fill under a selected toggle chip or radio card (both also take an amber edge) and the hover of the emphasised row action. Text selection is a light gold (#f6dda8).
 
 ### Secondary
 
@@ -233,29 +320,44 @@ Client state colors. Each also has a 14% alpha tint used only as the round badge
 - **Brake Red** (client-bad): latency above 120 ms, load of 80% or more, refused lines, failed or blocked sessions, inline and sign-in errors.
 - **Probe Blue** (client-info): the jitter tile and informational toasts.
 
+Administration state colors are the same meanings as dark inks on pale washes of their own hue (admin-good on admin-good-soft, and so on). A pill pairs the ink with a 6 px dot of the same colour and always a word.
+
+- **Pine Green** (admin-good): 启用, 已发布, 已验证上线, 接收新会话, active sessions, succeeded jobs, a node heartbeat within 60 s, a done checklist step, an overview tile whose count is above zero, and the notice banner after an action.
+- **Rust** (admin-warn): 草稿, 验证中 and 新版本验证中, 排空中, preparing, connecting, reconnecting and stopping sessions, pending and running jobs, a heartbeat within 5 minutes, and an overview tile whose count is zero while what it depends on exists.
+- **Brick Red** (admin-bad): 验证未通过 and 新版本未通过 (with the reason printed beneath), failed jobs, degraded sessions, page and form alerts, field errors, 停止 and 终止线路, and the danger confirm button.
+- **Cobalt** (admin-info): reserved for informational states; nothing in the administration uses it at present.
+
+Grey (Slate text on the lilac tint #efedf3) is the administration's default: 停用, 未发布, 未验证, 未上线, 从未上线, a stale heartbeat, a tile while its count is unknown, and plain category pills (mode, endpoint and job kind, role, release channel), which drop the dot.
+
 ### Neutral
 
-Admin background surrounds white surfaces; dark text, muted supporting text and fine dividers establish hierarchy. Success, failure and progress color pairs are state indicators in administration badges; labels carry the state alongside color.
+The administration's frame is **Sidebar Graphite** (admin-sidebar, the client's Night Graphite): the sidebar, the page-head icon tile and the base of the login brand panel. Navigation items lift to **Sidebar Hover** (admin-sidebar-hover) and, when active, **Sidebar Active** (admin-sidebar-active) with white text; labels are **Sidebar Text** (admin-sidebar-text, the client's Dusk Text), and group names, icons and the FLOWLIGHT ADMIN line are **Sidebar Muted** (admin-sidebar-muted). The work area is **Mist** (admin-background). **Card White** (admin-surface) carries tiles, the checklist, list cards, drawers, dialogs, menus and fields; **Paper** (admin-surface-2) carries table heads, the drawer footer, hints, read-only fields and code blocks. **Hairline** (admin-line) divides rows, steps and drawer sections; **Strong Hairline** (admin-line-strong) edges fields, secondary buttons and unselected toggles and radio cards. **Ink** (admin-text, the client's Graphite Surface) is primary text; **Slate** (admin-text-secondary) carries descriptions, field labels, ghost and row actions; **Haze** (admin-text-tertiary) carries table heads, sub lines, notes and counts. A lilac tint (#efedf3; #f1eff5 under chips, tags and menu hover) fills ghost hover, grey pills, entity icon tiles, the progress track and step numbers.
 
 The client's neutrals form a tone ladder, darkest to lightest: **Rail Black** (client-sidebar) for the icon rail, **Night Graphite** (client-background) for the window, **Graphite Surface** (client-surface) for cards, panels, tiles and rows, **Raised Graphite** (client-elevated) for hover, secondary buttons, fields, the idle dial, toasts and the account menu, and **Lift** (client-hover) for hover on raised items. **Seam** (client-border) draws dividers, the idle dial track and chart gridlines; **Strong Seam** (client-border-strong) draws unselected radio rings, field hover edges, unlit signal bars and scrollbar thumbs. **Moon Text** (client-text) is primary ink; **Dusk Text** (client-text-secondary) carries meta lines and labels; **Ash Text** (client-text-tertiary) carries captions, units, unknown states and disabled ink.
 
-Scrims are the rail tone at partial alpha: 55% under the back pill on art, 70% under the hero status pill, 88% behind the sign-in dialog; cover badges sit on black at 60%.
+Scrims are the rail tone at partial alpha: 55% under the back pill on art, 70% under the hero status pill, 88% behind the sign-in dialog; cover badges sit on black at 60%. The administration's dialogs and drawers sit over its sidebar graphite at 45%.
 
 ### Named Rules
 
-**The One Amber Rule.** Amber marks the brand, the action, the selection and keyboard focus, and nothing else. It never reports quality: latency, load and connection state speak only in green, orange, red and blue.
+**The One Amber Rule.** Amber marks the brand, the action, the selection and keyboard focus, on both surfaces, and nothing else. It never reports quality or state: latency, load, connection, publication and health speak only in green, orange, red and blue.
+
+**The State-Tone Rule.** In the administration a tone is a reading, never decoration. A pill shows a dot and a word, so colour is never the only signal; an overview tile's icon badge is green when its count is above zero, orange when it is zero but what it depends on exists (节点 added, none online), and grey while the count is unknown or there is nothing to have yet. Identity is not state: an avatar takes a soft colour of its own from the cover palette (its hue picked from the name, a 92% lightness wash under a 32% initial), roles and release channels are plain grey pills without a dot, and the line editor's hop labels (入口, 中转, 落地) are grey.
 
 **The Evidence Rule.** A color, bar count or figure must describe reported state: an enabled resource, a published profile, a verified path, a line's historical probe and a live tunnel probe are separate facts. A line without a measurement shows no lit bars, a tertiary em dash and no unit; a line with unknown capacity says 负载未知 in tertiary rather than guessing a load color.
 
+**The Shared Cover Rule.** A game wears one colour everywhere, and adding a game never recolours another. When a game is first stored, the control service gives it a cover slot one above the highest so far, inside the save transaction; edits keep the slot, and games stored before slots existed (and the built-in drafts) are backfilled in id order when the store opens and after seeding. The service sends cover_index (the slot minus one) to the administration's lists and the client's catalogue alike, and the admin's `Cover` and the client's `Palette.SteppedHue` both take the hue at that index in one nine-hue list (222, 340, 168, 22, 252, 140, 312, 192, 6) whose neighbours sit far apart. Only a game without an index falls back to a hash of its id. Region code badges are coloured by position in their own list (hues 205, 345, 155, 25, 270, 120 at 45% saturation and 42% lightness), so neighbours sit at least 100° apart in both apps; in the editor's suggestions a region not yet chosen is grey.
+
 ## Typography
 
-**Admin Font:** Segoe UI (with Microsoft YaHei, sans-serif)
+**Admin Interface Font:** Microsoft YaHei UI (with PingFang SC, Segoe UI, system-ui)
+**Admin Figure Font:** Bahnschrift (with DIN Alternate, Segoe UI)
+**Admin Identifier Font:** Cascadia Mono (with Consolas, ui-monospace)
 **Client Interface Font:** Microsoft YaHei UI (with Segoe UI, Microsoft YaHei)
 **Client Number Font:** Bahnschrift (with Segoe UI Semibold, Microsoft YaHei UI)
 
-**Character:** All faces are local Windows faces; no font files are shipped or requested. In the client, YaHei UI keeps Chinese and Latin labels even at small sizes, and Bahnschrift's narrow DIN-like figures give every measurement an instrument read and keep columns of milliseconds compact.
+**Character:** All faces are local system faces; no font files are shipped or requested. YaHei UI keeps Chinese and Latin labels even at small sizes, and Bahnschrift's narrow DIN-like figures give every measurement an instrument read and keep columns of milliseconds compact. The administration adds a monospace only for machine strings: ids, hosts, addresses, hashes and enrollment secrets.
 
-Web tables and supporting labels use compact type (11–13px); standard prose and actions use body-sized type (13px), with prose line height (1.8). Page headings are (27px), reducing to (23px) on narrow screens; section headings are (20px). Overview numerals use tabular figures (34px), reducing to (28px) on mobile.
+The administration's root size is 14px. Page titles are 22px Bold beside the 44px graphite icon tile, over a 13px Slate description; drawer titles are 18px, confirm titles 17px, drawer section titles and the checklist heading 15.5–16px Bold. Tables, buttons and descriptions run at 13px (entity names 13.5px SemiBold), fields and navigation at 13.5px; field labels are 13px Medium in Slate; table heads, sub lines, notes and pills are 12–12.5px. Overview figures are Bahnschrift 32px Medium with tabular numerals (26px at 560px and below); counts, ports, capacity, attempts, versions, step numbers and avatar initials are Bahnschrift 14px. The login brand panel's headline is 40px Bold and the form's title 26px. Hints and alerts use a 1.6 line height.
 
 ### Hierarchy
 
@@ -274,13 +376,15 @@ Larger moments reuse the interface face at weight: the hero game title (Bold, 30
 
 ### Named Rules
 
-**The Instrument Figures Rule.** Every measured or coded value (milliseconds, percent, elapsed time, exit IP, region codes, the avatar initial, the version string) is set in Bahnschrift, and words never are. The unit follows the figure at label size in Ash Text, bottom-aligned, and disappears with the figure when there is no measurement.
+**The Instrument Figures Rule.** Every measured or coded value (milliseconds, percent, elapsed time, exit IP, region codes, the avatar initial, the version string) is set in Bahnschrift, and words never are. The unit follows the figure at label size in Ash Text, bottom-aligned, and disappears with the figure when there is no measurement. The administration follows the same rule for its counts and codes, and sets ids and hosts in Cascadia Mono.
 
 ## Layout
 
-Administration uses a fixed-width sidebar (232px), a flexible content column, header (70px), and content padding (36px), capped at (1720px). At a viewport width of (1000px) or less, the sidebar becomes (190px), content padding becomes (26px), and the four overview metrics become two columns.
+The administration is a fixed sidebar (248px, sticky, full height) beside a content column capped at (1440px) and padded (30px 36px 48px). The sidebar stacks the brand (the mark over 流光加速器 and FLOWLIGHT ADMIN), 运行总览 on its own, then 配置 (游戏与规则, 加速线路, 转发节点, 服务端点, 落地绑定), 账号 (用户与权限, 连接设备) and 运行 (加速会话, 部署任务, 客户端版本, 操作审计) under small muted labels, and ends with the account: avatar, name, role and a 退出登录 icon button below a divider. Every page opens with a page head: a 44px graphite tile with the section icon in amber, the title and one line of description, and at right 刷新 (secondary) and 新增 (primary, when the role may edit); alerts and notices stack beneath it.
 
-At (680px) or less, navigation moves above content into a horizontally scrollable row, page actions stack below the title, content padding becomes (24px 16px), and editor fields become one column. Tables keep their readable minimum width (640px) inside a horizontally scrollable container. Login switches from two columns to the form alone. Dialogs fit the viewport with (16px) side clearance and a maximum height of (90vh).
+The overview is four metric tiles in a row ((14px) gaps) above the 上线准备 checklist panel. A list is a toolbar (a (320px) search, and at right a count that claims a total only once the last page has loaded), the list card, and, while more pages exist, a footer with 加载更多.
+
+Width steps down four times. At (1100px) or less the tiles go two-up. At (860px) or less the sidebar becomes a (56px) top bar: the brand, a divider and the current section's name, and a (40px) menu button at right that opens the whole navigation as a full-height graphite sheet under the bar. Content padding becomes (22px 16px 40px), the page head stacks its actions under the title, search spans the width, drawer fields become one column, the drawer goes full width with square corners and (18px) side padding, and login shows the form alone. At (720px) or less each table row becomes its own card: the entity cell across the top, every other cell a label-value line named by its column (data-label, an (84px) label column), and the row actions wrapping left-aligned at the bottom; nothing scrolls sideways. At (560px) or less the tiles stay two-up but tighten (padding (14px), figures (26px), notes hidden), checklist actions drop under their text and detail labels narrow to (92px). Dialogs keep (16px) side clearance and at most (88vh).
 
 The client window opens at (1120 × 750 DIPs) with a minimum of (900 × 650 DIPs). An icon rail (80 DIPs) on Rail Black holds the brand mark at top, two navigation items (60 × 60 DIPs; 加速 is enabled only once a game is chosen) and the avatar (40 DIPs) at the bottom. Content to its right is capped at (1320 DIPs) and centered, so a maximized window grows margins rather than stretching rows.
 
@@ -292,12 +396,15 @@ Overlays anchor to the window: the toast at bottom right (28 and 24 DIPs in, at 
 
 ## Elevation & Depth
 
-The administration uses surface contrast and thin borders; no custom drop-shadow vocabulary is defined. The browser dialog uses a dim backdrop (`rgb(16 32 46 / 35%)`). Interaction feedback is immediate color, outline, border or opacity change; web reduced-motion preferences disable transitions.
+The administration separates surfaces by a soft shadow on Mist, not by outlines. Hairlines live only inside a surface: under table heads and between rows, between drawer sections, steps and detail rows, and above the drawer footer. Feedback eases colour, border and shadow over 0.15s; the drawer slides 32px in from the right over 0.22s, the 更多 menu drops 4px in over 0.12s and the phone menu sheet 8px over 0.16s. Reduced motion removes every web animation and transition.
 
 The client is tonal. The five-step ladder from Rail Black to Lift separates rail, page, surfaces and interactive lift, and resting surfaces carry no outline. One shadow exists, reserved for layers that float above the page, and the dial adds light instead of shadow.
 
 ### Shadow Vocabulary
 
+- **Rest** (web, `0 1px 2px rgb(27 26 33 / 4%), 0 4px 16px rgb(27 26 33 / 5%)`): metric tiles, the checklist panel, list cards and, on phones, each row card and the empty-state card.
+- **Menu** (web, `0 12px 32px rgb(19 18 23 / 16%), 0 2px 6px rgb(19 18 23 / 6%)`, with a Hairline edge): the 更多 menu.
+- **Overlay** (web, `0 18px 50px rgb(19 18 23 / 22%)` over a `rgb(19 18 23 / 45%)` backdrop): drawers and dialogs.
 - **Float** (WPF `DropShadowEffect` BlurRadius 28, ShadowDepth 8, Direction 270, Opacity 0.5, black; about `0 8px 28px rgb(0 0 0 / 50%)`): the toast, the account menu, the sign-in dialog, and the amber bolt disc that appears on a cover under hover.
 - **Dial glow** (an amber ellipse behind the dial under a 44 DIP blur): 32% opacity when ready; in the state color at 22% while connected; off otherwise.
 
@@ -307,25 +414,25 @@ The dial ring carries a comet: an 80° arc fading from transparent to bright, ro
 
 ### Named Rules
 
-**The Tone-Not-Line Rule.** Surfaces separate by tone, not outline. An edge appears only to say something: an amber 1.5 DIP edge for selection, a field's hover or focus edge, a 12% white hairline around cover art.
+**The Tone-Not-Line Rule.** Surfaces separate by tone, not outline. An edge appears only to say something: an amber 1.5 DIP edge for selection, a field's hover or focus edge, a 12% white hairline around cover art. The administration keeps the rule with shadow in place of tone: no resting surface is outlined, and edges belong to controls (fields, secondary buttons, choices, switch rows) and to dividers inside a surface.
 
 ## Shapes
 
-Administration controls use modest corners, resource containers slightly broader corners, and dialogs the broadest corners; compact state badges use the smallest (chip, control, container, dialog tokens). Table rows are divided by fine horizontal rules, and simple SVG icons communicate navigation, search, arrows and actions.
+The administration uses a matching ladder: 4px for region code badges, 6px for chips and tags, 8px for buttons, fields and icon buttons (7px for small buttons, row actions, menu rows and covers), 9px for alerts, switch rows, radio cards, the segmented control, version rows and entity icon tiles, 10px for tiles, panels, list cards and the menu, 12px for the page-head icon tile, and 14px for dialogs and the drawer's left corners. Pills, toggle chips, suggestion chips and the switch are fully round; circles are kept for avatars (34px, 20px small), tile icon badges (34px), checklist step marks (32px), confirm icons (40px), empty-state discs (64px) and pill dots. Web icons are Lucide outlines at their 2 px stroke, 14–26px.
 
 The client uses a soft four-step corner ladder: controls (8 DIPs) for buttons, fields, the cover inside a card, region code badges and focus rings; choices and transient layers (10 DIPs) for region tiles, line rows, the toast and the account menu; panels and cards (12 DIPs) for library cards, the dial panel, stat tiles, the chart panel and the rail item highlight; the hero (14 DIPs) for the hero banner and the sign-in dialog. Small chips round at 4–5 DIPs and menu rows at 6. Pills (15–16 DIPs) are only for controls laid over art: the back button and the hero status. Circles are reserved for the dial, the avatar, status dots, the 28 DIP icon badges, the selection tick and line radios.
 
-**Brand mark.** Three tapered streaks stacked like light trails, the middle one longest and shifted right, drawn from one geometry: amber on the rail, white on the sign-in art, small and amber perched on empty-state discs. The application icon is the same mark in an amber gradient (#F7CB72 to the accent) on a rounded graphite tile (corner 22% of the tile, #2A2733 to #121116 top to bottom), drawn by `installer/make-brand-assets.ps1` at 16–256 px. The installer's side image is graphite with a warm amber glow, diagonal amber streaks at −22°, the mark and the product name; its small header image is the tile on white. All three assets regenerate from that script rather than being hand-edited.
+**Brand mark.** Three tapered streaks stacked like light trails, the middle one longest and shifted right, drawn from one geometry: amber on the rail, white on the sign-in art, small and amber perched on empty-state discs. The application icon is the same mark in an amber gradient (#F7CB72 to the accent) on a rounded graphite tile (corner 22% of the tile, #2A2733 to #121116 top to bottom), drawn by `installer/make-brand-assets.ps1` at 16–256 px. The installer's side image is graphite with a warm amber glow, diagonal amber streaks at −22°, the mark and the product name; its small header image is the tile on white. All three assets regenerate from that script rather than being hand-edited. The administration draws the same tile and gradient as SVG (`BrandMark`, 36 px in the sidebar, 40 px on the login panel) and a flat version as its favicon.
 
 **Icons.** Outline strokes on a 24 DIP grid at a 1.8 stroke whatever the display size, with round caps and joins; empty-state icons (38–46 DIPs) thin to 1.6. Only the bolt is ever filled (the dial, the cover hover disc, the running badge, the sign-in feature row).
 
-**Cover art.** Each game gets a generated cover: a diagonal gradient in its hue (hues are dealt in catalogue order from a list spaced so neighbours never share a family, skipping the muddy olive band), a soft light pool at upper right, seven light streaks at −22° that fade at both ends, and the game's first character set huge and faint (15% white) bleeding off the bottom-right corner, all inside a 12% white hairline. The hero adds a bottom shade under its white title; the sign-in panel uses a night variant (dark ground, twelve brighter streaks, amber hue).
+**Cover art.** Each game gets a generated cover: a diagonal gradient in its hue (the hue at the game's cover_index in a list spaced so neighbours never share a family, skipping the muddy olive band; see The Shared Cover Rule), a soft light pool at upper right, seven light streaks at −22° that fade at both ends, and the game's first character set huge and faint (15% white) bleeding off the bottom-right corner, all inside a 12% white hairline. The hero adds a bottom shade under its white title; the sign-in panel uses a night variant (dark ground, twelve brighter streaks, amber hue). The administration draws a small version of the same cover at 64 × 36 in the games list (44 × 25 in session rows, 22 × 13 in pickers): the hue gradient and light pool, three streaks at −22° tinted toward the hue, and the faint first character.
 
 ## Components
 
 ### Buttons
 
-Web primary actions use cyan with white text; secondary actions use white with a border. Hover darkens the primary or tints the secondary. Keyboard focus uses a visible outline (3px with 3px offset); disabled buttons use reduced opacity (0.5).
+Web buttons are 36px tall with 8px corners and 13px SemiBold text, icon before label (30px and 7px corners in the small size). **Primary** is amber with near-black ink, lifting to the hover gold; one per view (新增, 保存, 登录, a confirm). **Secondary** is white with a Strong Hairline edge and a Paper hover (刷新, 取消, 加载更多, an undone checklist step's action). **Danger** is Brick Red with white text, used only to confirm a risky action. **Ghost** is Slate text with a lilac hover (a done step's 查看, 添加一跳); icon buttons are 34px ghost squares. Disabled buttons drop to 50% opacity; keyboard focus draws a 2px amber outline 2px out, and a mouse click leaves none.
 
 - **Client shape:** gently rounded (8 DIPs), no border.
 - **Client primary:** amber fill, near-black brown SemiBold text (14), at least 42 DIPs tall; hover lighter gold, press deeper amber. Disabled turns Raised Graphite with Ash Text rather than fading the amber.
@@ -336,27 +443,42 @@ Web primary actions use cyan with white text; secondary actions use white with a
 
 ### Chips
 
-Small filled web badges display operational state text. Green denotes active/succeeded/ready or enabled flags, warm red failure/degradation, and blue work in progress. The badge's label determines what the color claims; an enabled flag alone does not imply a verified connection.
+Web state is a **pill**: fully round, 12px SemiBold, a 6px dot in the ink colour before the word, on the state's wash. Categories use a plain grey pill without the dot (平台托管, endpoint and job kinds). A line's 发布与验证 cell can hold two pills, the serving version (已验证上线) beside a newer one (新版本验证中 or 新版本未通过), from the latest_status and latest_error the control service attaches (`annotateLines`); when the newest version failed, its reason follows on the next line in 12px Brick Red, cut with an ellipsis and whole on hover. A region is drawn by one `RegionName` everywhere (list chips, a node's region, detail drawers, editor tags and suggestions): a 4px code badge (Bahnschrift 10.5, white on its position colour, Sidebar Muted grey for an unchosen suggestion) and the region's Chinese name when known. In lists it sits in a **chip** with 6px corners on the lilac tint; an empty list says 待配置. Times are relative (刚刚, N 分钟前, N 小时前, N 天前; 分钟后 and 小时后 for leases) with the exact time in the tooltip, and an em dash when there is none.
 
 In the client: **推荐** marks the lowest-latency selectable line (Amber Wash, amber SemiBold 11, 4 DIP corners). Cover badges sit at the cover's top corners: **上次加速** on black at 60% with white 11, and **加速中** in green with dark green ink and a filled bolt. Hero region chips pair an amber Bahnschrift code with a white name on a scrim.
 
 ### Cards / Containers
 
-Resource tables use white bordered containers with subdued headers, row hover tint and inline actions. Metrics share one segmented container. Empty tables retain their column context and explain loading, no records, or no matching search results. Errors appear in a separate alert with retry; unknown overview counts remain an em dash during loading and after failure.
-
+- **Metric tile (web):** Card White, 10px corners, Rest shadow; a 34px round icon badge in the tile's state tone beside the label, the Bahnschrift figure, and a note that names the whole when known (共 3 个节点 · 45 秒内有心跳). The four are 当前会话, 在线节点, 已验证线路版本 and 已发布游戏; a count stays an em dash while loading and after a failure.
+- **上线准备 checklist (web):** a panel with the heading, 已完成 N / 5 (an em dash until anything is known), a 6px amber progress bar, and five steps in setup order: 发布游戏规则, 接入转发节点, 配置服务端点, 发布并验证线路, 开通玩家账号. Each step is a 32px numbered disc, a title, a sentence with live counts, and a small button to the section: secondary with its action while undone; ghost 查看 once done, when the disc turns green with a tick.
+- **List card (web):** a white card with the Rest shadow, a sticky Paper head (12px Haze), 13px cells, hairline rows and a warm tint on hover. The first column is the **entity**: a lead picture (the game's cover, an avatar initial, or a 34px lilac icon tile for lines, nodes, endpoints and devices), the name in SemiBold and a sub line (a game's processes or 未填写游戏进程, a line's hops and priority, a node's Agent version or 尚未注册, a user's role note). References show names, with the id in the tooltip.
+- **Empty list (web):** inside the card, a 64px lilac disc with an icon, a title and one sentence, telling loading (正在读取…), a failed read (未能读取记录, never called empty), no match (没有匹配的记录, saying when only loaded rows were searched) and a true empty list (还没有记录, what the list is for, and 新增 when the role may create).
 - **Cover card:** Graphite Surface, 12 DIP corners, 8 DIP padding, no border. The 16:9 cover (8 DIP corners) sits above the name (SemiBold 15) and a pin icon with the region list (label size). Hover raises the card to Raised Graphite and reveals a 42 DIP amber disc with a filled bolt and the Float shadow at the cover's bottom right.
 - **Panel:** Graphite Surface at 12 DIP corners for the dial panel, chart and facts strip; tone alone separates it from the page.
 - **Stat tile:** Graphite Surface, 12 DIP corners, padding 14 × 16; a 28 DIP round badge in a state tint with its icon (延迟 gauge in green, 抖动 wave in blue, 丢包 packet in orange, 已加速 clock in amber), a meta label, then the figure.
 
+### Row Actions (web)
+
+The last column holds the row's actions, right-aligned: 30px tall, 12.5px Slate with an icon, lilac on hover.
+
+- **Primary action** first, in Amber Ink with an Amber Cream hover, while the row still needs it (发布规则 for a draft game, 发布 for an unpublished line, 注册凭据 for a node with no Agent); once done it stays as a plain action.
+- **编辑** when the role may edit.
+- **更多** (lines): a menu below the button, or above it when there is no room, with 36px icon rows: 排空 or 恢复接收新会话, 查看版本与验证记录, and last, after a hairline, 终止线路 in Brick Red with a red wash on hover. Arrow keys move through it; Escape closes it and returns focus to the button.
+- **详情** last, as an icon-only eye.
+
+A destructive action that stands in the row (停止 on a live session) is Brick Red text with a red wash on hover. Every state change goes through a confirmation; while one runs for a row, all its actions disable and the running one reads 处理中….
+
 ### Inputs / Fields
 
-Web fields use white fill, a cool gray border, and visible focus outline (2px with 1px offset). Search includes a vector magnifier; labels stay visible above editor fields.
+Web fields are Card White with a Strong Hairline edge, 8px corners, padding 9 × 12, 13.5px text and an Amber Ink caret; hover darkens the edge, focus turns it amber with a 3px amber halo at 22%. Labels sit above in 13px Medium Slate, notes below in 12px Haze. The list search adds an inset magnifier. Composite controls share the look: **SwitchRow** (a bordered row with title, note and a 40 × 22 switch, amber when on), **Segmented** (a lilac track whose chosen option turns white with a small shadow), **Toggles** (round chips; selected takes an amber edge on Amber Cream), **RadioCards** (choices with a title and a line of explanation; selected takes an amber edge, an inner amber ring and Amber Cream), **TagInput** (chips added by Enter, comma, paste or leaving the box, with dashed suggestion chips that turn amber on hover) and **PickList** (the same, choosing rows by name with their cover or avatar).
+
+An invalid field turns its label and edge Brick Red (a red halo at 18% on focus) and shows its message in place of its note; the drawer scrolls it to the middle and puts the cursor in it.
 
 Client fields are Raised Graphite with no visible edge at rest, 8 DIP corners, at least 40 DIPs tall, 14 DIP text, amber caret and selection. Hover draws a Strong Seam edge; keyboard focus turns the edge amber. Labels sit above in Dusk Text (12). The library search adds an inset 17 DIP magnifier and the placeholder 搜索游戏 in Ash Text.
 
 ### Navigation
 
-Desktop administration navigation stays visible beside the content; selection uses a pale cyan fill, stronger text and a directional icon. Its narrow layout scrolls horizontally.
+Administration navigation is the graphite sidebar: 13.5px items with 18px icons, padding 9 × 12. Hover lifts an item to Sidebar Hover with white text; the active item fills Sidebar Active with white SemiBold text, turns its icon amber and shows a 3px amber bar at the sidebar's edge. On phones the same list is the top bar's menu sheet at 14.5px, and choosing an item closes it.
 
 Client rail items are 60 × 60: a 22 DIP outline icon over an 11 DIP label in Ash Text. Hover fills Lift; selected fills Raised Graphite, turns icon and label amber and shows a 3 × 22 DIP amber bar at the rail edge; disabled drops to 35%. A green 8 DIP dot sits on 加速 while a session runs. The avatar is a 40 DIP circle of Amber Wash with a 35% amber ring (solid amber on hover), showing the account initial in amber Bahnschrift, or an outline user icon when signed out.
 
@@ -401,26 +523,31 @@ Under the dial: an 8 DIP state dot and one state sentence (未加速, 正在分�
 
 ### Dialogs and feedback (web)
 
-Web editors use native dialogs, two-column fields where space permits, and a footer with cancel and save. Validation errors stay within the form. Published profile versions, path verification, service availability and live session state remain visible as different statuses.
+Editing happens in a **drawer**: a modal `<dialog>` docked to the right, 600px wide and full height (full width with square corners on phones), sliding in over the graphite backdrop so the list stays in view. Its head names the action and the record (编辑游戏与规则 over the game's name); the body is **titled sections** (an Amber Ink icon and a 15.5px Bold title, an optional note, hairlines between) of two-column fields, wide controls spanning both; a Paper hint closes the form where saving needs explaining (保存只更新草稿，点“发布规则”后客户端才会使用); the Paper footer holds 取消 and 保存. Validation runs before sending and puts each error under its field (see Inputs / Fields); the footer alert, Brick Red on its wash, is only for errors the service returns. A backdrop click never closes a form. 详情 and 查看版本与验证记录 open read-only drawers that do close on a backdrop click and show the record as label-value rows with relative times, pills and chips; verified versions offer 切换到此版本.
 
-The reviewed captures in `.impeccable/review/` cover desktop administration, game resources, narrow web layout and overview outage, and the rebuilt client's library, game page, connecting and active sessions, library while running, refused start, account menu, sign-in, empty search, lost service, and minimum and maximized windows. Client figures in them come from a test service. They establish visual and unavailable-state evidence; they do not establish successful real-game acceleration or live node availability.
+State changes ask first in a 440px **confirm dialog** coloured by risk: an amber info badge and a primary button to publish, switch versions, resume a line or issue enrollment credentials; a red warning badge and a danger button to drain or terminate a line or stop a session. Once sent it says closing will not cancel the request, offers 关闭 instead of 取消, and turns the button into 重试 after an error. Results land as a banner under the page head: a green notice with a close button, or a red alert with 重试 for a failed read or action. Published profile versions, path verification, service availability and live session state remain visible as different statuses.
+
+The reviewed captures in `.impeccable/review/` cover the redesigned administration, `admin-01-login` to `admin-21-mobile-lines`: login; the overview with tiles toned by their counts and the 上线准备 checklist; every list with entity columns and position-coloured region badges; the line list's verification states (已验证上线 beside 新版本验证中, and 验证未通过 with its reason in red); the 更多 menu with 终止线路 last (`admin-08c-line-menu`); the game, line, endpoint and user editors with region badges in tags and suggestions and errors under their fields (`admin-08b-line-editor-error`, `admin-14-user-editor-error`); the terminate confirmation, a detail drawer and an empty list; and on a phone the overview, the menu sheet and stacked row cards. `client-cover-paired-library.png` is the client library on the same test service and slot rule: 英雄联盟 blue and VALORANT red, matching `admin-03-games`. The client captures also cover the rebuilt client's library, game page, connecting and active sessions, library while running, refused start, account menu, sign-in, empty search, lost service, and minimum and maximized windows. The earlier `desktop.png`, `games-desktop.png`, `login.png`, `mobile.png` and `overview-outage.png` show the retired cyan administration. Client figures in the captures come from a test service. They establish visual and unavailable-state evidence; they do not establish successful real-game acceleration or live node availability.
 
 ## Do's and Don'ts
 
 ### Do:
-- **Do** preserve the light administration and dark native-client surface roles.
-- **Do** keep status labels, provenance, empty states, and errors visible beside the affected resource or action.
-- **Do** retain horizontally scrollable tables on narrow web screens, and a fixed hero over a scrolling game page at the client's minimum size.
-- **Do** use local Chinese-capable fonts: Segoe UI with Microsoft YaHei on the web; Microsoft YaHei UI for client words and Bahnschrift for client figures.
+- **Do** preserve the light administration and dark native-client surface roles, and keep the administration framed in the client's graphite.
+- **Do** keep status labels, provenance, empty states, and errors visible beside the affected resource or action; in a form, under the field at fault.
+- **Do** let narrow web screens reflow rather than scroll sideways (a top bar and menu sheet at 860px, stacked row cards labelled by column at 720px), and keep a fixed hero over a scrolling game page at the client's minimum size.
+- **Do** use local Chinese-capable fonts: Microsoft YaHei UI for words and Bahnschrift for figures on both surfaces, and Cascadia Mono for ids and hosts on the web.
 - **Do** color every client latency by one scale (60 ms or less green, to 120 ms orange, above red) and light signal bars at 60, 100 and 160 ms.
 - **Do** draw new client icons as 24 px outline geometry at a 1.8 stroke with round caps, and regenerate brand rasters from the three-streak mark in `installer/make-brand-assets.ps1`.
-- **Do** give each new game a generated cover from its hue.
+- **Do** give each new game a generated cover from the hue at its cover_index, the same in both apps, and colour region badges by their position in the list.
+- **Do** lead every admin list with an entity column (picture, name, sub line), put the row's next step first as its emphasised action, and keep destructive actions last, separated and red.
 
 ### Don't:
 - **Don't** replace unknown counts or missing probe evidence with zero or invented healthy measurements.
 - **Don't** conflate a published rule, verified path, historical probe, and current connection.
 - **Don't** claim tested game compatibility or bundle proprietary game artwork without established evidence or assets.
-- **Don't** use amber to report quality or state, or cyan anywhere in the client.
-- **Don't** outline resting client surfaces or shadow anything that sits in the page; the Float shadow is for layers above it.
+- **Don't** use amber to report quality or state on either surface, or a state tone as decoration; and don't bring back the retired cyan.
+- **Don't** outline resting surfaces: the client separates by tone and the administration by the Rest shadow; the Float shadow is for client layers above the page.
+- **Don't** pick a game's cover hue from list order or a hash when the service supplies cover_index, or renumber the slots of existing games; a game must not change colour between the two apps or when another game is added.
+- **Don't** edit in a centred modal or ask with the browser's confirm(); edits go in the side drawer, state changes through the risk-coloured confirm dialog.
 - **Don't** brand with a letter monogram; the brand is the three-streak amber mark, and first characters appear only inside generated covers.
 - **Don't** leave a focus ring after a mouse click, or hide it from keyboard focus.
