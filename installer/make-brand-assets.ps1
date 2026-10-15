@@ -1,8 +1,9 @@
 ﻿# Draws the brand assets the build ships: the application/installer icon
-# (flowlight.ico) and the two installer wizard images. All three are drawn
-# here from geometry, so they can be regenerated instead of edited by hand:
-# a graphite tile carrying the amber "flowing light" mark (three tapered
-# streaks, the same shape as the client's BrandMark geometry).
+# (flowlight.ico) and the installer wizard's art (art\: backgrounds, the mark
+# tile and the call-to-action buttons). All are drawn here from geometry, so
+# they can be regenerated instead of edited by hand: a graphite tile carrying
+# the amber "flowing light" mark (three tapered streaks, the same shape as the
+# client's BrandMark geometry).
 #
 #   powershell -NoProfile -ExecutionPolicy Bypass -File installer\make-brand-assets.ps1
 param([string]$Out = $PSScriptRoot)
@@ -70,12 +71,6 @@ function Draw-Streak($g, [float]$x, [float]$y, [float]$len, [float]$thick, [int]
   $g.FillRectangle($brush, $rect); $brush.Dispose()
 }
 
-function Save-Bmp24($bmp, [string]$path) {
-  $flat = [Drawing.Bitmap]::new($bmp.Width, $bmp.Height, [Drawing.Imaging.PixelFormat]::Format24bppRgb)
-  $g = [Drawing.Graphics]::FromImage($flat); $g.DrawImage($bmp, 0, 0, $bmp.Width, $bmp.Height); $g.Dispose()
-  $flat.Save($path, [Drawing.Imaging.ImageFormat]::Bmp); $flat.Dispose()
-}
-
 # --- flowlight.ico: 32-bit DIB entries up to 64 px, a PNG entry at 256 px.
 $sizes = 16, 20, 24, 32, 40, 48, 64, 256
 $images = foreach ($s in $sizes) {
@@ -112,33 +107,84 @@ foreach ($img in $images) {
 foreach ($img in $images) { $w.Write($img[1]) }
 $w.Flush(); [IO.File]::WriteAllBytes((Join-Path $Out 'flowlight.ico'), $ico.ToArray()); $w.Dispose()
 
-# --- wizard-small.bmp: the tile on the wizard's light header, 55 x 55.
-$bmp, $g = New-Canvas 55 55
-$g.Clear([Drawing.Color]::White)
-$tile, $tg = New-Canvas 47 47; Draw-Tile $tg 47; $tg.Dispose()
-$g.DrawImage($tile, 4, 4, 47, 47); $tile.Dispose(); $g.Dispose()
-Save-Bmp24 $bmp (Join-Path $Out 'wizard-small.bmp'); $bmp.Dispose()
+Write-Output "wrote flowlight.ico to $Out"
 
-# --- wizard-image.bmp: the side banner, 164 x 314. Graphite with a warm glow,
-# amber streaks, the mark and the product name.
-$bmp, $g = New-Canvas 164 314
-$bg = [Drawing.Drawing2D.LinearGradientBrush]::new([Drawing.PointF]::new(0, 0), [Drawing.PointF]::new(164, 314), $graphiteTop, $graphiteBottom)
-$g.FillRectangle($bg, 0, 0, 164, 314); $bg.Dispose()
-$glowPath = [Drawing.Drawing2D.GraphicsPath]::new(); $glowPath.AddEllipse(-40, -60, 260, 240)
-$glow = [Drawing.Drawing2D.PathGradientBrush]::new($glowPath)
-$glow.CenterColor = [Drawing.Color]::FromArgb(70, $amber); $glow.SurroundColors = [Drawing.Color[]]@([Drawing.Color]::FromArgb(0, $amber))
-$g.FillPath($glow, $glowPath); $glow.Dispose(); $glowPath.Dispose()
-$g.TranslateTransform(82, 157); $g.RotateTransform(-22); $g.TranslateTransform(-82, -157)
-$rand = [Random]::new(7)
-for ($i = 0; $i -lt 11; $i++) {
-  Draw-Streak $g ($rand.Next(-90, 150)) ($rand.Next(-40, 360)) ($rand.Next(60, 150)) ([float](1 + $rand.NextDouble() * 3)) ($rand.Next(60, 200))
+# --- art\: the installer's dark wizard (Inno Setup 6.7 background images).
+# Backgrounds keep Inno's 497:360 image area at the sizes it picks between
+# by DPI; the left part stays dark and quiet for the page text. Drawn in a
+# 994 x 720 design space and scaled.
+$art = Join-Path $Out 'art'
+New-Item -ItemType Directory -Force $art | Out-Null
+$deep = [Drawing.Color]::FromArgb(255, 0x0D, 0x0C, 0x11)
+$violet = [Drawing.Color]::FromArgb(255, 0x5B, 0x4A, 0x8A)
+
+function Save-Png($bmp, [string]$name) { $bmp.Save((Join-Path $art $name), [Drawing.Imaging.ImageFormat]::Png) }
+
+function Fill-Glow($g, [float]$cx, [float]$cy, [float]$rx, [float]$ry, $color, [int]$alpha) {
+  $path = [Drawing.Drawing2D.GraphicsPath]::new(); $path.AddEllipse($cx - $rx, $cy - $ry, 2 * $rx, 2 * $ry)
+  $brush = [Drawing.Drawing2D.PathGradientBrush]::new($path)
+  $brush.CenterColor = [Drawing.Color]::FromArgb($alpha, $color); $brush.SurroundColors = [Drawing.Color[]]@([Drawing.Color]::FromArgb(0, $color))
+  $g.FillPath($brush, $path); $brush.Dispose(); $path.Dispose()
 }
-$g.ResetTransform()
-Draw-Mark $g 22 34 40
-$font = [Drawing.Font]::new('Microsoft YaHei UI', 15, [Drawing.FontStyle]::Bold, [Drawing.GraphicsUnit]::Pixel)
-$g.DrawString('流光加速器', $font, [Drawing.Brushes]::White, 20, 86); $font.Dispose()
-$small = [Drawing.Font]::new('Microsoft YaHei UI', 10, [Drawing.FontStyle]::Regular, [Drawing.GraphicsUnit]::Pixel)
-$g.DrawString('FLOWLIGHT ACCELERATOR', $small, [Drawing.SolidBrush]::new([Drawing.Color]::FromArgb(170, 255, 255, 255)), 21, 110); $small.Dispose()
-$g.Dispose()
-Save-Bmp24 $bmp (Join-Path $Out 'wizard-image.bmp'); $bmp.Dispose()
-Write-Output "wrote flowlight.ico, wizard-small.bmp, wizard-image.bmp to $Out"
+
+function Draw-Back([int]$w, [int]$h, [bool]$hero) {
+  $bmp, $g = New-Canvas $w $h
+  $g.ScaleTransform($w / 994.0, $h / 720.0)
+  $base = [Drawing.Drawing2D.LinearGradientBrush]::new([Drawing.PointF]::new(0, 0), [Drawing.PointF]::new(994, 720), [Drawing.Color]::FromArgb(255, 0x1C, 0x1A, 0x22), $deep)
+  $g.FillRectangle($base, 0, 0, 994, 720); $base.Dispose()
+  if ($hero) {
+    Fill-Glow $g 800 170 430 340 $amber 78
+    Fill-Glow $g 1000 740 400 300 $violet 60
+  } else {
+    Fill-Glow $g 960 700 420 300 $amber 46
+    Fill-Glow $g 1000 40 360 240 $violet 34
+  }
+  $g.TranslateTransform(497, 360); $g.RotateTransform(-22); $g.TranslateTransform(-497, -360)
+  $rand = [Random]::new($(if ($hero) { 11 } else { 23 }))
+  $count = $(if ($hero) { 14 } else { 7 })
+  for ($i = 0; $i -lt $count; $i++) {
+    $x = $rand.Next($(if ($hero) { 420 } else { 600 }), 1150)
+    $y = $rand.Next($(if ($hero) { -40 } else { 380 }), 820)
+    Draw-Streak $g $x $y ($rand.Next(150, 400)) ([float](1.5 + $rand.NextDouble() * 4.5)) ($rand.Next($(if ($hero) { 70 } else { 40 }), $(if ($hero) { 210 } else { 120 })))
+  }
+  $g.ResetTransform(); $g.ScaleTransform($w / 994.0, $h / 720.0)
+  # Darken the bottom, where the checkbox and the buttons sit.
+  $fade = [Drawing.Drawing2D.LinearGradientBrush]::new([Drawing.PointF]::new(0, 520), [Drawing.PointF]::new(0, 720), [Drawing.Color]::FromArgb(0, $deep), [Drawing.Color]::FromArgb(190, $deep))
+  $g.FillRectangle($fade, 0, 520, 994, 200); $fade.Dispose()
+  $g.Dispose()
+  return $bmp
+}
+
+foreach ($size in @(@(596, 432), @(796, 576), @(994, 720), @(1193, 864), @(1272, 922))) {
+  $bmp = Draw-Back $size[0] $size[1] $true; Save-Png $bmp ("back-hero-{0}.png" -f $size[0]); $bmp.Dispose()
+  $bmp = Draw-Back $size[0] $size[1] $false; Save-Png $bmp ("back-page-{0}.png" -f $size[0]); $bmp.Dispose()
+}
+
+# The mark tile shown beside the product name, at 100 / 150 / 200 % for 56 px.
+foreach ($scale in 100, 150, 200) {
+  $s = [int](56 * $scale / 100)
+  $bmp, $g = New-Canvas $s $s; Draw-Tile $g $s; $g.Dispose()
+  Save-Png $bmp ("mark-{0}.png" -f $scale); $bmp.Dispose()
+}
+
+# Amber call-to-action buttons, 200 x 46 at 100 %, label in the client's
+# on-amber ink. Inno's own buttons cannot take the brand colour.
+$ink = [Drawing.Color]::FromArgb(255, 0x1C, 0x13, 0x00)
+$labels = [ordered]@{ install = '立即安装'; upgrade = '立即升级'; reinstall = '重新安装'; start = '开始使用' }
+foreach ($key in $labels.Keys) {
+  foreach ($scale in 100, 150, 200) {
+    $f = $scale / 100.0
+    $w = [int](200 * $f); $h = [int](46 * $f)
+    $bmp, $g = New-Canvas $w $h
+    $shape = Rounded 0.5 0.5 ($w - 1) ($h - 1) (8 * $f)
+    $fill = [Drawing.Drawing2D.LinearGradientBrush]::new([Drawing.PointF]::new(0, 0), [Drawing.PointF]::new(0, $h), [Drawing.Color]::FromArgb(255, 0xF3, 0xC4, 0x66), [Drawing.Color]::FromArgb(255, 0xE0, 0xA3, 0x3A))
+    $g.FillPath($fill, $shape); $fill.Dispose(); $shape.Dispose()
+    $font = [Drawing.Font]::new('Microsoft YaHei UI', [float](16 * $f), [Drawing.FontStyle]::Bold, [Drawing.GraphicsUnit]::Pixel)
+    $format = [Drawing.StringFormat]::new(); $format.Alignment = 'Center'; $format.LineAlignment = 'Center'
+    $text = [Drawing.SolidBrush]::new($ink)
+    $g.DrawString($labels[$key], $font, $text, [Drawing.RectangleF]::new(0, 0, $w, $h + 1 * $f), $format)
+    $text.Dispose(); $format.Dispose(); $font.Dispose(); $g.Dispose()
+    Save-Png $bmp ("button-{0}-{1}.png" -f $key, $scale); $bmp.Dispose()
+  }
+}
+Write-Output "wrote installer art to $art"

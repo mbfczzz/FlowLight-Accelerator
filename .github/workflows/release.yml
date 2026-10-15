@@ -48,7 +48,13 @@ jobs:
           DEFAULT_CONTROL_URL: ${{ vars.CONTROL_URL || 'https://accel.tcmzhan.com:8443' }}
         run: |
           $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
-          if (-not (Test-Path $iscc)) { choco install innosetup --no-progress -y; }
+          # The installer's dark wizard and background art need Inno Setup 6.7.
+          $key = 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Inno Setup 6_is1'
+          $installed = (Get-ItemProperty $key -ErrorAction SilentlyContinue).DisplayVersion
+          "Inno Setup on the runner: $installed"
+          if (-not (Test-Path $iscc) -or -not $installed -or [version]$installed -lt [version]'6.7.1') {
+            choco install innosetup --version=6.7.3 --force --no-progress -y
+          }
           & $iscc /Qp `
             "/DAppVersion=${{ steps.version.outputs.version }}" `
             "/DFileVersion=${{ steps.version.outputs.file_version }}" `

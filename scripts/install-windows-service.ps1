@@ -18,9 +18,9 @@ if (([Uri]$ControlUrl).Scheme -ne 'https') { throw 'Production control URL must 
 $hash = (Get-FileHash -LiteralPath $MihomoPath -Algorithm SHA256).Hash
 if ($hash -ne $MihomoSha256) { throw 'Kernel checksum mismatch' }
 $configure = Join-Path (Split-Path $PSScriptRoot -Parent) 'installer/configure-service.ps1'
-& $configure -Stop
 # The client only talks to a service under this exact path.
 $installRoot = Join-Path $env:ProgramFiles 'FlowLight Accelerator'
+& $configure -Stop -InstallRoot $installRoot
 New-Item -ItemType Directory -Path $installRoot,(Join-Path $installRoot 'core') -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $Artifacts 'client') -Destination $installRoot -Recurse -Force
 Copy-Item -LiteralPath (Join-Path $Artifacts 'service') -Destination $installRoot -Recurse -Force
