@@ -168,6 +168,15 @@ public partial class MainWindow : Window
     readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromSeconds(2) };
     readonly DispatcherTimer clock = new() { Interval = TimeSpan.FromSeconds(1) };
     readonly DispatcherTimer toastTimer = new();
+
+    // Client updates: where the control service is, the newer release it
+    // offers, the version put off with 稍后 (a required one cannot be), and
+    // a download in progress.
+    Uri? controlUri;
+    ClientRelease? offered;
+    string? postponed;
+    CancellationTokenSource? updating;
+    readonly DispatcherTimer updateTimer = new() { Interval = TimeSpan.FromHours(4) };
     readonly System.Windows.Forms.NotifyIcon tray;
     readonly System.Windows.Forms.ContextMenuStrip trayMenu;
 
@@ -230,6 +239,7 @@ public partial class MainWindow : Window
         Height = Math.Min(Height, SystemParameters.WorkArea.Height);
         Width = Math.Min(Width, SystemParameters.WorkArea.Width);
         VersionLabel.Text = "v" + ProductVersion() + " · Windows x64";
+        updateTimer.Tick += (_, _) => _ = CheckForUpdate(false);
         pendingLineID = prefs.LineID;
         LastGameID = prefs.GameID;
         GameList.SizeChanged += (_, e) => UpdateCardWidth(e.NewSize.Width);
@@ -421,6 +431,14 @@ public partial class MainWindow : Window
         {
             MenuServer.Text = "服务器 " + uri.Host;
             CoverArt.SetServer(uri);
+            // The first time the control service is known, look for an update.
+            var first = controlUri is null;
+            controlUri = uri;
+            if (first)
+            {
+                _ = CheckForUpdate(false);
+                updateTimer.Start();
+            }
         }
         coreAvailable = Flag(result, "core_available");
 
@@ -544,6 +562,172 @@ public partial class MainWindow : Window
         JsonException or KeyNotFoundException => "本地服务返回了无法识别的响应，请重新安装或更新客户端。",
         _ => Summarize(ex.Message),
     };
+
+    static string DescribeUpdate(Exception ex) => ex switch
+    {
+        System.Net.Http.HttpRequestException { StatusCode: { } code } => "服务器返回 HTTP " + (int)code + "，请稍后重试",
+        System.Net.Http.HttpRequestException or TaskCanceledException => "无法连接服务器，请检查网络后重试",
+        InvalidDataException or TimeoutException => ex.Message,
+        UnauthorizedAccessException => "没有权限写入下载文件夹",
+        IOException => "无法保存安装包：" + Summarize(ex.Message),
+        System.ComponentModel.Win32Exception => "无法启动安装程序：" + Summarize(ex.Message),
+        _ => Summarize(ex.Message),
+    };
+
+    // Asks the control service for a newer client. Automatic checks stay
+    // quiet when they fail; a check from the menu always answers.
+    async Task CheckForUpdate(bool manual)
+    {
+        if (controlUri is null || updating is not null)
+        {
+            if (manual)
+            {
+                ShowNotice(controlUri is null ? "还没有连上本地服务，稍后再检查更新。" : "正在下载更新。", InfoHold);
+            }
+            return;
+        }
+        try
+        {
+            offered = await Updater.Check(controlUri, ProductVersion(), CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            if (manual)
+            {
+                ShowNotice("检查更新失败：" + DescribeUpdate(ex), ErrorHold, NoticeKind.Error);
+            }
+            return;
+        }
+        if (manual)
+        {
+            postponed = null;
+            if (offered is null)
+            {
+                ShowNotice("已是最新版本 v" + ProductVersion(), InfoHold, NoticeKind.Success);
+            }
+            else
+            {
+                ShowView(View.Library);
+            }
+        }
+        ShowUpdate();
+    }
+
+    void ShowUpdate()
+    {
+        var current = ProductVersion();
+        MenuUpdateText.Text = offered is null ? "检查更新" : "更新到 v" + offered.Version;
+        VersionLabel.Text = "v" + current + " · Windows x64" + (offered is null ? "" : " · 有新版本");
+        var show = offered is not null && (offered.Required || postponed != offered.Version);
+        UpdateBar.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        if (!show || updating is not null)
+        {
+            return;
+        }
+        UpdateTitle.Text = (offered!.Required ? "需要更新到 v" : "发现新版本 v") + offered.Version;
+        UpdateDetail.Text = offered.Required
+            ? "当前 v" + current + " 已停止支持，更新后才能正常使用 · 约 1 分钟，期间加速会中断"
+            : "当前 v" + current + " · 更新约 1 分钟，期间加速会中断，完成后自动打开";
+        UpdateLater.Visibility = offered.Required ? Visibility.Collapsed : Visibility.Visible;
+        UpdateNow.Content = "立即更新";
+        UpdateNow.IsEnabled = true;
+        UpdateTrack.Visibility = Visibility.Collapsed;
+    }
+
+    void UpdateLater_Click(object sender, RoutedEventArgs e)
+    {
+        postponed = offered?.Version;
+        ShowUpdate();
+    }
+
+    async void MenuUpdate_Click(object sender, RoutedEventArgs e)
+    {
+        CloseMenu();
+        await CheckForUpdate(true);
+    }
+
+    // Downloads the installer with progress (the button cancels meanwhile),
+    // checks it, starts it elevated and closes this client so its files can
+    // be replaced. The installer stops the local service first, which ends
+    // any session, and opens the new client when it is done.
+    async void UpdateNow_Click(object sender, RoutedEventArgs e)
+    {
+        if (updating is not null)
+        {
+            updating.Cancel();
+            return;
+        }
+        if (offered is not { } release)
+        {
+            return;
+        }
+        var cancel = updating = new CancellationTokenSource();
+        UpdateNow.Content = "取消";
+        UpdateLater.Visibility = Visibility.Collapsed;
+        UpdateTrack.Visibility = Visibility.Visible;
+        UpdateFill.Width = 0;
+        UpdateTitle.Text = "正在更新到 v" + release.Version;
+        UpdateDetail.Text = "正在连接下载服务器…";
+        var progress = new Progress<(long Received, long Total)>(p =>
+        {
+            if (updating != cancel)
+            {
+                return;
+            }
+            var mb = p.Received / 1048576.0;
+            if (p.Total > 0)
+            {
+                var part = Math.Min(1, (double)p.Received / p.Total);
+                UpdateFill.Width = UpdateTrack.ActualWidth * part;
+                UpdateDetail.Text = $"正在下载 {part * 100:0}% · {mb:0.0} / {p.Total / 1048576.0:0.0} MB";
+            }
+            else
+            {
+                UpdateDetail.Text = $"正在下载 · 已下载 {mb:0.0} MB";
+            }
+        });
+        try
+        {
+            var path = await Updater.Download(release, progress, cancel.Token);
+            UpdateFill.Width = UpdateTrack.ActualWidth;
+            UpdateNow.IsEnabled = false;
+            UpdateDetail.Text = "下载完成，校验通过。正在启动安装程序…";
+            if (Environment.GetEnvironmentVariable("FLOWLIGHT_DEV_PIPE") == "1"
+                && Environment.GetEnvironmentVariable("FLOWLIGHT_UPDATE_DRY_RUN") == "1")
+            {
+                // Development only: stop before anything is installed.
+                UpdateDetail.Text = "下载完成，校验通过（演练，未启动安装程序）";
+                updating = null;
+                return;
+            }
+            if (!Updater.Launch(path, release.Sha256))
+            {
+                ShowNotice("已取消安装。更新需要管理员权限，可以稍后在头像菜单里继续更新。", ErrorHold, NoticeKind.Warning);
+                updating = null;
+                ShowUpdate();
+                return;
+            }
+            quitting = true;
+            ReleaseResources();
+            System.Windows.Application.Current.Shutdown();
+        }
+        catch (OperationCanceledException) when (cancel.IsCancellationRequested)
+        {
+            ShowNotice("已取消下载", InfoHold);
+            updating = null;
+            ShowUpdate();
+        }
+        catch (Exception ex)
+        {
+            ShowNotice("更新失败：" + DescribeUpdate(ex), ErrorHold, NoticeKind.Error);
+            updating = null;
+            ShowUpdate();
+        }
+        finally
+        {
+            cancel.Dispose();
+        }
+    }
 
     // Re-selects the game, region and line of the session the service reports
     // as running, so a restarted or second client shows what is connected,

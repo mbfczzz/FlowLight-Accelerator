@@ -385,6 +385,34 @@ func TestCoverIndexIsFixedWhenAGameIsCreated(t *testing.T) {
 	}
 }
 
+func TestReleaseCheckNeedsNoTokenAndReportsRequiredUpdates(t *testing.T) {
+	s, token, _ := setup(t)
+	add := func(version string, required bool) {
+		t.Helper()
+		body := map[string]any{"version": version, "channel": "stable", "url": "https://example.com/setup-" + version + ".exe", "sha256": strings.Repeat("a", 64), "required": required, "published": true}
+		if w := request(s, token, "POST", "/api/admin/v1/releases", body, ""); w.Code != 200 {
+			t.Fatal(w.Body.String())
+		}
+	}
+	add("0.1.6", true)
+	add("0.1.7", false)
+	check := func(query string) Release {
+		t.Helper()
+		w := request(s, "", "GET", "/api/client/v1/releases/latest"+query, nil, "")
+		var out Release
+		if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &out) != nil {
+			t.Fatalf("release check without a token failed: %d %s", w.Code, w.Body.String())
+		}
+		return out
+	}
+	if r := check("?current=0.1.5"); r.Version != "0.1.7" || !r.Required {
+		t.Fatalf("0.1.5 skipped the required 0.1.6: %+v", r)
+	}
+	if r := check("?current=0.1.6"); r.Version != "0.1.7" || r.Required {
+		t.Fatalf("0.1.6 should be offered 0.1.7 as optional: %+v", r)
+	}
+}
+
 func TestPasswordLengthDependsOnRole(t *testing.T) {
 	s, token, _ := setup(t)
 	user := func(name, password, role string) map[string]any {

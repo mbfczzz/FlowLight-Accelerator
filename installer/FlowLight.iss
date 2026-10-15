@@ -98,6 +98,8 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Run]
 Filename: "{app}\{#ClientExe}"; Description: "{cm:LaunchClient}"; Flags: nowait postinstall skipifsilent runasoriginaluser
+; An update started from the client runs silently with /LAUNCH=1 and reopens it.
+Filename: "{app}\{#ClientExe}"; Flags: nowait runasoriginaluser; Check: LaunchAfterUpdate
 
 [UninstallRun]
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""{app}\service\configure-service.ps1"" -Uninstall -LogPath ""{app}\service\uninstall.log"""; Flags: runhidden waituntilterminated; RunOnceId: "RemoveService"
@@ -120,6 +122,11 @@ begin
   Result := Exec(PowerShell(), '-NoProfile -NonInteractive -ExecutionPolicy Bypass ' + Args, '',
     SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Log('powershell exit code ' + IntToStr(ResultCode));
+end;
+
+function LaunchAfterUpdate(): Boolean;
+begin
+  Result := WizardSilent() and (ExpandConstant('{param:LAUNCH|0}') = '1');
 end;
 
 function ControlUrl(): String;

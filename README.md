@@ -10,7 +10,7 @@
 |---|---|
 | apps/control-api | 账号、权限、设备、游戏规则、线路发布、会话、节点任务 |
 | apps/admin-web | 管理后台：深色侧栏＋浅色工作区，与客户端同一套流光标志与琥珀色；上线准备清单、资源列表、侧边编辑抽屉、游戏封面上传、发布、排空、版本切换、审计 |
-| apps/windows-client | 深色 WPF：登录、游戏库、选线、开始/停止、托盘、诊断 |
+| apps/windows-client | 深色 WPF：登录、游戏库、选线、开始/停止、托盘、诊断、检查并安装更新 |
 | apps/windows-service | Windows Service：命名管道、会话与内核生命周期 |
 | agents/node-agent | 一次性注册、mTLS、任务领取、真实转发进程、租约回收 |
 | apps/probe-server | 受控 TCP / UDP 探测端点 |
@@ -55,6 +55,14 @@ MySQL 保存权威状态，开发可用 SQLite。首版不依赖 Redis：原先�
 镜像默认私有：在仓库 Packages 设置里改为 public，或在服务器上 `docker login ghcr.io`（PAT 需 read:packages）。
 
 安装程序固定安装到 `C:\Program Files\FlowLight Accelerator`（客户端只信任这个路径下的服务）。控制服务地址已内置，用户无需填写：工作流默认写入 `https://accel.tcmzhan.com:8443`，在仓库变量里设置 `CONTROL_URL` 可覆盖（换域名时不必改代码）。安装向导仍会显示该地址，允许手工改成自建服务；静默安装用 `Setup.exe /VERYSILENT`，需要指定别的地址时加 `/CONTROLURL=https://...`。升级时直接运行新版安装程序，服务会先停止再替换；卸载会停止并删除服务及 ProgramData 下的配置。安装程序未签名，SmartScreen 会提示“未知发布者”，正式分发前需要代码签名。
+
+### 客户端自动更新（v0.1.6 起）
+
+1. 打 v* 标签，等 release 工作流完成。GitHub Release 的说明里会写出安装包文件名和 SHA256。
+2. 在管理后台“客户端版本”里新增：版本号（如 0.1.6）、下载地址（Release 页安装包的链接）、SHA256，打开“发布此版本”。需要强制升级时再打开“必须更新”。
+3. 客户端在连上本地服务时和之后每 4 小时检查一次，也可以在头像菜单里点“检查更新”。有新版本时游戏库顶部出现提示，点“立即更新”后下载并核对 SHA256，确认管理员权限后静默安装，装完自动打开新客户端；控制服务地址沿用原来的。
+
+检查接口 `/api/client/v1/releases/latest` 不需要登录，旧到无法登录的客户端也能找到更新。v0.1.5 及更早的客户端没有这个功能，需要手动装一次 v0.1.6。下载地址必须是 https；信任来自控制服务和 SHA256 校验，安装包本身没有代码签名。
 
 ## 服务器部署（host 网络，复用已有 MySQL）
 

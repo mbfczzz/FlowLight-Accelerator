@@ -57,6 +57,15 @@ jobs:
             installer/FlowLight.iss
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed with $LASTEXITCODE" }
           Get-ChildItem artifacts/installer
+      - name: Installer checksum
+        id: checksum
+        shell: pwsh
+        run: |
+          $file = Get-ChildItem artifacts/installer/*.exe | Select-Object -First 1
+          $sha = (Get-FileHash $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "name=$($file.Name)" >> $env:GITHUB_OUTPUT
+          "sha256=$sha" >> $env:GITHUB_OUTPUT
+          "### $($file.Name)`nSHA256: ``$sha``" >> $env:GITHUB_STEP_SUMMARY
       - uses: actions/upload-artifact@v4
         with:
           name: flowlight-windows-installer
@@ -67,6 +76,13 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: artifacts/installer/*.exe
+          # The admin's 客户端版本 needs the download link and this checksum;
+          # once a version is registered there, clients offer the update.
+          body: |
+            安装包：${{ steps.checksum.outputs.name }}
+            SHA256：`${{ steps.checksum.outputs.sha256 }}`
+
+            在管理后台“客户端版本”里新增这个版本：下载地址填本页安装包的链接，SHA256 填上面这串，打开“发布此版本”。客户端会在启动时和每隔几小时检查到它并提示更新。
           generate_release_notes: true
   images:
     runs-on: ubuntu-latest

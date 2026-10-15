@@ -327,9 +327,6 @@ func (s *Server) save(kind string) http.HandlerFunc {
 				if _, e := hex.DecodeString(in.SHA256); e != nil || len(in.SHA256) != 64 {
 					return badRequest("安装包 SHA256 应为 64 位十六进制字符")
 				}
-				if strings.TrimSpace(in.Signature) == "" {
-					return badRequest("请填写可信发布清单签名")
-				}
 				in.ID = id
 				// Editing an old release must not make it look newer.
 				in.CreatedAt = time.Now().UTC()
@@ -570,6 +567,16 @@ func (s *Server) latestRelease(w http.ResponseWriter, r *http.Request) {
 	for _, rel := range rows[1:] {
 		if c := compareVersions(rel.Version, best.Version); c > 0 || c == 0 && rel.CreatedAt.After(best.CreatedAt) {
 			best = rel
+		}
+	}
+	// With ?current=, required says whether the caller must update: any
+	// required release newer than its version counts, not only the latest.
+	if current := strings.TrimSpace(r.URL.Query().Get("current")); current != "" {
+		best.Required = false
+		for _, rel := range rows {
+			if rel.Required && compareVersions(rel.Version, current) > 0 {
+				best.Required = true
+			}
 		}
 	}
 	write(w, 200, best)

@@ -132,7 +132,6 @@ export function validate(kind: string, body: Row, initial: Row): Problem | null 
       ["sha256", /^[0-9a-fA-F]{64}$/.test(str(body.sha256))
         ? ""
         : "安装包 SHA256 应为 64 位十六进制字符"],
-      ["signature", str(body.signature).trim() ? "" : "请填写可信发布清单签名"],
     );
   }
   const first = checks.find(([, message]) => message);

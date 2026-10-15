@@ -482,13 +482,21 @@ export function Editor({
             <Field group label="发布渠道">
               <Segmented label="发布渠道" value={str("channel")} onChange={(v) => update("channel", v)} options={[["stable", "稳定版"], ["beta", "测试版"]]} />
             </Field>
-            {text("url", "下载地址", { placeholder: "https://…/FlowLight-Accelerator-Setup.exe", wide: true })}
-            {text("sha256", "安装包 SHA256", { placeholder: "64 位十六进制", wide: true })}
-            <Field label="可信发布清单签名" wide name="signature" error={err("signature")}>
+            {text("url", "下载地址", {
+              placeholder: "https://…/FlowLight-Accelerator-Setup.exe",
+              wide: true,
+              note: "客户端从这里下载安装包。GitHub Release 页面里安装包的链接即可，也可以放到自己的服务器或 CDN 上。",
+            })}
+            {text("sha256", "安装包 SHA256", {
+              placeholder: "64 位十六进制",
+              wide: true,
+              note: "客户端下载后核对，不一致就不会安装。GitHub Release 的说明里列有每个安装包的 SHA256。",
+            })}
+            <Field label="发布清单签名（可选）" wide name="signature" error={err("signature")} note="暂不校验，留作记录。">
               <textarea aria-invalid={!!err("signature") || undefined} value={str("signature")} onChange={(e) => update("signature", e.target.value)} />
             </Field>
-            {toggle("required", "必须更新", "低于此版本的客户端会被要求更新。")}
-            {toggle("published", "发布此版本", "关闭时只保存记录，客户端看不到。")}
+            {toggle("required", "必须更新", "低于此版本的客户端会被要求更新，提示不能关闭。")}
+            {toggle("published", "发布此版本", "开启后，客户端启动时和每隔几小时会检查到它并提示更新。")}
           </Section>
         );
     }

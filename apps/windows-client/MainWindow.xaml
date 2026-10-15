@@ -30,7 +30,7 @@
 
    <!-- Library: cover cards. -->
    <Grid x:Name="LibraryPage" MaxWidth="1320">
-    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
     <Grid Margin="32,26,32,0">
      <TextBlock Text="游戏库" Style="{StaticResource PageTitle}" VerticalAlignment="Center"/>
      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
@@ -38,7 +38,22 @@
       <Button x:Name="RefreshButton" Style="{StaticResource IconButton}" Margin="8,0,0,0" Height="40" Width="40" AutomationProperties.Name="刷新游戏与线路" ToolTip="刷新游戏与线路" Click="Refresh_Click"><local:Glyph Data="{StaticResource IconRefresh}" IconSize="19" Ink="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/></Button>
      </StackPanel>
     </Grid>
-    <Border Grid.Row="1" x:Name="RunningBanner" Style="{StaticResource Panel}" Margin="32,20,32,0" Padding="10" Visibility="Collapsed">
+    <!-- A newer client published in the admin: downloaded, checked and installed in place. -->
+    <Border Grid.Row="1" x:Name="UpdateBar" Style="{StaticResource Panel}" Margin="32,20,32,0" Padding="14,12" Visibility="Collapsed">
+     <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+      <Border Width="40" Height="40" CornerRadius="20" Background="{StaticResource AccentSoft}" VerticalAlignment="Center"><local:Glyph Data="{StaticResource IconDownload}" IconSize="20" Ink="{StaticResource Accent}" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+      <StackPanel Grid.Column="1" Margin="14,0,16,0" VerticalAlignment="Center">
+       <TextBlock x:Name="UpdateTitle" Text="" FontSize="14.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+       <TextBlock x:Name="UpdateDetail" Text="" Style="{StaticResource Meta}" Margin="0,4,0,0" TextTrimming="CharacterEllipsis"/>
+       <Grid x:Name="UpdateTrack" Height="4" Margin="0,9,0,0" Visibility="Collapsed"><Border Background="{StaticResource Elevated}" CornerRadius="2"/><Border x:Name="UpdateFill" Background="{StaticResource Accent}" CornerRadius="2" HorizontalAlignment="Left" Width="0"/></Grid>
+      </StackPanel>
+      <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+       <Button x:Name="UpdateLater" Content="稍后" MinWidth="72" Margin="0,0,8,0" Click="UpdateLater_Click"/>
+       <Button x:Name="UpdateNow" Style="{StaticResource Primary}" Content="立即更新" MinWidth="112" MinHeight="38" Padding="16,0" Click="UpdateNow_Click"/>
+      </StackPanel>
+     </Grid>
+    </Border>
+    <Border Grid.Row="2" x:Name="RunningBanner" Style="{StaticResource Panel}" Margin="32,20,32,0" Padding="10" Visibility="Collapsed">
      <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
       <local:GameCover x:Name="BannerCover" Width="112" Height="63" Radius="8"/>
       <StackPanel Grid.Column="1" Margin="18,0" VerticalAlignment="Center">
@@ -49,7 +64,7 @@
       <Button Grid.Column="3" Content="查看" MinWidth="88" Click="OpenRunning_Click"/>
      </Grid>
     </Border>
-    <Grid Grid.Row="2" Margin="32,20,16,0">
+    <Grid Grid.Row="3" Margin="32,20,16,0">
      <ListBox x:Name="GameList" AutomationProperties.Name="游戏列表" SelectionChanged="Game_Changed" PreviewKeyDown="GameList_PreviewKeyDown" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
       <ListBox.ItemsPanel><ItemsPanelTemplate><WrapPanel ItemWidth="{Binding CardWidth, RelativeSource={RelativeSource AncestorType=Window}}"/></ItemsPanelTemplate></ListBox.ItemsPanel>
       <ListBox.ItemContainerStyle>
@@ -216,6 +231,7 @@
     <Button Style="{StaticResource Ghost}" AutomationProperties.Name="切换账号" Click="Switch_Click"><StackPanel Orientation="Horizontal"><local:Glyph Data="{StaticResource IconSwap}" IconSize="17" Ink="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" VerticalAlignment="Center"/><TextBlock Text="切换账号" Margin="10,0,0,0" VerticalAlignment="Center" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/></StackPanel></Button>
     <Button x:Name="LogoutButton" Style="{StaticResource Ghost}" AutomationProperties.Name="退出登录" Click="Logout_Click"><StackPanel Orientation="Horizontal"><local:Glyph Data="{StaticResource IconLogout}" IconSize="17" Ink="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" VerticalAlignment="Center"/><TextBlock Text="退出登录" Margin="10,0,0,0" VerticalAlignment="Center" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/></StackPanel></Button>
     <Button Style="{StaticResource Ghost}" AutomationProperties.Name="连接诊断" Click="Diagnostics_Click"><StackPanel Orientation="Horizontal"><local:Glyph Data="{StaticResource IconPulse}" IconSize="17" Ink="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" VerticalAlignment="Center"/><TextBlock Text="复制连接诊断" Margin="10,0,0,0" VerticalAlignment="Center" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/></StackPanel></Button>
+    <Button x:Name="MenuUpdate" Style="{StaticResource Ghost}" AutomationProperties.Name="检查更新" Click="MenuUpdate_Click"><StackPanel Orientation="Horizontal"><local:Glyph Data="{StaticResource IconDownload}" IconSize="17" Ink="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" VerticalAlignment="Center"/><TextBlock x:Name="MenuUpdateText" Text="检查更新" Margin="10,0,0,0" VerticalAlignment="Center" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/></StackPanel></Button>
     <Border Height="1" Background="{StaticResource Border}" Margin="4,6,4,6"/>
     <Button Style="{StaticResource Ghost}" AutomationProperties.Name="退出流光加速器" ToolTip="停止加速并关闭客户端" Click="Exit_Click"><StackPanel Orientation="Horizontal"><local:Glyph Data="{StaticResource IconPower}" IconSize="17" Ink="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" VerticalAlignment="Center"/><TextBlock Text="退出流光加速器" Margin="10,0,0,0" VerticalAlignment="Center" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/></StackPanel></Button>
     <TextBlock x:Name="VersionLabel" Text="" Style="{StaticResource Caption}" FontFamily="{StaticResource DataFont}" Margin="10,8,10,6"/>

@@ -89,7 +89,8 @@ func (s *Server) Handler() http.Handler {
 	m.HandleFunc("GET /api/client/v1/sessions/{id}", s.auth(s.getSession))
 	m.HandleFunc("POST /api/client/v1/sessions/{id}/heartbeat", s.auth(s.heartbeatSession))
 	m.HandleFunc("POST /api/client/v1/sessions/{id}/stop", s.auth(s.stopSession))
-	m.HandleFunc("GET /api/client/v1/releases/latest", s.auth(s.latestRelease))
+	// No token: a client too old to sign in must still find its update.
+	m.HandleFunc("GET /api/client/v1/releases/latest", s.latestRelease)
 	for _, kind := range []string{"games", "nodes", "endpoints", "lines", "bindings", "users", "devices", "sessions", "jobs", "audits", "releases"} {
 		m.HandleFunc("GET /api/admin/v1/"+kind, s.auth(s.list(kind), "viewer", "operator", "publisher"))
 	}
