@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Ellipsis, Eye, History, KeyRound, LoaderCircle, OctagonX, Pause, Pencil, Play, Rocket } from "lucide-react";
+import { Ellipsis, Eye, History, LoaderCircle, OctagonX, Pause, Pencil, Play, Rocket, Terminal } from "lucide-react";
 import type { Row } from "../api";
 import {
   drainLine,
@@ -77,7 +77,7 @@ export function RowActions({
         guarded(publishLine(row), "发布", <Rocket size={14} />, row.published_version ? undefined : "emphasis")}
       {section === "nodes" &&
         canEdit &&
-        guarded(regenerateEnrollment(row), "注册凭据", <KeyRound size={14} />, row.agent_version ? undefined : "emphasis")}
+        guarded(regenerateEnrollment(row), "接入命令", <Terminal size={14} />, row.agent_version ? undefined : "emphasis")}
       {section === "sessions" &&
         canEdit &&
         row.state !== "CLOSED" &&

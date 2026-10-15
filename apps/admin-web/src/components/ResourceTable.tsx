@@ -21,7 +21,7 @@ function countLabel(loaded: number, matched: number, searching: boolean, hasMore
 const emptyNotes: Record<string, string> = {
   games: "添加一款游戏，填写区服和进程后发布规则，客户端才会显示它。",
   lines: "线路由服务端点组成，发布并通过探测后玩家才能选择。",
-  nodes: "添加服务器后生成注册凭据，在服务器上运行节点 Agent 完成注册；之后在“服务端点”里为它开入口、中转或落地服务。",
+  nodes: "添加服务器后点“接入命令”，在服务器上运行这条命令即可装好节点程序并完成注册；之后在“服务端点”里为它开入口、中转或落地服务。",
   endpoints: "端点是开在节点服务器上的一个入口、中转或落地服务。先添加节点服务器，再在这里为它开服务。",
   bindings: "把落地端点分配给指定用户，可共享或独享。",
   users: "为玩家和运维人员开通账号。",

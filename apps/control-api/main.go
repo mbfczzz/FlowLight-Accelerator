@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"net/netip"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -54,7 +55,11 @@ func main() {
 		}
 		proxies = append(proxies, p)
 	}
-	server, e := control.New(store, control.Config{MetricsToken: os.Getenv("METRICS_TOKEN"), TrustedProxies: proxies, Origin: env("ADMIN_ORIGIN", "http://localhost:5173"), AllowImported: os.Getenv("ALLOW_IMPORTED") == "true", RequireMTLS: prod || os.Getenv("NODE_MTLS_REQUIRED") == "true", CAPath: filepath.Join(dir, "pki"), ProbeURL: os.Getenv("PROBE_URL"), ProbeUDP: os.Getenv("PROBE_UDP"), ProbeNodeID: os.Getenv("PROBE_NODE_ID")})
+	publicURL := strings.TrimRight(strings.TrimSpace(os.Getenv("PUBLIC_URL")), "/")
+	if u, e := url.Parse(publicURL); publicURL != "" && (e != nil || u.Host == "" || (u.Scheme != "https" && (prod || u.Scheme != "http"))) {
+		log.Fatal("PUBLIC_URL must be the control service's https:// address")
+	}
+	server, e := control.New(store, control.Config{PublicURL: publicURL, NodeDist: env("NODE_DIST", "/opt/flowlight/node"), MetricsToken: os.Getenv("METRICS_TOKEN"), TrustedProxies: proxies, Origin: env("ADMIN_ORIGIN", "http://localhost:5173"), AllowImported: os.Getenv("ALLOW_IMPORTED") == "true", RequireMTLS: prod || os.Getenv("NODE_MTLS_REQUIRED") == "true", CAPath: filepath.Join(dir, "pki"), ProbeURL: os.Getenv("PROBE_URL"), ProbeUDP: os.Getenv("PROBE_UDP"), ProbeNodeID: os.Getenv("PROBE_NODE_ID")})
 	if e != nil {
 		log.Fatal(e)
 	}

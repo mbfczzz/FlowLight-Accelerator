@@ -24,7 +24,7 @@ func (s *Server) enrollment(w http.ResponseWriter, r *http.Request) {
 		}
 		return audit(tx, actor(r).ID, "node.enroll", n.ID, "")
 	})
-	respond(w, map[string]any{"node_id": r.PathValue("id"), "bootstrap_secret": token, "node_ca": string(s.CA.PEM)}, e)
+	respond(w, map[string]any{"node_id": r.PathValue("id"), "bootstrap_secret": token, "node_ca": string(s.CA.PEM), "control_url": s.Config.PublicURL}, e)
 }
 func (s *Server) registerNode(w http.ResponseWriter, r *http.Request) {
 	var in struct {

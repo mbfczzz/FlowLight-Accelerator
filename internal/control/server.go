@@ -12,6 +12,7 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 )
@@ -34,12 +35,19 @@ type Config struct {
 	// MetricsToken is a long-lived read-only credential for scraping
 	// /metrics. Access tokens are too short lived for a scrape config.
 	MetricsToken string
+	// PublicURL is the control service's address as nodes and clients
+	// reach it; the admin builds the node install command from it.
+	PublicURL string
+	// NodeDist holds the node package served under /dist/node/.
+	NodeDist string
 }
 type Server struct {
 	Store   *Store
 	Config  Config
 	limiter limiter
 	CA      *Authority
+	// sums caches the node package checksums per arch.
+	sums sync.Map
 }
 
 func New(store *Store, c Config) (*Server, error) {
@@ -72,6 +80,8 @@ func (s *Server) Handler() http.Handler {
 		write(w, 200, map[string]string{"status": "ok", "service": "flowlight-control", "version": "0.1.0"})
 	})
 	m.HandleFunc("GET /metrics", s.metricsAuth(s.metrics))
+	m.HandleFunc("GET /dist/node/install.sh", s.nodeInstall)
+	m.HandleFunc("GET /dist/node/{arch}/{name}", s.nodeFile)
 	for _, prefix := range []string{"/api/client/v1", "/api/admin/v1"} {
 		m.HandleFunc("POST "+prefix+"/auth/login", s.login)
 		m.HandleFunc("POST "+prefix+"/auth/refresh", s.refresh)
@@ -139,7 +149,7 @@ func (s *Server) Handler() http.Handler {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Vary", "Origin")
 			w.Header().Set("Access-Control-Allow-Headers", "Authorization,Content-Type,Idempotency-Key")
-			w.Header().Set("Access-Control-Allow-Methods", "GET,POST,PATCH,OPTIONS")
+			w.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
 		}
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(204)

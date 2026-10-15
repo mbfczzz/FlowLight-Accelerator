@@ -18,6 +18,8 @@ export type Confirmable = {
   body?: unknown;
   /** Notice shown once the request succeeds. */
   success: string;
+  /** The row's display name, for what the action opens afterwards. */
+  subject?: string;
 };
 
 const DONE = "操作已完成";
@@ -126,13 +128,15 @@ export function regenerateEnrollment(row: Row): Confirmable {
   return {
     lock: rowLock("nodes", row.id),
     action: "enroll",
-    title: "生成注册凭据",
+    subject: nameOf(row),
+    title: row.agent_version ? "重新生成接入命令" : "生成接入命令",
     message:
-      "将为节点「" +
+      "将为「" +
       nameOf(row) +
-      "」生成新的一次性注册凭据。此前签发且尚未使用的凭据会立即失效。",
-    confirmLabel: "生成凭据",
+      "」生成一条带一次性凭据的接入命令，在服务器上运行它即可安装节点程序并完成注册。此前生成且尚未使用的凭据会立即失效。" +
+      (row.agent_version ? "这台服务器已经注册过；只是更新节点程序时，用不带凭据的同一命令即可，不需要重新生成。" : ""),
+    confirmLabel: "生成命令",
     path: "/nodes/" + row.id + "/enrollment",
-    success: DONE,
+    success: "已生成接入命令",
   };
 }

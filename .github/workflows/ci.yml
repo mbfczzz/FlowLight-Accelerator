@@ -40,6 +40,61 @@ jobs:
         with:
           name: flowlight-linux-amd64
           path: artifacts/linux
+  node-install:
+    # Runs the admin's one-line node install for real: a control service on
+    # this runner serves the package, the script installs and registers the
+    # agent under systemd, the node's heartbeat arrives, and a second run
+    # upgrades it in place.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Build the control service and the node package
+        run: |
+          CGO_ENABLED=0 go build -trimpath -o /tmp/control ./apps/control-api
+          mkdir -p /tmp/node/amd64
+          CGO_ENABLED=0 go build -trimpath -o /tmp/node/amd64/flowlight-node ./agents/node-agent
+          sh deploy/node/fetch-tools.sh /tmp/tools
+          cp /tmp/tools/amd64/* /tmp/node/amd64/
+      - name: Start the control service
+        run: |
+          mkdir -p /tmp/control-data
+          ADMIN_PASSWORD=ci-admin-password-1 ADMIN_ORIGIN=http://127.0.0.1:5173 DATA_DIR=/tmp/control-data \
+            LISTEN_ADDR=127.0.0.1:8090 NODE_DIST=/tmp/node PUBLIC_URL=http://127.0.0.1:8090 \
+            nohup /tmp/control > /tmp/control.log 2>&1 &
+          for i in $(seq 1 30); do curl -fs http://127.0.0.1:8090/healthz && break; sleep 1; done
+      - name: Install and register a node with the admin's command
+        run: |
+          set -euo pipefail
+          api=http://127.0.0.1:8090/api/admin/v1
+          h=(-H 'Content-Type: application/json' -H 'Origin: http://127.0.0.1:5173')
+          token=$(curl -fsS "${h[@]}" -d '{"username":"admin","password":"ci-admin-password-1"}' $api/auth/login | jq -r .access_token)
+          h+=(-H "Authorization: Bearer $token")
+          node=$(curl -fsS "${h[@]}" -d '{"name":"CI-01","region":"us","address":"127.0.0.1","enabled":true,"capabilities":{"tcp":true,"udp":true,"ipv4":true,"managed":true}}' $api/nodes | jq -r .id)
+          enroll=$(curl -fsS "${h[@]}" -X POST $api/nodes/$node/enrollment)
+          control=$(jq -r .control_url <<<"$enroll")
+          secret=$(jq -r .bootstrap_secret <<<"$enroll")
+          curl -fsSL "$control/dist/node/install.sh" | sudo bash -s -- --control "$control" --node "$node" --secret "$secret" --dev-http
+          seen=""
+          for i in $(seq 1 30); do
+            seen=$(curl -fsS "${h[@]}" $api/nodes | jq -r --arg id "$node" '.[] | select(.id == $id) | .last_seen // empty')
+            [ -n "$seen" ] && break
+            sleep 2
+          done
+          [ -n "$seen" ] || { echo "the node never sent a heartbeat"; exit 1; }
+          echo "heartbeat at $seen"
+          echo "NODE_ID=$node" >> "$GITHUB_ENV"
+      - name: Run the same command without a secret to upgrade
+        run: |
+          curl -fsSL http://127.0.0.1:8090/dist/node/install.sh | sudo bash -s -- --control http://127.0.0.1:8090 --node "$NODE_ID" --dev-http
+          systemctl is-active flowlight-node
+      - if: failure()
+        run: |
+          sudo journalctl -u flowlight-node -n 80 --no-pager || true
+          cat /tmp/control.log || true
   web:
     runs-on: ubuntu-latest
     defaults:

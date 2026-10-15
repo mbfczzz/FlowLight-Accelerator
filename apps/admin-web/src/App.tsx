@@ -132,7 +132,7 @@ function Workspace({
     setActionError("");
     try {
       const result = await api(spec.path, "POST", spec.body);
-      if (spec.action === "enroll") setEnroll(result);
+      if (spec.action === "enroll") setEnroll({ ...result, node_name: spec.subject });
       if (spec.action === "rollback")
         setDetail((d) =>
           d?.versions && rowLock("lines", d.line_id) === spec.lock ? null : d,
@@ -334,7 +334,8 @@ function Workspace({
       {enroll && (
         <EnrollmentModal
           enroll={enroll}
-          onCopied={() => setNotice("已复制注册信息")}
+          name={enroll.node_name}
+          onCopied={(what) => setNotice(what)}
           onClose={() => setEnroll(null)}
         />
       )}

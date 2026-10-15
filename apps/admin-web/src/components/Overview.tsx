@@ -65,8 +65,8 @@ const steps: Step[] = [
     done: (o) => (known(count(o, "online_nodes")) ? count(o, "online_nodes")! > 0 : undefined),
     detail: (o) =>
       known(count(o, "nodes"), count(o, "online_nodes"))
-        ? `已添加 ${count(o, "nodes")} 台，在线 ${count(o, "online_nodes")} 台。添加服务器后生成注册凭据，在服务器上运行节点 Agent。`
-        : "添加服务器后生成注册凭据，在服务器上运行节点 Agent。",
+        ? `已添加 ${count(o, "nodes")} 台，在线 ${count(o, "online_nodes")} 台。添加服务器后点“接入命令”，在服务器上运行它。`
+        : "添加服务器后点“接入命令”，在服务器上运行它。",
     section: "nodes",
     action: "管理节点",
   },

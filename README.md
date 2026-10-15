@@ -98,6 +98,14 @@ Windows 客户端安装时填写的控制服务地址即 `https://控制服务�
 
 ## 节点部署
 
+一键接入：在后台“节点服务器”里添加服务器，点这一行的“接入命令”，把弹窗里的命令用 root 在这台服务器上运行：
+
+    curl -fsSL https://<控制服务>/dist/node/install.sh | sudo bash -s -- --control https://<控制服务> --node <节点标识> --secret <一次性凭据>
+
+脚本由控制服务提供，节点程序也从控制服务下载（控制服务镜像构建时编译 Agent，并按 deploy/node/fetch-tools.sh 下载固定版本、校验过 SHA256 的 shadowsocks-rust 与 Realm，x86_64 和 arm64 各一份），所以节点服务器只需要能访问控制服务的 8443 端口。脚本会：校验下载的文件、创建 flowlight-node 账号、安装到 /opt/flowlight/bin、写 /etc/flowlight/node.json（含各程序的 SHA256）和 systemd 服务、启动并等待注册成功；失败时打印最近的日志和常见原因。命令里的凭据 15 分钟内有效、只能用一次。之后用不带 --secret 的同一命令再运行一次即可更新节点程序，注册信息保留；要把服务器重新注册（例如换成另一个节点），重新生成接入命令并在末尾加 --reenroll。控制服务需要设置 PUBLIC_URL（对外的 https 地址），否则弹窗里要手动填一次控制服务地址。CI 的 node-install 任务在带 systemd 的 Ubuntu 上实际运行这条命令，确认节点注册并发出心跳，再以不带凭据的方式运行一次验证升级。
+
+手动部署：
+
     go build -trimpath -o flowlight-node ./agents/node-agent
 
 将 Agent 与校验过的 ssserver、sslocal、realm 放入 /opt/flowlight/bin/。参考 deploy/node-agent.example.json，填写各可执行文件的 SHA256，把配置写入仅节点服务账号可读的 /etc/flowlight/node.json。

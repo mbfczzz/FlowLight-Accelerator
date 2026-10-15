@@ -109,7 +109,7 @@ const auditActions: Record<string, string> = {
   "line.rollback": "切换线路版本",
   "line.drain": "排空或恢复线路",
   "line.terminate": "终止线路",
-  "node.enroll": "生成注册凭据",
+  "node.enroll": "生成接入命令",
   "node.register": "节点注册",
   "node.certificate.renew": "节点证书续期",
   "egress.register": "注册自备落地",
