@@ -129,7 +129,7 @@ Windows 客户端安装时填写的控制服务地址即 `https://控制服务�
   探测服务优先用 -tls-cert / -tls-key 直接提供 HTTPS。若放在反向代理后，必须用 -trusted-proxies 指定代理网段，并由代理设置 X-Forwarded-For，否则读到的是代理地址，固定出口线路无法通过验证。
 - 发布线路并查看任务。完整路径的 TCP / UDP 探测通过后才对客户端开放。
 
-导入线路默认关闭。设置 ALLOW_IMPORTED=true 可使用 imported 或 hybrid 模式；纯导入线路还需要 PROBE_NODE_ID 指向在线探测 Agent。外部静态凭据不能由本平台撤销，相关会话标记 external-credentials。混合线路可撤销平台入口的转发进程。
+导入线路默认关闭。设置 ALLOW_IMPORTED=true 可使用 hybrid（平台入口＋自带落地）模式。后台不再提供纯导入（imported）模式：所有玩家共用一个固定密码，平台无法单独吊销；控制服务仍能运行已有的纯导入线路，它们还需要 PROBE_NODE_ID 指向在线探测 Agent。外部静态凭据不能由本平台撤销，相关会话标记 external-credentials。混合线路可撤销平台入口的转发进程。
 
 用户可通过 API 登记自带 SS2022 落地，运营人员为其配置只允许该用户的线路并完成验证。独享与固定 IP 分别配置。
 

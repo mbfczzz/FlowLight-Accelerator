@@ -298,7 +298,12 @@ export function Editor({
                   onChange={(v) => update("mode", v)}
                   options={[
                     ["managed", "平台托管", "节点由平台按会话开通和回收"],
-                    ["imported", "导入现成线路", "使用已有的 SS2022 服务"],
+                    // No longer offered: a single shared static password the
+                    // platform cannot revoke. Shown only so a line that
+                    // already uses it can be moved to another mode.
+                    ...(initial.mode === "imported"
+                      ? [["imported", "导入现成线路", "使用已有的 SS2022 服务"] as [string, string, string]]
+                      : []),
                     ["hybrid", "平台入口＋自带落地", "入口由平台托管，落地自备"],
                   ]}
                 />
