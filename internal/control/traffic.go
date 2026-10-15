@@ -172,7 +172,7 @@ func (s *Server) traffic(w http.ResponseWriter, r *http.Request) {
 	group := func(col string) ([]trafficShare, error) {
 		out := []trafficShare{}
 		e := db.Session(&gorm.Session{}).Select(col + " AS id, SUM(bytes) AS bytes, COUNT(DISTINCT session_id) AS sessions").
-			Group(col).Order("bytes DESC").Limit(10).Scan(&out).Error
+			Group(col).Order("SUM(bytes) DESC").Limit(10).Scan(&out).Error
 		return out, e
 	}
 	out := map[string]any{"from": from, "days": days, "tz": tz, "series": series, "totals": totals}

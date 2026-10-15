@@ -11,11 +11,19 @@ import (
 func TestNodeUsageCountsGrowthFromTheExitOnly(t *testing.T) {
 	s, token, u := setup(t)
 	fixture(t, s, u)
-	s.Store.DB.Create(&Node{ID: "node-2", Name: "relay", Address: "relay.example", Enabled: true, TokenHash: hash("relay-token")})
-	s.Store.DB.Create(&LineVersion{ID: "lv-1", LineID: "line-x", Number: 1, Status: "ready", Hops: []c.Hop{{EndpointID: "relay", NodeID: "node-2"}, {EndpointID: "ep-1", NodeID: "node-1"}}})
 	now := time.Now().UTC()
-	s.Store.DB.Create(&Session{ID: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", UserID: u.ID, GameID: "valorant", LineID: "line-x", LineVersion: "lv-1", Purpose: "game", State: "ACTIVE", CreatedAt: now, LeaseUntil: now.Add(time.Minute)})
-	s.Store.DB.Create(&Session{ID: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", UserID: u.ID, LineID: "line-x", LineVersion: "lv-1", Purpose: "validation", State: "ACTIVE", CreatedAt: now, LeaseUntil: now.Add(time.Minute)})
+	// Every timestamp is set: strict MySQL rejects zero dates, and a row
+	// that failed to insert would only show up as missing traffic.
+	for _, row := range []any{
+		&Node{ID: "node-2", Name: "relay", Address: "relay.example", Enabled: true, TokenHash: hash("relay-token")},
+		&LineVersion{ID: "lv-1", LineID: "line-x", Number: 1, Status: "ready", Hops: []c.Hop{{EndpointID: "relay", NodeID: "node-2"}, {EndpointID: "ep-1", NodeID: "node-1"}}, CreatedAt: now},
+		&Session{ID: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", UserID: u.ID, GameID: "valorant", LineID: "line-x", LineVersion: "lv-1", Purpose: "game", State: "ACTIVE", CreatedAt: now, PrepareUntil: now.Add(time.Minute), LeaseUntil: now.Add(time.Minute)},
+		&Session{ID: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", UserID: u.ID, LineID: "line-x", LineVersion: "lv-1", Purpose: "validation", State: "ACTIVE", CreatedAt: now, PrepareUntil: now.Add(time.Minute), LeaseUntil: now.Add(time.Minute)},
+	} {
+		if e := s.Store.DB.Create(row).Error; e != nil {
+			t.Fatal(e)
+		}
+	}
 
 	report := func(nodeToken, session string, bytes int64) {
 		t.Helper()
