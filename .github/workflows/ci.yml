@@ -113,6 +113,21 @@ jobs:
         with:
           name: flowlight-admin-web
           path: apps/admin-web/dist
+      - name: Admin image config passes nginx -t and answers /dist/ with a script
+        working-directory: .
+        run: |
+          docker build -q -f deploy/admin.Dockerfile -t flowlight-admin-check . >/dev/null
+          docker run --rm -e API_UPSTREAM=https://127.0.0.1:8443 -e CONTROL_TLS_SERVER_NAME=localhost flowlight-admin-check nginx -t
+          docker run -d --name admin-check -p 8088:80 -e API_UPSTREAM=https://127.0.0.1:8443 -e CONTROL_TLS_SERVER_NAME=localhost flowlight-admin-check
+          for i in $(seq 1 20); do curl -fs -o /dev/null http://127.0.0.1:8088/ && break; sleep 1; done
+          out=$(curl -fsS http://127.0.0.1:8088/dist/node/install.sh | bash 2>&1 || true)
+          echo "$out"
+          grep -q '管理后台的地址' <<<"$out"
+          # The page itself carries the security headers (a location with its
+          # own add_header would otherwise drop them).
+          curl -fsSI http://127.0.0.1:8088/ | grep -qi '^content-security-policy:'
+          curl -fsSI http://127.0.0.1:8088/some/route | grep -qi '^content-security-policy:'
+          docker rm -f admin-check
   windows:
     runs-on: windows-latest
     steps:

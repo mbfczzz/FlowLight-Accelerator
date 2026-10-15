@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Copy, Terminal } from "lucide-react";
+import { CircleAlert, Copy, Terminal } from "lucide-react";
 import type { Row } from "../api";
 import { Field } from "./controls";
 import { Modal } from "./Modal";
@@ -26,6 +26,19 @@ function validAddress(v: string) {
 }
 
 /**
+ * Whether an address is this admin site, which serves only the admin page
+ * and forwards /api/. Compared as origins, so a trailing slash, an explicit
+ * :443 or upper case does not hide it.
+ */
+function isAdminSite(v: string) {
+  try {
+    return new URL(v).origin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Joins a node server: one command that downloads the node programs from
  * the control service, registers with the one-time secret and starts the
  * agent. The control service names its own address (PUBLIC_URL); when it
@@ -42,11 +55,14 @@ export function EnrollmentModal({
   onCopied: (what: string) => void;
   onClose: () => void;
 }) {
-  const given = typeof enroll.control_url === "string" ? enroll.control_url : "";
-  const fixed = validAddress(given) ? given : "";
+  const given = typeof enroll.control_url === "string" ? enroll.control_url.replace(/\/+$/, "") : "";
+  // PUBLIC_URL set to the admin's own address would produce a command that
+  // downloads this page; ask for the address instead.
+  const fixed = validAddress(given) && !isAdminSite(given) ? given : "";
   const [typed, setTyped] = useState(remembered);
   const control = (fixed || typed.trim()).replace(/\/+$/, "");
-  const ready = validAddress(control);
+  const admin = validAddress(control) && isAdminSite(control);
+  const ready = validAddress(control) && !admin;
   const local = control.startsWith("http:");
   const command = ready
     ? `curl -fsSL ${control}/dist/node/install.sh | sudo bash -s -- --control ${control} --node ${enroll.node_id} --secret ${enroll.bootstrap_secret}` +
@@ -64,7 +80,12 @@ export function EnrollmentModal({
         {!fixed && (
           <Field
             label="控制服务地址"
-            note="节点服务器连接的 https 地址，例如 https://accel.example.com:8443。在服务器配置 PUBLIC_URL 后这里会自动填好。"
+            note={
+              (given && isAdminSite(given)
+                ? "服务器配置的 PUBLIC_URL 是管理后台的地址，节点用不了，请把它改成控制服务地址。"
+                : "") +
+              "节点服务器直接连接的控制服务 https 地址（不是管理后台地址），通常带 :8443，例如 https://accel.example.com:8443。在服务器配置 PUBLIC_URL 后这里会自动填好。"
+            }
           >
             <input
               value={typed}
@@ -87,6 +108,12 @@ export function EnrollmentModal({
           </div>
           <code>{command || "填写控制服务地址后生成命令"}</code>
         </div>
+        {admin && (
+          <div className="alert" role="alert">
+            <CircleAlert size={16} />
+            <span>这是管理后台的地址。节点要直接连接控制服务，请填写控制服务地址（通常是同一域名下的 :8443 端口，或单独的控制服务域名）。</span>
+          </div>
+        )}
         <button className="primary" disabled={!ready} onClick={() => copy(command, "已复制接入命令")}>
           <Copy size={15} />
           复制命令

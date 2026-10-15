@@ -21,6 +21,26 @@ server {
   proxy_set_header X-Real-IP $remote_addr;
   proxy_read_timeout 35s;
  }
- location /assets/ { add_header Cache-Control "public, max-age=31536000, immutable"; }
- location / { add_header Cache-Control "no-cache"; try_files $uri /index.html; }
+ # Node servers fetch their installer from the control service itself. An
+ # install command pointed at this admin address gets a short script that
+ # explains the mistake, rather than the admin page fed to bash.
+ location /dist/ {
+  default_type text/plain;
+  return 200 "echo '失败：这是管理后台的地址，节点不能通过它安装。请在后台“接入命令”里使用控制服务地址（节点直接连接的 https 地址，通常带 :8443）。' >&2; exit 1";
+ }
+ # A location with its own add_header drops the server's, so the security
+ # headers are repeated where the page and its assets are served.
+ location /assets/ {
+  add_header Cache-Control "public, max-age=31536000, immutable";
+  add_header X-Content-Type-Options nosniff always;
+  add_header Referrer-Policy same-origin always;
+  add_header Content-Security-Policy "default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; frame-ancestors 'none'; base-uri 'self'" always;
+ }
+ location / {
+  add_header Cache-Control "no-cache";
+  add_header X-Content-Type-Options nosniff always;
+  add_header Referrer-Policy same-origin always;
+  add_header Content-Security-Policy "default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; frame-ancestors 'none'; base-uri 'self'" always;
+  try_files $uri /index.html;
+ }
 }

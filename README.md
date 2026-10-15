@@ -102,7 +102,7 @@ Windows 客户端安装时填写的控制服务地址即 `https://控制服务�
 
     curl -fsSL https://<控制服务>/dist/node/install.sh | sudo bash -s -- --control https://<控制服务> --node <节点标识> --secret <一次性凭据>
 
-脚本由控制服务提供，节点程序也从控制服务下载（控制服务镜像构建时编译 Agent，并按 deploy/node/fetch-tools.sh 下载固定版本、校验过 SHA256 的 shadowsocks-rust 与 Realm，x86_64 和 arm64 各一份），所以节点服务器只需要能访问控制服务的 8443 端口。脚本会：校验下载的文件、创建 flowlight-node 账号、安装到 /opt/flowlight/bin、写 /etc/flowlight/node.json（含各程序的 SHA256）和 systemd 服务、启动并等待注册成功；失败时打印最近的日志和常见原因。命令里的凭据 15 分钟内有效、只能用一次。之后用不带 --secret 的同一命令再运行一次即可更新节点程序，注册信息保留；要把服务器重新注册（例如换成另一个节点），重新生成接入命令并在末尾加 --reenroll。控制服务需要设置 PUBLIC_URL（对外的 https 地址），否则弹窗里要手动填一次控制服务地址。CI 的 node-install 任务在带 systemd 的 Ubuntu 上实际运行这条命令，确认节点注册并发出心跳，再以不带凭据的方式运行一次验证升级。
+脚本由控制服务提供，节点程序也从控制服务下载（控制服务镜像构建时编译 Agent，并按 deploy/node/fetch-tools.sh 下载固定版本、校验过 SHA256 的 shadowsocks-rust 与 Realm，x86_64 和 arm64 各一份），所以节点服务器只需要能访问控制服务的 8443 端口。脚本会：校验下载的文件、创建 flowlight-node 账号、安装到 /opt/flowlight/bin、写 /etc/flowlight/node.json（含各程序的 SHA256）和 systemd 服务、启动并等待注册成功；失败时打印最近的日志和常见原因。命令里的凭据 15 分钟内有效、只能用一次。之后用不带 --secret 的同一命令再运行一次即可更新节点程序，注册信息保留；要把服务器重新注册（例如换成另一个节点），重新生成接入命令并在末尾加 --reenroll。控制服务需要设置 PUBLIC_URL（节点直接连接的 https 地址，例如 https://accel.example.com:8443），否则弹窗里要手动填一次。这里必须是控制服务地址而不是管理后台地址：后台只转发 /api/，节点还要用客户端证书直连控制服务。弹窗会拒绝后台自己的地址；后台的 /dist/ 会返回一段只打印说明并退出的脚本，避免把网页交给 bash。CI 的 node-install 任务在带 systemd 的 Ubuntu 上实际运行这条命令，确认节点注册并发出心跳，再以不带凭据的方式运行一次验证升级。
 
 手动部署：
 
