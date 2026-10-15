@@ -47,6 +47,15 @@ function Text-ById($root, $id) {
   $el = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $cond)
   if ($el) { return $el.Current.Name } else { return '(none)' }
 }
+function ById($root, $id) {
+  $cond = New-Object System.Windows.Automation.PropertyCondition($AE::AutomationIdProperty, $id)
+  for ($i = 0; $i -lt 40; $i++) { $el = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $cond); if ($el) { return $el }; Start-Sleep -Milliseconds 250 }
+  throw "element not found: $id"
+}
+function Items($root, $id) { (ById $root $id).FindAll([System.Windows.Automation.TreeScope]::Children, (New-Object System.Windows.Automation.PropertyCondition($AE::ControlTypeProperty, $CT::ListItem))) }
+function Pick($el) { $el.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select() }
+function Nav($root, $id) { Pick (ById $root $id); Start-Sleep -Milliseconds 800; Log "nav $id" }
+function Dial($root) { Text-ById $root 'ActionButton' }
 # Another app can steal the foreground mid-run (it happened); never send keys
 # until the client really is in front.
 function Focus-Client {
@@ -59,66 +68,81 @@ function Focus-Client {
 }
 function Keys($k) { Focus-Client | Out-Null; [System.Windows.Forms.SendKeys]::SendWait($k); Start-Sleep -Milliseconds 600 }
 function Buttons($root) { (FindAll $root $CT::Button | ForEach-Object { $_.Current.Name + $(if (-not $_.Current.IsEnabled) { '(灰)' }) }) -join ' | ' }
-# Account actions live in the menu behind the avatar; open it first.
-function Menu-Click($root, $name) { Click $root '账号菜单'; Start-Sleep -Milliseconds 500; Click $root $name }
+# Account actions live in the menu behind the avatar at the bottom of the rail.
+function Menu-Click($root, $name) { Click $root '账号'; Start-Sleep -Milliseconds 500; Click $root $name }
 
 try {
   Get-Process FlowLight.Client -ErrorAction SilentlyContinue | Stop-Process -Force
   Start-Fake
   $root = Launch; Start-Sleep -Seconds 2
 
-  # 1. Wrong password, then Enter to submit the right one.
+  # 1. Wrong password, then Enter to submit the right one; lands on the library.
   Type-Into $root '账号' 'tester'; Type-Into $root '密码' 'wrong'
   Click $root '登录'; Start-Sleep -Seconds 2; Shot 'e01-wrong-password'
   Type-Into $root '密码' 'pw'; (Find $root $CT::Edit '密码').SetFocus(); Keys '{ENTER}'; Start-Sleep -Seconds 3
-  Shot 'e02-logged-in'
+  Shot 'e02-library'
   Log ("buttons: " + (Buttons $root))
 
-  # 2. Dropdowns as the user opens them; the unavailable line is listed but cannot be picked.
-  $combos = FindAll $root $CT::ComboBox
-  $combos[0].SetFocus(); Keys '{F4}'; Shot 'e03-region-dropdown-open'; Keys '{ESC}'
-  $combos[1].SetFocus(); Keys '{F4}'; Shot 'e04-line-dropdown-open'; Keys '{ESC}'
-  Focus-Client | Out-Null; $combos[1].SetFocus(); Keys '{DOWN}'; Keys '{DOWN}'; Start-Sleep -Seconds 1; Shot 'e05-after-down-twice'
-  Log ("line after Down twice: " + (($combos[1].GetCurrentPattern([System.Windows.Automation.SelectionPattern]::Pattern).Current.GetSelection() | ForEach-Object { $_.Current.Name }) -join ','))
-  Keys '{UP}'; Keys '{UP}'
+  # 2. Open the first game; region tiles and line rows as a player sees them.
+  Pick (Items $root 'GameList')[0]; Nav $root 'NavGame'; Start-Sleep -Seconds 1
+  Shot 'e03-game-page'
+  $lines = Items $root 'LineList'
+  Log ("lines: " + (($lines | ForEach-Object { $_.Current.Name + $(if (-not $_.Current.IsEnabled) { '(不可选)' }) }) -join ' | '))
+  Pick (Items $root 'RegionList')[1]; Start-Sleep -Seconds 2
+  Pick (Items $root 'LineList')[2]; Start-Sleep -Seconds 1
+  Shot 'e04-other-region-slow-line'
+  Log ("summary: " + (Text-ById $root 'SummaryRegion') + " / " + (Text-ById $root 'SummaryLine'))
+  Pick (Items $root 'RegionList')[0]; Start-Sleep -Seconds 2
 
   # 3. Search narrows the library; clearing it brings everything back.
-  Type-Into $root '搜索游戏' '测试'; Start-Sleep -Seconds 1; Shot 'e06-search'
-  Log ("rows while searching: " + (FindAll $root $CT::ListItem).Count)
+  Nav $root 'NavLibrary'
+  Type-Into $root '搜索游戏' '测试'; Start-Sleep -Seconds 1; Shot 'e05-search'
+  Log ("cards while searching: " + (Items $root 'GameList').Count)
+  Type-Into $root '搜索游戏' 'zzz'; Start-Sleep -Seconds 1; Shot 'e06-search-empty'
   Type-Into $root '搜索游戏' ''; Start-Sleep -Seconds 1
-  (FindAll $root $CT::ListItem)[0].GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select(); Start-Sleep -Seconds 1
 
-  # 4. Start refused by the service: the reason sits under the button.
+  # 4. Start refused by the service: the reason sits under the dial.
+  Nav $root 'NavGame'
   New-Item -ItemType File -Path (Join-Path $Harness 'fail-start.flag') -Force | Out-Null
-  Click $root '开始加速'; Start-Sleep -Seconds 2; Shot 'e07-start-refused'
+  (ById $root 'ActionButton').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Start-Sleep -Seconds 2; Shot 'e07-start-refused'
   Log ("refused: status=" + (Text-ById $root 'ConnectionState') + " inline=" + (Text-ById $root 'InlineError'))
   Remove-Item (Join-Path $Harness 'fail-start.flag') -Force
+  # The refused line comes back after the line list's own refresh.
+  Click $root '刷新线路'; Start-Sleep -Seconds 2
+  Log ("after line refresh: " + ((Items $root 'LineList' | ForEach-Object { $_.Current.Name + $(if (-not $_.Current.IsEnabled) { '(不可选)' }) }) -join ' | '))
 
-  # 5. Normal start, stop feedback.
-  Click $root '开始加速'; Start-Sleep -Seconds 9; Shot 'e08-active'
-  Click $root '停止加速'; Start-Sleep -Milliseconds 1500; Shot 'e09-just-stopped'
+  # 5. Normal start: connecting, then the live dashboard with a few probes.
+  (ById $root 'ActionButton').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Start-Sleep -Milliseconds 1500; Shot 'e08-connecting'
+  Log ("connecting: dial=" + (Dial $root))
+  Start-Sleep -Seconds 18; Shot 'e09-active'
+  Log ("active: dial=" + (Dial $root) + " latency=" + (Text-ById $root 'StatLatency'))
+  Nav $root 'NavLibrary'; Start-Sleep -Seconds 1; Shot 'e10-library-while-running'
+  Click $root '查看'; Start-Sleep -Seconds 1
+  Click $root '停止加速'; Start-Sleep -Milliseconds 1500; Shot 'e11-just-stopped'
 
   # 6. The account menu, diagnostics, and switching account.
-  Click $root '账号菜单'; Start-Sleep -Milliseconds 800; Shot 'e10-account-menu'
-  Click $root '连接诊断'; Start-Sleep -Seconds 1; Shot 'e10b-diagnostics'
+  Click $root '账号'; Start-Sleep -Milliseconds 800; Shot 'e12-account-menu'
+  Click $root '连接诊断'; Start-Sleep -Seconds 1; Shot 'e13-diagnostics'
   Log ("toast: " + (Text-ById $root 'Toast'))
-  Menu-Click $root '切换账号'; Start-Sleep -Seconds 1; Shot 'e11-switch-account'; Keys '{ESC}'
+  Menu-Click $root '切换账号'; Start-Sleep -Seconds 1; Shot 'e14-switch-account'; Keys '{ESC}'
 
   # 6b. Sign out: the login dialog must come back on its own.
-  Menu-Click $root '退出登录'; Start-Sleep -Seconds 3; Shot 'e16-logged-out'
+  Menu-Click $root '退出登录'; Start-Sleep -Seconds 3; Shot 'e15-logged-out'
   Log ("after logout: " + (Buttons $root))
   Type-Into $root '密码' 'pw'; (Find $root $CT::Edit '密码').SetFocus(); Keys '{ENTER}'; Start-Sleep -Seconds 3
 
-  # 7. Big and small windows while signed in.
-  Shot 'e12-min-size' 900 650
+  # 7. Big and small windows while signed in, library and game page.
+  Shot 'e16-min-library' 900 650
+  Pick (Items $root 'GameList')[0]; Nav $root 'NavGame'; Shot 'e17-min-game' 900 650
   $root.GetCurrentPattern([System.Windows.Automation.WindowPattern]::Pattern).SetWindowVisualState([System.Windows.Automation.WindowVisualState]::Maximized)
-  Start-Sleep -Seconds 1; Shot 'e13-maximized' -NoMove
+  Start-Sleep -Seconds 1; Shot 'e18-max-game' -NoMove
+  Nav $root 'NavLibrary'; Shot 'e19-max-library' -NoMove
   $root.GetCurrentPattern([System.Windows.Automation.WindowPattern]::Pattern).SetWindowVisualState([System.Windows.Automation.WindowVisualState]::Normal)
 
   # 8. Service disappears mid-use, then comes back (signed out again).
-  Stop-Fake; Start-Sleep -Seconds 5; Shot 'e14-service-gone'
+  Stop-Fake; Start-Sleep -Seconds 5; Shot 'e20-service-gone'
   Log ("service gone: " + (Buttons $root))
-  Start-Fake; Start-Sleep -Seconds 5; Shot 'e15-service-back'
+  Start-Fake; Start-Sleep -Seconds 5; Shot 'e21-service-back'
   Log ("service back: " + (Buttons $root))
   Log 'done'
 } catch {

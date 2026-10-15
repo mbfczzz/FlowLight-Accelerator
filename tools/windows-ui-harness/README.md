@@ -3,11 +3,11 @@
 不依赖真实控制服务和真实本地服务，把客户端从登录到加速、重启恢复、托盘唤醒跑一遍并逐步截图。
 
 - `fake-service.ps1`：替身本地服务。按客户端的命名管道协议应答 status / login / games / lines / start / stop / logout，
-  会话按计时器走 PREPARING → CONNECTING → ACTIVE。默认管道名 `FlowLight.Accelerator.dev`，可与真服务共存。登录密码 `pw`。
-- `drive.ps1`：UI Automation 驱动。输入账号密码、选第二个游戏和第二个区服、开始加速、等待连上、杀掉客户端再重开验证恢复选中、
-  停止、关闭缩托盘、再次启动验证单实例唤醒；每步截图到 `-Ui` 目录，日志写 `drive.log`。
-- `explore.ps1`：探索式走查（账号相关操作先点“账号菜单”再点菜单项；状态行、内联错误、提示分别用 AutomationId ConnectionState / InlineError / Toast 读取）。输错密码、打开两个下拉框、选到不可用线路、选到未发布的游戏、服务拒绝开始、开始/停止、
-  诊断复制、已登录再点账号、退出登录、最小尺寸与最大化、本地服务中途消失再恢复；每个状态截图，供人工逐张审阅。
+  会话按计时器走 PREPARING → CONNECTING → ACTIVE；线路带容量与在线数，连上后每 4 秒给出一次带 observed_at 的新检测值，
+  并报告 active_since，便于检查走势图和已加速时长。默认管道名 `FlowLight.Accelerator.dev`，可与真服务共存。登录密码 `pw`。
+- `drive.ps1`：UI Automation 驱动。登录、在游戏库选第二款游戏并经左侧“加速”进入、选第二个区服、按圆形加速按钮、等待连上、杀掉客户端再重开验证自动回到正在加速的游戏页、停止、关闭缩托盘、再次启动验证单实例唤醒；每步截图到 `-Ui` 目录，日志写 `drive.log`。
+- `explore.ps1`：探索式走查。输错密码、游戏页、切换区服与线路、搜索与搜索无结果、服务拒绝开始、连接中与加速中、加速时的游戏库、账号菜单、复制诊断、切换账号、退出登录、900×650 与最大化、本地服务中途消失再恢复；每个状态截图，供人工逐张审阅。
+  元素按 x:Name 定位（WPF 把它作为 AutomationId）：GameList / RegionList / LineList / NavLibrary / NavGame / ActionButton，状态行、内联错误、提示分别是 ConnectionState / InlineError / Toast；圆形按钮的名称随状态变为 开始加速 / 正在连接 / 加速中 / 正在停止；账号相关操作先点头像按钮“账号”再点菜单项。
 - `capture.ps1`：把客户端窗口调整到指定尺寸并截图。
 
 运行（Windows PowerShell 5.1，UIAutomationClient 是 .NET Framework 程序集）：

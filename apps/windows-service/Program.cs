@@ -43,7 +43,8 @@ sealed record SessionView(
     string? SessionID,
     string? GameID,
     string? RegionID,
-    string? LineID)
+    string? LineID,
+    DateTime? ActiveSince = null)
 {
     public static readonly SessionView Idle = new("IDLE", "", null, null, null, null, null, null);
 }
@@ -354,6 +355,7 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
                     line_id = own ? current.LineID : null,
                     probe = own ? current.Probe : null,
                     lease_until = own ? current.LeaseUntil : null,
+                    active_since = own ? current.ActiveSince : null,
                     control_url = config.ControlUrl,
                     logged_in = users.ContainsKey(sid),
                     username = users.TryGetValue(sid, out var signedIn)
@@ -644,7 +646,9 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
 
             await kernel!.Start(conn, ct);
             var first = await TunnelProbe.Run(conn, kernel.SocksPort, ct);
-            Update(v => v with { State = "ACTIVE", Probe = first });
+            // When the tunnel first passed its probe; clients show elapsed
+            // time from here, so it survives a client restart.
+            Update(v => v with { State = "ACTIVE", Probe = first, ActiveSince = DateTime.UtcNow });
             var lastProbe = DateTime.UtcNow;
             var failedProbes = 0;
             while (!ct.IsCancellationRequested)
@@ -742,6 +746,7 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
                     State = failed ? "FAILED" : "IDLE",
                     Probe = failed ? v.Probe : null,
                     LeaseUntil = null,
+                    ActiveSince = null,
                     SessionID = null,
                     GameID = null,
                     RegionID = null,

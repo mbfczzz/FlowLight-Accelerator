@@ -9,7 +9,7 @@ $pipeName = $PipeName
 $logFile = Join-Path $PSScriptRoot 'fake.log'
 function Log([string]$m) { Add-Content -LiteralPath $logFile -Encoding UTF8 -Value ((Get-Date -Format HH:mm:ss.fff) + ' ' + $m) }
 
-$state = @{ logged = $false; user = $null; session = 'IDLE'; since = $null; game = $null; region = $null; line = $null }
+$state = @{ logged = $false; user = $null; session = 'IDLE'; since = $null; active = $null; game = $null; region = $null; line = $null }
 
 function New-Pipe {
   [IO.Pipes.NamedPipeServerStream]::new($pipeName, [IO.Pipes.PipeDirection]::InOut, 8,
@@ -19,7 +19,7 @@ function New-Pipe {
 function Advance {
   if ($state.session -in 'PREPARING','CONNECTING') {
     $age = ((Get-Date) - $state.since).TotalSeconds
-    if ($age -gt $ConnectSeconds * 2) { $state.session = 'ACTIVE' }
+    if ($age -gt $ConnectSeconds * 2) { $state.session = 'ACTIVE'; $state.active = (Get-Date).ToUniversalTime() }
     elseif ($age -gt $ConnectSeconds) { $state.session = 'CONNECTING' }
   }
 }
@@ -27,10 +27,19 @@ function Advance {
 function Status {
   Advance
   $probe = $null
-  if ($state.session -eq 'ACTIVE') { $probe = @{ tcp = $true; udp = $true; rtt_ms = 38.4; jitter_ms = 3.1; loss = 0; samples = 3; exit_ip = '203.0.113.7' } }
+  $activeSince = $null
+  if ($state.session -eq 'ACTIVE') {
+    # A new probe every 4 seconds (the real service probes about every 30)
+    # so the chart has a few points within a short harness run.
+    $bucket = [Math]::Floor(((Get-Date).ToUniversalTime() - $state.active).TotalSeconds / 4)
+    $rtt = [Math]::Round(38 + 7 * [Math]::Sin($bucket * 0.9) + ($bucket % 3), 1)
+    $observed = $state.active.AddSeconds($bucket * 4).ToString('o')
+    $probe = @{ tcp = $true; udp = $true; rtt_ms = $rtt; jitter_ms = 2 + ($bucket % 4); loss = $(if ($bucket % 5 -eq 4) { 0.2 } else { 0 }); samples = 3; exit_ip = '203.0.113.7'; observed_at = $observed }
+    $activeSince = $state.active.ToString('o')
+  }
   @{
-    state = $state.session; error = ''; session_id = $(if ($state.session -ne 'IDLE') { 'sess-1' } else { $null })
-    probe = $probe; lease_until = $null; control_url = 'https://accel.example:8443'
+    state = $state.session; error = ''; session_id = $(if ($state.session -ne 'IDLE') { 'sess-' + $state.since.Ticks } else { $null })
+    probe = $probe; lease_until = $null; active_since = $activeSince; control_url = 'https://accel.example:8443'
     logged_in = $state.logged; username = $state.user; core_available = $true
     game_id = $state.game; region_id = $state.region; line_id = $state.line
   }
@@ -55,9 +64,10 @@ function Handle($cmd, $a) {
     }
     'lines' {
       if (-not $state.logged) { throw '请先登录' }
-      return @(@{ id = "$($a.region_id)-01"; name = "$($a.region_id.ToUpper()) 直连-01"; available = $true;  probe = @{ rtt_ms = 38 } },
-               @{ id = "$($a.region_id)-02"; name = "$($a.region_id.ToUpper()) 中转-02"; available = $true;  probe = @{ rtt_ms = 71 } },
-               @{ id = "$($a.region_id)-03"; name = "$($a.region_id.ToUpper()) 备用-03"; available = $false; probe = @{} })
+      return @(@{ id = "$($a.region_id)-01"; name = "$($a.region_id.ToUpper()) 直连-01"; available = $true;  capacity = 50; active_sessions = 12; probe = @{ rtt_ms = 38 } },
+               @{ id = "$($a.region_id)-02"; name = "$($a.region_id.ToUpper()) 中转-02"; available = $true;  capacity = 40; active_sessions = 27; probe = @{ rtt_ms = 71 } },
+               @{ id = "$($a.region_id)-04"; name = "$($a.region_id.ToUpper()) 海外-04"; available = $true;  capacity = 20; active_sessions = 18; probe = @{ rtt_ms = 142 } },
+               @{ id = "$($a.region_id)-03"; name = "$($a.region_id.ToUpper()) 备用-03"; available = $false; capacity = 30; active_sessions = 0; probe = @{} })
     }
     'start' {
       if (Test-Path (Join-Path $PSScriptRoot 'fail-start.flag')) { throw '线路容量已满，请选择其他线路' }
@@ -66,7 +76,7 @@ function Handle($cmd, $a) {
       $state.game = $a.game_id; $state.region = $a.region_id; $state.line = $a.line_id
       return @{ state = 'PREPARING' }
     }
-    'stop'  { $state.session = 'IDLE'; $state.game = $null; $state.region = $null; $state.line = $null; return @{ state = 'IDLE' } }
+    'stop'  { $state.session = 'IDLE'; $state.active = $null; $state.game = $null; $state.region = $null; $state.line = $null; return @{ state = 'IDLE' } }
     'logout' { $state.logged = $false; $state.user = $null; return @{ ok = $true } }
     default { throw '不支持的操作' }
   }

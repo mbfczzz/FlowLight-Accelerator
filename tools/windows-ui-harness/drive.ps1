@@ -41,17 +41,20 @@ function FindAll($root, $type) {
 function Invoke-Button($root, $name) { (Find $root $CT::Button $name).GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Log "clicked $name" }
 function Set-Text($root, $name, $text) { (Find $root $CT::Edit $name).GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($text); Log "typed into $name" }
 function Select-Item($el) { $el.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select() }
-# The one action button shows which of its labels is current.
-function Action-Label($root) {
-  foreach ($b in (FindAll $root $CT::Button)) { if ($b.Current.Name -in '开始加速','停止加速','正在停止') { return $b.Current.Name } }
-  return '(none)'
+# Elements by x:Name (WPF exposes it as the AutomationId).
+function ById($root, $id) {
+  $cond = New-Object System.Windows.Automation.PropertyCondition($AE::AutomationIdProperty, $id)
+  for ($i = 0; $i -lt 40; $i++) { $el = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $cond); if ($el) { return $el }; Start-Sleep -Milliseconds 250 }
+  throw "element not found: $id"
 }
-# Text of an element by AutomationId (the status line, inline error, toast).
 function Text-ById($root, $id) {
   $cond = New-Object System.Windows.Automation.PropertyCondition($AE::AutomationIdProperty, $id)
   $el = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $cond)
   if ($el) { return $el.Current.Name } else { return '(none)' }
 }
+function Items($root, $id) { (ById $root $id).FindAll([System.Windows.Automation.TreeScope]::Children, (New-Object System.Windows.Automation.PropertyCondition($AE::ControlTypeProperty, $CT::ListItem))) }
+# The dial reports its state in its name: 开始加速 / 正在连接 / 加速中 / 正在停止.
+function Dial($root) { Text-ById $root 'ActionButton' }
 
 try {
 Get-Process FlowLight.Client -ErrorAction SilentlyContinue | Stop-Process -Force
@@ -59,50 +62,49 @@ $root = Launch
 Start-Sleep -Seconds 2
 Shot 'd1-login-prompt'
 
-# Sign in with the fake credentials; Enter is bound to the login button.
+# Sign in with the fake credentials.
 Set-Text $root '账号' 'tester'
 Set-Text $root '密码' 'pw'
 Invoke-Button $root '登录'
 Start-Sleep -Seconds 3
-Shot 'd2-logged-in'
-Log ("action button reads: " + (Action-Label $root) + " / status: " + (Text-ById $root 'ConnectionState'))
+Shot 'd2-library'
+$games = Items $root 'GameList'
+Log ("library cards: " + $games.Count + " / dial: " + (Dial $root))
 
-# Pick the second game and its second region so the restore test is unambiguous.
-$items = FindAll $root $CT::ListItem
-Log ("library rows: " + $items.Count)
-Select-Item $items[1]
-Start-Sleep -Milliseconds 800
-$combos = FindAll $root $CT::ComboBox
-Log ("combo boxes: " + $combos.Count)
-# Pick the second region the way a user would: focus the box, press Down.
-Add-Type -AssemblyName System.Windows.Forms
-$combos[0].SetFocus(); Start-Sleep -Milliseconds 300
-[System.Windows.Forms.SendKeys]::SendWait('{DOWN}')
+# Open the second game the way the rail does, then pick its second region.
+Select-Item $games[1]
+Start-Sleep -Milliseconds 600
+Select-Item (ById $root 'NavGame')
+Start-Sleep -Seconds 1
+$regions = Items $root 'RegionList'
+Log ("region tiles: " + $regions.Count)
+Select-Item $regions[1]
 Start-Sleep -Seconds 2
-Log ("region box selection: " + (($combos[0].GetCurrentPattern([System.Windows.Automation.SelectionPattern]::Pattern).Current.GetSelection() | ForEach-Object { $_.Current.Name }) -join ','))
-Shot 'd3-selected'
+$lines = Items $root 'LineList'
+Log ("line rows: " + $lines.Count + " / enabled: " + (($lines | Where-Object { $_.Current.IsEnabled }) | Measure-Object).Count)
+Shot 'd3-game-page'
 
-Invoke-Button $root '开始加速'
+(ById $root 'ActionButton').GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke(); Log 'clicked dial'
 Start-Sleep -Milliseconds 1200
 Shot 'd4-connecting'
-Log ("during connect: button=" + (Action-Label $root) + " status=" + (Text-ById $root 'ConnectionState'))
-Start-Sleep -Seconds 8
+Log ("during connect: dial=" + (Dial $root) + " status=" + (Text-ById $root 'ConnectionState'))
+Start-Sleep -Seconds 14
 Shot 'd5-active'
-Log ("when active: button=" + (Action-Label $root) + " status=" + (Text-ById $root 'ConnectionState'))
+Log ("when active: dial=" + (Dial $root) + " status=" + (Text-ById $root 'ConnectionState') + " latency=" + (Text-ById $root 'StatLatency'))
 
 # Kill the client while the fake session stays ACTIVE; a fresh client must
-# re-select the running game/region/line from the status reply.
+# open the running game's page with its region and line.
 Get-Process FlowLight.Client -ErrorAction SilentlyContinue | Stop-Process -Force
 Start-Sleep -Seconds 1
 $root = Launch
 Start-Sleep -Seconds 6
 Shot 'd6-restored'
-Log ("after restart: status=" + (Text-ById $root 'ConnectionState'))
+Log ("after restart: dial=" + (Dial $root) + " status=" + (Text-ById $root 'ConnectionState'))
 
 Invoke-Button $root '停止加速'
 Start-Sleep -Seconds 3
 Shot 'd7-stopped'
-Log ("after stop: button=" + (Action-Label $root) + " toast=" + (Text-ById $root 'Toast'))
+Log ("after stop: dial=" + (Dial $root) + " toast=" + (Text-ById $root 'Toast'))
 
 # Close button hides to the tray; the process must stay alive, and a relaunch
 # must wake it instead of starting a second instance.
