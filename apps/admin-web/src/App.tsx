@@ -286,19 +286,33 @@ function Workspace({
           kind={section}
           initial={editing}
           onClose={() => setEditing(null)}
-          onSave={async (body) => {
-            await api(
+          onSave={async (body, cover) => {
+            const saved = await api(
               "/" + section + (editing.id ? "/" + editing.id : ""),
               editing.id ? "PATCH" : "POST",
               body,
             );
+            const id = editing.id || saved?.id;
+            if (cover && id) {
+              // A new game now exists: saving again must not create another.
+              if (!editing.id) setEditing(saved);
+              try {
+                if ("file" in cover) await api("/games/" + id + "/cover", "PUT", cover.file);
+                else await api("/games/" + id + "/cover", "DELETE");
+              } catch (e) {
+                if (isSessionExpired(e)) throw e;
+                void data.reload();
+                throw new Error("游戏已保存，但封面没有更新：" + (e as Error).message);
+              }
+            }
             setEditing(null);
             void reloadNames();
             // Only game rules and lines go through a publication; every
             // other change applies as soon as it is saved.
             setNotice(
               section === "games"
-                ? "已保存草稿。发布规则后，新会话才会使用它。"
+                ? "已保存草稿。发布规则后，新会话才会使用它。" +
+                    (cover ? "封面已更新，客户端刷新游戏库后即可看到。" : "")
                 : section === "lines"
                   ? "已保存。发布线路并通过验证后，新会话才会使用它。"
                   : "已保存",

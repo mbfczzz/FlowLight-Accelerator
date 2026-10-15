@@ -6,8 +6,8 @@ const referenced = ["users", "nodes", "endpoints", "lines", "games", "devices"];
 
 export type Names = Record<string, string>;
 
-/** id -> cover index, for games shown outside the games list. */
-export type Covers = Record<string, number>;
+/** id -> cover index and picture, for games shown outside the games list. */
+export type Covers = Record<string, { index?: number; image?: string }>;
 
 /**
  * Display names for ids that appear in other rows (操作人, 所属节点, 线路 …),
@@ -31,7 +31,8 @@ export function useNames(section: string) {
     for (const rows of lists)
       for (const r of rows) {
         if (r.id) next[r.id] = r.name || r.username || r.id;
-        if (r.id && typeof r.cover_index === "number") coverNext[r.id] = r.cover_index;
+        if (r.id && typeof r.cover_index === "number")
+          coverNext[r.id] = { index: r.cover_index, image: r.cover_image || undefined };
       }
     setNames(next);
     setCovers(coverNext);

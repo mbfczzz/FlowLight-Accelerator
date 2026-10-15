@@ -79,6 +79,7 @@ func (s *Server) Handler() http.Handler {
 		m.HandleFunc("GET "+prefix+"/me", s.auth(func(w http.ResponseWriter, r *http.Request) { write(w, 200, actor(r)) }))
 	}
 	m.HandleFunc("GET /api/client/v1/games", s.auth(s.games))
+	m.HandleFunc("GET /api/client/v1/covers/{name}", s.coverFile)
 	m.HandleFunc("GET /api/client/v1/games/{id}/regions", s.auth(s.regions))
 	m.HandleFunc("POST /api/client/v1/devices", s.auth(s.device))
 	m.HandleFunc("GET /api/client/v1/lines", s.auth(s.clientLines))
@@ -102,6 +103,8 @@ func (s *Server) Handler() http.Handler {
 	}
 	m.HandleFunc("GET /api/admin/v1/overview", s.auth(s.overview, "viewer", "operator", "publisher"))
 	m.HandleFunc("GET /api/admin/v1/jobs/{id}", s.auth(s.getJob, "viewer", "operator", "publisher"))
+	m.HandleFunc("PUT /api/admin/v1/games/{id}/cover", s.auth(s.setCover, "operator", "publisher"))
+	m.HandleFunc("DELETE /api/admin/v1/games/{id}/cover", s.auth(s.clearCover, "operator", "publisher"))
 	m.HandleFunc("POST /api/admin/v1/games/{id}/profiles/publish", s.auth(s.publishGame, "publisher"))
 	m.HandleFunc("POST /api/admin/v1/games/{id}/profiles/{version}/publish", s.auth(s.publishGame, "publisher"))
 	m.HandleFunc("POST /api/admin/v1/lines/{id}/validate", s.auth(s.validateLine, "operator", "publisher"))

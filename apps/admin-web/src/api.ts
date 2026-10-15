@@ -148,19 +148,21 @@ function refresh() {
   return refreshing;
 }
 
+/** Call the admin API. A Blob (an uploaded file) is sent as it is. */
 export async function api(
   path: string,
   method = "GET",
   data?: unknown,
   retry = true,
 ): Promise<any> {
+  const file = data instanceof Blob ? data : null;
   const res = await send("/api/admin/v1" + path, {
     method,
     headers: {
-      "Content-Type": "application/json",
+      "Content-Type": file ? file.type || "application/octet-stream" : "application/json",
       Authorization: "Bearer " + auth?.access_token,
     },
-    body: data === undefined ? undefined : JSON.stringify(data),
+    body: file ?? (data === undefined ? undefined : JSON.stringify(data)),
   });
   if (res.status === 401) {
     if (!retry) expire();

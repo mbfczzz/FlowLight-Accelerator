@@ -34,6 +34,8 @@ public partial class MainWindow : Window
         // looks the same here and in the admin; an older service sends
         // none and the colour comes from the game's id instead.
         public double Hue { get; init; } = double.NaN;
+        // The picture uploaded for the game in the admin, if any.
+        public string? Art { get; init; }
         public string RegionLabel => Regions.Length == 0 ? "暂未开放区服" : string.Join(" · ", Regions.Select(r => ToRegion(r).Name));
         public string Initial => Name.Length == 0 ? "?" : Name[..1].ToUpperInvariant();
     }
@@ -418,6 +420,7 @@ public partial class MainWindow : Window
         if (Text(result, "control_url") is { } control && Uri.TryCreate(control, UriKind.Absolute, out var uri))
         {
             MenuServer.Text = "服务器 " + uri.Host;
+            CoverArt.SetServer(uri);
         }
         coreAvailable = Flag(result, "core_available");
 
@@ -871,6 +874,7 @@ public partial class MainWindow : Window
         {
             BannerCover.Seed = runningGame.ID;
             BannerCover.Hue = runningGame.Hue;
+            BannerCover.Art = runningGame.Art;
             BannerCover.Monogram = runningGame.Initial;
             BannerTitle.Text = "正在加速 " + runningGame.Name;
             BannerDetail.Text = string.Join(" · ", new[] { DashRegion.Text, DashLine.Text }.Where(t => t != "—"));
@@ -1048,6 +1052,7 @@ public partial class MainWindow : Window
             Hue = cover.ValueKind == JsonValueKind.Number && cover.TryGetInt32(out var index) && index >= 0
                 ? Palette.SteppedHue(index)
                 : double.NaN,
+            Art = Text(game, "cover_image") is { } art && CoverArt.IsName(art) ? art : null,
         };
     }
 
@@ -1353,6 +1358,7 @@ public partial class MainWindow : Window
         var regions = game?.Regions ?? Array.Empty<string>();
         HeroCover.Seed = game?.ID ?? "";
         HeroCover.Hue = game?.Hue ?? double.NaN;
+        HeroCover.Art = game?.Art;
         HeroCover.Monogram = game?.Initial ?? "";
         HeroTitle.Text = game?.Name ?? "";
         var regionItems = regions.Select((r, i) => ToRegion(r) with { Slot = i }).ToArray();

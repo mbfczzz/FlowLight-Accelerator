@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { stateNames } from "./format";
 
 /** Readable names for the region codes games and lines use. */
@@ -91,14 +91,24 @@ export function coverHue(seed: string, index?: unknown) {
   return coverHues[h % coverHues.length] + ((h >>> 8) % 11) - 5;
 }
 
+/** Where the control service serves an uploaded cover picture. */
+export function coverUrl(image: unknown) {
+  if (typeof image !== "string") return undefined;
+  if (image.startsWith("data:image/")) return image;
+  return /^[0-9a-f]{64}$/.test(image) ? "/api/client/v1/covers/" + image : undefined;
+}
+
 /**
- * Generated cover art for a game: its own hue, a soft light and amber-tinted
- * streaks, with the first character set faint. No game artwork is bundled.
+ * A game's cover: the picture an operator uploaded, or generated art (its
+ * own hue, a soft light and streaks, the first character set faint). No
+ * game artwork is bundled; a picture that fails to load falls back.
  */
 export function Cover({
   seed,
   name,
   index,
+  image,
+  banner,
   width = 64,
   height = 36,
 }: {
@@ -106,9 +116,28 @@ export function Cover({
   name: string;
   /** The control service's cover_index for the game. */
   index?: unknown;
+  /** The game's cover_image, or a data: URL being previewed. */
+  image?: unknown;
+  /** Cropped to a wide strip, as the client's game page banner. */
+  banner?: boolean;
   width?: number;
   height?: number;
 }) {
+  const src = coverUrl(image);
+  const [failed, setFailed] = useState<string>();
+  if (src && failed !== src)
+    return (
+      <img
+        className={"cover" + (banner ? " banner" : "")}
+        src={src}
+        width={width}
+        height={height}
+        alt=""
+        loading="lazy"
+        decoding="async"
+        onError={() => setFailed(src)}
+      />
+    );
   const h = hash(seed || name);
   const hue = coverHue(seed || name, index);
   const id = "cv" + h.toString(36);

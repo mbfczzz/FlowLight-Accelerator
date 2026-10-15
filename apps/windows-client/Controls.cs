@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using Brush = System.Windows.Media.Brush;
 using Brushes = System.Windows.Media.Brushes;
 using Color = System.Windows.Media.Color;
@@ -161,6 +162,10 @@ public sealed class GameCover : FrameworkElement
         nameof(Hue), typeof(double), typeof(GameCover), new FrameworkPropertyMetadata(double.NaN, FrameworkPropertyMetadataOptions.AffectsRender));
     public static readonly DependencyProperty NightProperty = DependencyProperty.Register(
         nameof(Night), typeof(bool), typeof(GameCover), new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
+    public static readonly DependencyProperty ArtProperty = DependencyProperty.Register(
+        nameof(Art), typeof(string), typeof(GameCover), new FrameworkPropertyMetadata(null, (d, _) => ((GameCover)d).LoadArt()));
+    public static readonly DependencyProperty FullArtProperty = DependencyProperty.Register(
+        nameof(FullArt), typeof(bool), typeof(GameCover), new FrameworkPropertyMetadata(false));
 
     public string Seed { get => (string)GetValue(SeedProperty); set => SetValue(SeedProperty, value); }
     public string Monogram { get => (string)GetValue(MonogramProperty); set => SetValue(MonogramProperty, value); }
@@ -169,6 +174,36 @@ public sealed class GameCover : FrameworkElement
     public double Hue { get => (double)GetValue(HueProperty); set => SetValue(HueProperty, value); }
     // Dark ground with brighter streaks: the brand panel rather than a game.
     public bool Night { get => (bool)GetValue(NightProperty); set => SetValue(NightProperty, value); }
+    // The game's uploaded cover picture (its cover_image), drawn in place of
+    // the generated art once it has loaded.
+    public string? Art { get => (string?)GetValue(ArtProperty); set => SetValue(ArtProperty, value); }
+    // Decode the picture at full size, for the wide game page banner.
+    public bool FullArt { get => (bool)GetValue(FullArtProperty); set => SetValue(FullArtProperty, value); }
+
+    BitmapSource? art;
+
+    public GameCover()
+    {
+        RenderOptions.SetBitmapScalingMode(this, BitmapScalingMode.HighQuality);
+    }
+
+    async void LoadArt()
+    {
+        var name = Art;
+        art = null;
+        InvalidateVisual();
+        if (!CoverArt.IsName(name))
+        {
+            return;
+        }
+        // A picture already loaded completes at once, before the next render.
+        var picture = await CoverArt.Load(name!, FullArt);
+        if (picture is not null && Art == name)
+        {
+            art = picture;
+            InvalidateVisual();
+        }
+    }
 
     static readonly FontFamily MonogramFace = new("Bahnschrift, Microsoft YaHei UI");
 
@@ -182,6 +217,32 @@ public sealed class GameCover : FrameworkElement
         var bounds = new Rect(0, 0, w, h);
         dc.PushClip(new RectangleGeometry(bounds, Radius, Radius));
 
+        if (art is { PixelWidth: > 0, PixelHeight: > 0 } picture)
+        {
+            // Fill the cover, centred across and a little above centre down,
+            // where key art keeps its faces.
+            var scale = Math.Max(w / picture.PixelWidth, h / picture.PixelHeight);
+            double pw = picture.PixelWidth * scale, ph = picture.PixelHeight * scale;
+            dc.DrawImage(picture, new Rect((w - pw) / 2, (h - ph) * 0.35, pw, ph));
+        }
+        else
+        {
+            DrawGenerated(dc, bounds, w, h);
+        }
+
+        if (Shade)
+        {
+            var shade = new LinearGradientBrush { StartPoint = new Point(0.5, 0), EndPoint = new Point(0.5, 1) };
+            shade.GradientStops.Add(new GradientStop(Color.FromArgb(0, 10, 9, 12), 0.25));
+            shade.GradientStops.Add(new GradientStop(Color.FromArgb(215, 10, 9, 12), 1));
+            dc.DrawRectangle(shade, null, bounds);
+        }
+        dc.DrawRoundedRectangle(null, new Pen(Palette.Solid(Color.FromArgb(30, 255, 255, 255)), 1), new Rect(0.5, 0.5, w - 1, h - 1), Radius, Radius);
+        dc.Pop();
+    }
+
+    void DrawGenerated(DrawingContext dc, Rect bounds, double w, double h)
+    {
         var seed = Palette.Hash(Seed);
         var hue = double.IsNaN(Hue) ? Palette.CoverHue(seed) : Hue;
         var night = Night;
@@ -229,16 +290,6 @@ public sealed class GameCover : FrameworkElement
                 VisualTreeHelper.GetDpi(this).PixelsPerDip);
             dc.DrawText(text, new Point(w - text.Width * 0.9, h - text.Height * 0.84));
         }
-
-        if (Shade)
-        {
-            var shade = new LinearGradientBrush { StartPoint = new Point(0.5, 0), EndPoint = new Point(0.5, 1) };
-            shade.GradientStops.Add(new GradientStop(Color.FromArgb(0, 10, 9, 12), 0.25));
-            shade.GradientStops.Add(new GradientStop(Color.FromArgb(215, 10, 9, 12), 1));
-            dc.DrawRectangle(shade, null, bounds);
-        }
-        dc.DrawRoundedRectangle(null, new Pen(Palette.Solid(Color.FromArgb(30, 255, 255, 255)), 1), new Rect(0.5, 0.5, w - 1, h - 1), Radius, Radius);
-        dc.Pop();
     }
 }
 

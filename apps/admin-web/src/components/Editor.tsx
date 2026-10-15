@@ -4,6 +4,7 @@ import {
   ArrowUp,
   Cable,
   Gamepad2,
+  Image as ImageIcon,
   KeyRound,
   ListChecks,
   MapPin,
@@ -25,6 +26,7 @@ import {
 import { roleNote } from "../cells";
 import { defaults, sectionTitle } from "../sections";
 import { passwordLabel, validate } from "../validate";
+import { CoverPicker, type CoverChange } from "./CoverPicker";
 import { Avatar, Cover, RegionName, commonRegions } from "../visuals";
 import {
   Field,
@@ -83,8 +85,10 @@ export function Editor({
   kind: string;
   initial: Row;
   onClose: () => void;
-  onSave: (r: Row) => Promise<void>;
+  /** Saves the row, then applies a cover change (games only). */
+  onSave: (r: Row, cover: CoverChange | null) => Promise<void>;
 }) {
+  const [cover, setCover] = useState<CoverChange | null>(null);
   const [d, set] = useState<Row>(() => ({
     ...defaults(kind),
     ...structuredClone(initial),
@@ -208,7 +212,7 @@ export function Editor({
   const gameOptions: PickOption[] = (refs.games || []).map((g) => ({
     value: g.id,
     label: g.name || g.id,
-    lead: <Cover seed={g.id} name={g.name} index={g.cover_index} width={22} height={13} />,
+    lead: <Cover seed={g.id} name={g.name} index={g.cover_index} image={g.cover_image} width={22} height={13} />,
   }));
   const playerOptions: PickOption[] = (refs.users || [])
     .filter((u) => u.role === "player")
@@ -222,6 +226,22 @@ export function Editor({
             <Section icon={<Gamepad2 size={16} />} title="基本信息">
               {text("name", "游戏名称", { placeholder: "例如 VALORANT", wide: true })}
               {toggle("enabled", "在客户端显示", "停用后客户端不再列出这款游戏。")}
+            </Section>
+            <Section icon={<ImageIcon size={16} />} title="封面" note="客户端游戏库和游戏页显示这张图；不上传则使用自动生成的封面。">
+              <div className="field wide">
+                <CoverPicker
+                  seed={initial.id || "new-game"}
+                  name={str("name")}
+                  index={initial.cover_index}
+                  current={initial.cover_image || undefined}
+                  change={cover}
+                  onChange={(c) => {
+                    setError("");
+                    setErrorField("");
+                    setCover(c);
+                  }}
+                />
+              </div>
             </Section>
             <Section icon={<MapPin size={16} />} title="区服" note="客户端按这里的顺序列出区服，常见代码会显示中文名。">
               <Field group label="区服代码" wide name="regions" error={err("regions")}>
@@ -505,7 +525,7 @@ export function Editor({
           setError("");
           setErrorField("");
           try {
-            await onSave(body);
+            await onSave(body, kind === "games" ? cover : null);
           } catch (e) {
             if (!isSessionExpired(e)) setError((e as Error).message);
           } finally {

@@ -43,8 +43,19 @@ type Game struct {
 	// the others. 0 until assigned.
 	CoverSlot int `json:"-" gorm:"not null;default:0"`
 	// CoverIndex is CoverSlot - 1. The client and the admin colour a game's
-	// cover from it, so it looks the same in both.
+	// generated cover from it, so it looks the same in both.
 	CoverIndex int `json:"cover_index" gorm:"-"`
+	// CoverImage names an uploaded cover picture (a CoverArt id), shown in
+	// place of the generated cover. Only the cover endpoints change it.
+	CoverImage string `json:"cover_image" gorm:"size:64;not null;default:''"`
+}
+
+// CoverArt is a stored cover picture: a JPEG made by makeCover, named by
+// the SHA-256 of its bytes.
+type CoverArt struct {
+	ID        string `gorm:"primaryKey;size:64"`
+	Data      []byte `gorm:"not null"`
+	CreatedAt time.Time
 }
 
 func (g *Game) AfterFind(*gorm.DB) error {

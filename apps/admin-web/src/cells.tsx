@@ -19,7 +19,7 @@ import {
 } from "./visuals";
 
 type Names = Record<string, string>;
-type Covers = Record<string, number>;
+type Covers = Record<string, { index?: number; image?: string }>;
 
 const nameOf = (id: unknown, names: Names) =>
   typeof id === "string" && id ? names[id] || id : "";
@@ -58,7 +58,7 @@ export function renderCell(
         const processes: string[] = row.draft?.processes || [];
         return (
           <Entity
-            lead={<Cover seed={row.id} name={row.name} index={row.cover_index} />}
+            lead={<Cover seed={row.id} name={row.name} index={row.cover_index} image={row.cover_image} />}
             title={row.name}
             sub={processes.length ? processes.join("、") : "未填写游戏进程"}
           />
@@ -141,7 +141,16 @@ export function renderCell(
         const n = nameOf(v, names);
         return (
           <Entity
-            lead={<Cover seed={String(v)} name={n} index={covers[String(v)]} width={44} height={25} />}
+            lead={
+              <Cover
+                seed={String(v)}
+                name={n}
+                index={covers[String(v)]?.index}
+                image={covers[String(v)]?.image}
+                width={44}
+                height={25}
+              />
+            }
             title={n || "—"}
             sub={row.region_id ? regionLabel(row.region_id) : undefined}
           />

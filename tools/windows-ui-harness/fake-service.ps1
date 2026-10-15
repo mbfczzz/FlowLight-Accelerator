@@ -2,7 +2,10 @@
 # one-line-JSON-per-connection pipe protocol and walks a session through
 # PREPARING -> CONNECTING -> ACTIVE on a timer. Run the client with
 # FLOWLIGHT_DEV_PIPE=1 so it skips the service identity check.
-param([int]$Games = 6, [int]$ConnectSeconds = 3, [string]$PipeName = 'FlowLight.Accelerator.dev')
+# -ControlUrl and -Covers (a JSON file of game id -> cover_image) let the
+# client download cover pictures from a real control service.
+param([int]$Games = 6, [int]$ConnectSeconds = 3, [string]$PipeName = 'FlowLight.Accelerator.dev',
+      [string]$ControlUrl = 'https://accel.example:8443', [string]$Covers = '')
 $ErrorActionPreference = 'Stop'
 $utf8 = [Text.UTF8Encoding]::new($false)
 $pipeName = $PipeName
@@ -39,7 +42,7 @@ function Status {
   }
   @{
     state = $state.session; error = ''; session_id = $(if ($state.session -ne 'IDLE') { 'sess-' + $state.since.Ticks } else { $null })
-    probe = $probe; lease_until = $null; active_since = $activeSince; control_url = 'https://accel.example:8443'
+    probe = $probe; lease_until = $null; active_since = $activeSince; control_url = $ControlUrl
     logged_in = $state.logged; username = $state.user; core_available = $true
     game_id = $state.game; region_id = $state.region; line_id = $state.line
   }
@@ -65,6 +68,10 @@ function Handle($cmd, $a) {
       # then each game in the order it was added.
       $order = @('lol', 'valorant') + @($list | Where-Object { $_.id -notin 'lol', 'valorant' } | ForEach-Object { $_.id })
       foreach ($g in $list) { $g.cover_index = [array]::IndexOf($order, $g.id) }
+      if ($Covers) {
+        $art = Get-Content -LiteralPath $Covers -Raw | ConvertFrom-Json
+        foreach ($g in $list) { if ($art.($g.id)) { $g.cover_image = $art.($g.id) } }
+      }
       return $list
     }
     'lines' {

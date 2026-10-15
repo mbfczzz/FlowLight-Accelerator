@@ -65,7 +65,7 @@
       </ListBox.ItemContainerStyle>
       <ListBox.ItemTemplate><DataTemplate><StackPanel>
        <Grid Height="{Binding CoverHeight, RelativeSource={RelativeSource AncestorType=Window}}">
-        <local:GameCover Seed="{Binding ID}" Monogram="{Binding Initial}" Hue="{Binding Hue}" Radius="8"/>
+        <local:GameCover Seed="{Binding ID}" Monogram="{Binding Initial}" Hue="{Binding Hue}" Art="{Binding Art}" Radius="8"/>
         <Border HorizontalAlignment="Left" VerticalAlignment="Top" Margin="8" Background="{StaticResource Scrim}" CornerRadius="5" Padding="7,2">
          <Border.Visibility><MultiBinding Converter="{StaticResource Match}"><Binding Path="ID"/><Binding Path="LastGameID" RelativeSource="{RelativeSource AncestorType=Window}"/></MultiBinding></Border.Visibility>
          <TextBlock Text="上次加速" FontSize="11" Foreground="White"/></Border>
@@ -93,7 +93,7 @@
    <Grid x:Name="GamePage" Visibility="Collapsed" MaxWidth="1320">
     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
     <Grid Height="184" Margin="24,20,24,0">
-     <local:GameCover x:Name="HeroCover" Radius="14" Shade="True"/>
+     <local:GameCover x:Name="HeroCover" Radius="14" Shade="True" FullArt="True"/>
      <Button Style="{StaticResource OnArt}" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="16" AutomationProperties.Name="返回游戏库" Click="Back_Click"><StackPanel Orientation="Horizontal"><local:Glyph Data="{StaticResource IconBack}" IconSize="15" Thickness="2.2" Ink="White" VerticalAlignment="Center"/><TextBlock Text="游戏库" FontSize="12.5" Foreground="White" Margin="4,0,0,0" VerticalAlignment="Center"/></StackPanel></Button>
      <StackPanel HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="28,0,200,22">
       <TextBlock x:Name="HeroTitle" Text="" FontSize="30" FontWeight="Bold" Foreground="White" TextTrimming="CharacterEllipsis"/>

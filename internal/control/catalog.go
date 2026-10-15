@@ -96,6 +96,7 @@ func (s *Server) save(kind string) http.HandlerFunc {
 				in.ID = id
 				in.PublishedVersion = old.PublishedVersion
 				in.CoverSlot = old.CoverSlot
+				in.CoverImage = old.CoverImage
 				if in.CoverSlot == 0 {
 					var e error
 					if in.CoverSlot, e = nextCoverSlot(tx); e != nil {

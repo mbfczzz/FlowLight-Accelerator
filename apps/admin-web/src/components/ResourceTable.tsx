@@ -129,8 +129,8 @@ export function ResourceTable({
   onSearch: (value: string) => void;
   /** Display names for ids in reference columns. */
   names?: Record<string, string>;
-  /** Cover indexes of games, for game columns outside the games list. */
-  covers?: Record<string, number>;
+  /** Cover index and picture of games, for game columns outside the games list. */
+  covers?: Record<string, { index?: number; image?: string }>;
   /** Offered in the empty state when the operator may create rows. */
   onCreate?: () => void;
   renderActions: (row: Row) => ReactNode;

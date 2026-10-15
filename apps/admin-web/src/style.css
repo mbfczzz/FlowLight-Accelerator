@@ -659,6 +659,14 @@ td:last-child {
   display: block;
   border-radius: 7px;
 }
+/* An uploaded picture: cropped like the client crops it. */
+img.cover {
+  object-fit: cover;
+  background: var(--side-3);
+}
+img.cover.banner {
+  object-position: 50% 35%;
+}
 .avatar {
   flex: none;
   display: grid;
@@ -1300,6 +1308,85 @@ dialog.drawer .modal-body {
   border-color: var(--accent);
   color: var(--accent-text);
 }
+.cover-picker {
+  display: grid;
+  gap: 10px;
+}
+/* Previews sit on the client's dark ground, at the client's proportions. */
+.cover-previews {
+  display: grid;
+  grid-template-columns: 176px minmax(0, 1fr);
+  gap: 14px;
+  padding: 14px;
+  border-radius: 10px;
+  background: var(--side);
+}
+.cover-previews figure {
+  margin: 0;
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 6px;
+}
+.cover-previews figcaption {
+  font-size: 11.5px;
+  color: var(--side-muted);
+}
+.preview-art {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+}
+.preview-art .cover {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+}
+.preview-card .preview-art {
+  aspect-ratio: 16 / 9;
+}
+.preview-card > b {
+  font-size: 13px;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.preview-banner .preview-art {
+  height: 99px;
+}
+.preview-banner .preview-art::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(rgb(10 9 12 / 0) 25%, rgb(10 9 12 / 84%));
+}
+.preview-banner .preview-art > b {
+  position: absolute;
+  z-index: 1;
+  left: 14px;
+  right: 14px;
+  bottom: 10px;
+  font-size: 17px;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cover-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.cover-note,
+.cover-warning {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-3);
+}
+.cover-warning {
+  color: var(--warn);
+}
 .hops {
   display: grid;
   gap: 8px;
@@ -1597,6 +1684,9 @@ dialog.confirm {
     width: 100%;
   }
   .fields {
+    grid-template-columns: 1fr;
+  }
+  .cover-previews {
     grid-template-columns: 1fr;
   }
   dialog.drawer {
