@@ -154,7 +154,7 @@ func (s *Store) Seed(username, password string) error {
 		tx.Model(&User{}).Count(&count)
 		if count == 0 {
 			if len(password) < 14 {
-				return errors.New("initial ADMIN_PASSWORD must contain at least 14 characters")
+				return errors.New("初始管理员密码 ADMIN_PASSWORD 至少需要 14 个字符（initial ADMIN_PASSWORD must contain at least 14 characters）")
 			}
 			h, e := bcrypt.GenerateFromPassword([]byte(password), 12)
 			if e != nil {

@@ -81,6 +81,7 @@ export function ResourceTable({
   onLoadMore,
   search,
   onSearch,
+  names = {},
   editable,
   renderActions,
 }: {
@@ -94,16 +95,24 @@ export function ResourceTable({
   failed: boolean;
   onLoadMore: () => void;
   search: string;
+  /** Display names for ids in reference columns. */
+  names?: Record<string, string>;
   onSearch: (value: string) => void;
   editable: boolean;
   renderActions: (row: Row) => ReactNode;
 }) {
+  const cols = columns[section] || [];
   const needle = search.toLowerCase();
+  // Matches what the table shows (玩家, 运行中, a user's name) as well as
+  // the raw values and ids.
   const filtered = needle
-    ? rows.filter((r) => JSON.stringify(r).toLowerCase().includes(needle))
+    ? rows.filter((r) =>
+        (JSON.stringify(r) + " " + cols.map((c) => text(r[c], c, names)).join(" "))
+          .toLowerCase()
+          .includes(needle),
+      )
     : rows;
   const searching = needle !== "";
-  const cols = columns[section] || [];
   return (
     <>
       <div className="table-toolbar">
@@ -141,11 +150,14 @@ export function ResourceTable({
                   <td key={col}>
                     {badgeColumns.includes(col) ? (
                       <span className={"badge " + String(row[col]).toLowerCase()}>
-                        {text(row[col], col)}
+                        {text(row[col], col, names)}
                       </span>
                     ) : (
-                      <span className={i === 0 ? "cell-main" : ""}>
-                        {text(row[col], col)}
+                      <span
+                        className={i === 0 ? "cell-main" : ""}
+                        title={names?.[row[col]] ? row[col] : undefined}
+                      >
+                        {text(row[col], col, names)}
                       </span>
                     )}
                   </td>

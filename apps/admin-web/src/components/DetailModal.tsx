@@ -13,8 +13,10 @@ export function DetailModal({
   pending,
   onConfirm,
   onClose,
+  names = {},
 }: {
   detail: Row;
+  names?: Record<string, string>;
   canPublish: boolean;
   pending: Record<string, string>;
   onConfirm: (spec: Confirmable) => void;
@@ -35,7 +37,7 @@ export function DetailModal({
                 {typeof v === "object" ? (
                   <pre>{JSON.stringify(v, null, 2)}</pre>
                 ) : (
-                  text(v, k)
+                  text(v, k, names)
                 )}
               </dd>
             </div>

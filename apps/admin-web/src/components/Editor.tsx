@@ -8,6 +8,7 @@ import {
 } from "../api";
 import { stateNames } from "../format";
 import { defaults, sectionTitle } from "../sections";
+import { passwordLabel, validate } from "../validate";
 import { Modal } from "./Modal";
 
 /** Lists the editor offers as choices for node, endpoint and user fields. */
@@ -134,16 +135,22 @@ export function Editor({
       <form
         onSubmit={async (e) => {
           e.preventDefault();
+          const body = structuredClone(d);
+          delete body.id;
+          delete body.created_at;
+          delete body.updated_at;
+          if (kind === "users") {
+            delete body.password_hash;
+            body.username = String(body.username || "").trim();
+          }
+          const problem = validate(kind, body, initial);
+          if (problem) {
+            setError(problem);
+            return;
+          }
           setBusy(true);
           setError("");
           try {
-            const body = structuredClone(d);
-            delete body.id;
-            delete body.created_at;
-            delete body.updated_at;
-            if (kind === "users") {
-              delete body.password_hash;
-            }
             await onSave(body);
           } catch (e) {
             if (!isSessionExpired(e)) setError((e as Error).message);
@@ -192,7 +199,7 @@ export function Editor({
                 ["realm", "Realm 透明中转"],
               ])}
               {field("host", "客户端／上游可达地址")}
-              {field("port", "起始端口", "number")}
+              {field("port", "起始端口（1–65535）", "number")}
               {field("port_end", "结束端口", "number")}
               {field("cipher", "加密方法", "text", [
                 ["2022-blake3-aes-128-gcm", "SS2022 AES-128"],
@@ -221,7 +228,7 @@ export function Editor({
                 ["imported", "导入现成线路"],
                 ["hybrid", "平台入口＋自带落地"],
               ])}
-              {field("capacity", "并发容量", "number")}
+              {field("capacity", "并发容量（1–10000）", "number")}
               {field("priority", "优先级", "number")}
               {field("expected_exit", "预期出口 IP（可选）")}
               <div className="path-editor">
@@ -308,11 +315,7 @@ export function Editor({
           {kind === "users" && (
             <>
               {field("username", "账号")}
-              {field(
-                "password",
-                initial.id ? "新密码（留空保留）" : "密码（14–72 字节）",
-                "password",
-              )}
+              {field("password", passwordLabel(d.role, !!initial.id), "password")}
               {field(
                 "role",
                 "权限",
@@ -327,8 +330,11 @@ export function Editor({
                   ].includes(k),
                 ),
               )}
-              {field("max_sessions", "并发会话上限", "number")}
+              {field("max_sessions", "并发会话上限（1–20）", "number")}
               {field("enabled", "启用", "check")}
+              <p className="hint">
+                玩家密码至少 8 位；管理和运维账号至少 14 位。修改密码后，该账号已登录的设备需要重新登录。
+              </p>
             </>
           )}
           {kind === "releases" && (

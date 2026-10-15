@@ -32,7 +32,7 @@ func (s *Server) job(tx *gorm.DB, node, session, version, kind string, p c.JobPa
 func (s *Server) provision(tx *gorm.DB, x *Session, v LineVersion, p c.Profile) error {
 	hops := append([]c.Hop{}, v.Hops...)
 	if len(hops) == 0 {
-		return badRequest("empty published path")
+		return badRequest("线路发布内容为空，请重新发布这条线路")
 	}
 	now := time.Now().UTC()
 	x.CreatedAt = now
@@ -75,7 +75,7 @@ func (s *Server) provision(tx *gorm.DB, x *Session, v LineVersion, p c.Profile) 
 			}
 			var node Node
 			if tx.First(&node, "id = ?", h.NodeID).Error != nil || !node.Enabled || timeSince(node.LastSeen) > s.Config.NodeTimeout {
-				return badRequest("node offline")
+				return badRequest("线路节点离线，请稍后重试或更换线路")
 			}
 			var taken []int
 			if e := tx.Model(&Reservation{}).Where("node_id = ? AND port BETWEEN ? AND ?", h.NodeID, h.Port, h.PortEnd).Pluck("port", &taken).Error; e != nil {
@@ -99,7 +99,7 @@ func (s *Server) provision(tx *gorm.DB, x *Session, v LineVersion, p c.Profile) 
 				}
 			}
 			if !allocated {
-				return badRequest("node port pool exhausted")
+				return badRequest("线路节点端口已用尽，请更换线路")
 			}
 		}
 	}
@@ -108,7 +108,7 @@ func (s *Server) provision(tx *gorm.DB, x *Session, v LineVersion, p c.Profile) 
 		connection.UDP = connection.UDP && h.Capabilities.UDP
 	}
 	if p.UDP && !connection.UDP {
-		return badRequest("game requires UDP across the complete path")
+		return badRequest("该游戏需要 UDP，但这条线路不支持，请更换线路")
 	}
 	var e error
 	x.ConnectionCipher, e = s.Store.Seal(connection)
@@ -149,7 +149,7 @@ func (s *Server) beginSession(w http.ResponseWriter, r *http.Request) {
 	u := actor(r)
 	key := r.Header.Get("Idempotency-Key")
 	if len(key) < 8 || len(key) > 128 {
-		fail(w, 400, "Idempotency-Key of 8-128 characters required")
+		fail(w, 400, "请求缺少幂等标识，请更新客户端")
 		return
 	}
 	var in CreateSession
@@ -163,26 +163,26 @@ func (s *Server) beginSession(w http.ResponseWriter, r *http.Request) {
 		var old Idempotency
 		if tx.First(&old, "id = ?", idemID).Error == nil {
 			if old.RequestHash != hash(string(body)) {
-				return badRequest("idempotency key reused with different input")
+				return badRequest("请求重复提交，请重试")
 			}
 			return tx.First(&out, "id = ?", old.SessionID).Error
 		}
 		var d Device
 		if tx.First(&d, "id = ? AND user_id = ?", in.DeviceID, u.ID).Error != nil {
-			return badRequest("register this device first")
+			return badRequest("设备尚未登记，请重新登录")
 		}
 		var active int64
 		tx.Model(&Session{}).Where("device_id = ? AND state <> ?", d.ID, "CLOSED").Count(&active)
 		if active > 0 {
-			return badRequest("device already has a session")
+			return badRequest("此设备已有一个加速会话在运行")
 		}
 		tx.Model(&Session{}).Where("user_id = ? AND state <> ? AND purpose = ?", u.ID, "CLOSED", "game").Count(&active)
 		if active >= int64(u.MaxSessions) {
-			return badRequest("account concurrency limit reached")
+			return badRequest("账号同时加速的设备数已达上限")
 		}
 		var g Game
 		if tx.First(&g, "id = ?", in.GameID).Error != nil || !g.Enabled || g.PublishedVersion == 0 || !slices.Contains(g.Regions, in.RegionID) {
-			return badRequest("game profile or region not published")
+			return badRequest("该游戏或区服尚未开放")
 		}
 		var profile GameVersion
 		if e := tx.First(&profile, "game_id = ? AND version = ?", g.ID, g.PublishedVersion).Error; e != nil {
@@ -190,26 +190,26 @@ func (s *Server) beginSession(w http.ResponseWriter, r *http.Request) {
 		}
 		var l Line
 		if tx.First(&l, "id = ?", in.LineID).Error != nil || l.Draining || !permitted(l, u) {
-			return badRequest("line unavailable or unauthorized")
+			return badRequest("该线路不可用或未授权给当前账号")
 		}
 		var v LineVersion
 		if tx.First(&v, "id = ? AND status = ?", l.PublishedVersion, "ready").Error != nil {
-			return badRequest("line is not verified and published")
+			return badRequest("该线路尚未通过验证发布")
 		}
 		if !slices.Contains(v.Regions, in.RegionID) || (len(v.GameIDs) > 0 && !slices.Contains(v.GameIDs, in.GameID)) {
-			return badRequest("line does not cover game/region")
+			return badRequest("该线路不支持所选游戏或区服")
 		}
 		if v.Hops[0].Capabilities.IPv6 && !v.Hops[0].Capabilities.IPv4 && !d.Capabilities.IPv6 {
-			return badRequest("device cannot use IPv6-only ingress")
+			return badRequest("此设备无法使用仅支持 IPv6 的线路入口")
 		}
 		// Validation sessions do not occupy player capacity.
 		tx.Model(&Session{}).Where("line_id = ? AND state <> ? AND purpose = ?", l.ID, "CLOSED", "game").Count(&active)
 		if active >= int64(l.Capacity) {
-			return badRequest("line capacity exhausted")
+			return badRequest("线路容量已满，请选择其他线路")
 		}
 		exitID := v.Hops[len(v.Hops)-1].EndpointID
 		if !egressAllowed(tx, exitID, u.ID) {
-			return badRequest("egress belongs to another account")
+			return badRequest("该线路的落地属于其他账号")
 		}
 		if in.BindingID == "" {
 			var owned Binding
@@ -220,13 +220,13 @@ func (s *Server) beginSession(w http.ResponseWriter, r *http.Request) {
 		if in.BindingID != "" {
 			var b Binding
 			if tx.First(&b, "id = ? AND user_id = ?", in.BindingID, u.ID).Error != nil || !b.Enabled || b.VerifiedAt == nil {
-				return badRequest("egress binding not verified")
+				return badRequest("落地绑定尚未验证")
 			}
 			if b.FixedIP && b.ExpectedExit != "" {
 				v.ExpectedExit = b.ExpectedExit
 			}
 			if v.Hops[len(v.Hops)-1].EndpointID != b.EndpointID {
-				return badRequest("selected line does not terminate at this egress")
+				return badRequest("所选线路与落地绑定不匹配")
 			}
 		}
 		out = Session{ID: ID(), UserID: u.ID, DeviceID: d.ID, GameID: g.ID, RegionID: in.RegionID, LineID: l.ID, LineVersion: v.ID, ProfileVersion: g.PublishedVersion, BindingID: in.BindingID, Purpose: "game"}
@@ -251,7 +251,7 @@ func (s *Server) getSession(w http.ResponseWriter, r *http.Request) {
 	if x.State == "CONNECTING" || x.State == "ACTIVE" || x.State == "DEGRADED" || x.State == "RECONNECTING" {
 		var conn c.Connection
 		if e := s.Store.Unseal(x.ConnectionCipher, &conn); e != nil {
-			fail(w, 500, "cannot decrypt session configuration")
+			fail(w, 500, "无法解密会话配置：请确认控制服务的 ENCRYPTION_KEY 没有被更改")
 			return
 		}
 		out["connection"] = conn
@@ -272,28 +272,28 @@ func (s *Server) heartbeatSession(w http.ResponseWriter, r *http.Request) {
 			return e
 		}
 		if out.State == "CLOSED" || out.State == "STOPPING" {
-			return badRequest("session is closing")
+			return badRequest("加速会话正在关闭")
 		}
 		var currentLine Line
 		if tx.First(&currentLine, "id = ?", out.LineID).Error != nil || !permitted(currentLine, actor(r)) {
-			return badRequest("line access was revoked")
+			return badRequest("该线路的使用权限已被收回")
 		}
 		var version LineVersion
 		if tx.First(&version, "id = ?", out.LineVersion).Error != nil || len(version.Hops) == 0 || !egressAllowed(tx, version.Hops[len(version.Hops)-1].EndpointID, actor(r).ID) {
-			return badRequest("egress access was revoked")
+			return badRequest("落地的使用权限已被收回")
 		}
 		if out.BindingID != "" {
 			var binding Binding
 			if tx.First(&binding, "id = ? AND user_id = ?", out.BindingID, actor(r).ID).Error != nil || !binding.Enabled {
-				return badRequest("egress access was revoked")
+				return badRequest("落地的使用权限已被收回")
 			}
 		}
 		if time.Now().After(out.LeaseUntil) {
-			return badRequest("session lease expired")
+			return badRequest("加速会话已过期")
 		}
 		allowed := map[string][]string{"CONNECTING": {"ACTIVE", "DEGRADED"}, "ACTIVE": {"ACTIVE", "DEGRADED", "RECONNECTING"}, "DEGRADED": {"ACTIVE", "DEGRADED", "RECONNECTING"}, "RECONNECTING": {"ACTIVE", "DEGRADED", "RECONNECTING"}, "PREPARING": {"PREPARING"}}
 		if !slices.Contains(allowed[out.State], in.State) {
-			return badRequest("invalid session transition")
+			return badRequest("加速会话状态异常")
 		}
 		if in.State == "ACTIVE" {
 			var conn c.Connection
@@ -301,7 +301,7 @@ func (s *Server) heartbeatSession(w http.ResponseWriter, r *http.Request) {
 				return e
 			}
 			if !in.Probe.TCP || (conn.Profile.UDP && !in.Probe.UDP) || in.Probe.Samples < 1 {
-				return badRequest("active state requires tunnel probe evidence")
+				return badRequest("缺少隧道检测结果，不能标记为已连接")
 			}
 		}
 		if out.State == "PREPARING" {

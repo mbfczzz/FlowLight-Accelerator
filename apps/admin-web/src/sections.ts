@@ -45,7 +45,7 @@ export const columns: Record<string, string[]> = {
   bindings: ["user_id", "endpoint_id", "kind", "verified_at", "enabled"],
   users: ["username", "role", "max_sessions", "enabled"],
   devices: ["name", "user_id", "last_seen"],
-  sessions: ["game_id", "line_id", "state", "lease_until", "end_reason"],
+  sessions: ["user_id", "game_id", "line_id", "state", "lease_until", "end_reason"],
   jobs: ["node_id", "kind", "status", "attempts", "result"],
   releases: ["version", "channel", "published", "created_at"],
   audits: ["actor", "action", "resource", "created_at"],

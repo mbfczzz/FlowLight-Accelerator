@@ -11,19 +11,19 @@ import (
 
 func validateProfile(p c.Profile) error {
 	if len(p.Processes)+len(p.Paths) == 0 {
-		return badRequest("at least one game process or full executable path is required")
+		return badRequest("请至少填写一个游戏进程名或完整程序路径")
 	}
 	if len(p.Processes)+len(p.Paths)+len(p.Domains)+len(p.CIDRs) > 200 {
-		return badRequest("profile is too large")
+		return badRequest("规则条目过多（最多 200 条），请精简后再保存")
 	}
 	for _, s := range append(append(append([]string{}, p.Processes...), p.Paths...), append(p.Domains, p.ExcludeDomains...)...) {
 		if strings.TrimSpace(s) == "" || strings.ContainsAny(s, ",\n\r\x00") {
-			return badRequest("invalid rule value")
+			return badRequest("规则中有空行，或包含逗号、换行等不允许的字符")
 		}
 	}
 	for _, cidr := range p.CIDRs {
 		if _, _, e := net.ParseCIDR(cidr); e != nil {
-			return badRequest("invalid CIDR")
+			return badRequest("目标网段格式不正确，例如 203.0.113.0/24")
 		}
 	}
 	return nil
@@ -43,89 +43,89 @@ func validKey(method, key string) bool {
 }
 func (s *Server) compile(tx *gorm.DB, l Line) ([]c.Hop, error) {
 	if len(l.Regions) == 0 || len(l.EndpointIDs) == 0 || len(l.EndpointIDs) > 5 {
-		return nil, badRequest("line requires regions and one to five endpoints")
+		return nil, badRequest("线路需要至少一个区服，以及 1–5 个服务端点")
 	}
 	if l.Capacity < 1 || l.Capacity > 10000 {
-		return nil, badRequest("capacity must be between 1 and 10000")
+		return nil, badRequest("并发容量须在 1–10000 之间")
 	}
 	if l.Mode != "managed" && l.Mode != "imported" && l.Mode != "hybrid" {
-		return nil, badRequest("mode must be managed, imported or hybrid")
+		return nil, badRequest("运行模式只能是平台托管、导入现成线路或平台入口＋自带落地")
 	}
 	if l.Mode != "managed" && !s.Config.AllowImported {
-		return nil, badRequest("imported lines require ALLOW_IMPORTED=true; external credentials cannot be revoked by this platform")
+		return nil, badRequest("导入线路需要在控制服务配置 ALLOW_IMPORTED=true；外部凭据无法由本平台撤销")
 	}
 	if l.Mode == "imported" && len(l.EndpointIDs) != 1 {
-		return nil, badRequest("imported lines use one preconfigured SS2022 ingress endpoint")
+		return nil, badRequest("导入线路只能使用一个预先配置好的 SS2022 入口端点")
 	}
 	seen := map[string]bool{}
 	hops := []c.Hop{}
 	for i, id := range l.EndpointIDs {
 		if seen[id] {
-			return nil, badRequest("cyclic or duplicated endpoint")
+			return nil, badRequest("线路中有重复的服务端点")
 		}
 		seen[id] = true
 		var e Endpoint
 		if tx.First(&e, "id = ?", id).Error != nil || !e.Enabled {
-			return nil, badRequest("endpoint unavailable")
+			return nil, badRequest("线路中的服务端点不存在或已停用")
 		}
 		minimumPort := 1
 		if e.Capabilities.Managed {
 			minimumPort = 1024
 		}
 		if !validHost(e.Host) || e.Port < minimumPort || e.PortEnd < e.Port || e.PortEnd > 65535 {
-			return nil, badRequest("invalid endpoint address or port pool")
+			return nil, badRequest("服务端点的地址或端口范围不正确")
 		}
 		var n Node
 		if tx.First(&n, "id = ?", e.NodeID).Error != nil || !n.Enabled {
-			return nil, badRequest("node unavailable")
+			return nil, badRequest("端点所属节点不存在或已停用")
 		}
 		if !e.Capabilities.TCP || !n.effective().TCP {
-			return nil, badRequest("every hop must support TCP")
+			return nil, badRequest("线路的每一跳都必须支持 TCP")
 		}
 		if e.Capabilities.UDP && !n.effective().UDP {
-			return nil, badRequest("endpoint UDP declaration exceeds node capabilities")
+			return nil, badRequest("端点声明支持 UDP，但所属节点不支持")
 		}
 		if e.Capabilities.IPv6 && !n.effective().IPv6 {
-			return nil, badRequest("node does not support IPv6")
+			return nil, badRequest("端点声明支持 IPv6，但所属节点不支持")
 		}
 		if net.ParseIP(e.Host) != nil && strings.Contains(e.Host, ":") && !e.Capabilities.IPv6 {
-			return nil, badRequest("IPv6 ingress requires IPv6 capability")
+			return nil, badRequest("入口地址是 IPv6，但端点未声明支持 IPv6")
 		}
 		if i == len(l.EndpointIDs)-1 {
 			if e.Kind != "ss2022" {
-				return nil, badRequest("exit must terminate SS2022")
+				return nil, badRequest("线路最后一跳必须是 SS2022 落地端点")
 			}
 			if e.Cipher != "2022-blake3-aes-128-gcm" && e.Cipher != "2022-blake3-aes-256-gcm" {
-				return nil, badRequest("unsupported SS2022 cipher")
+				return nil, badRequest("不支持的 SS2022 加密方法")
 			}
 		} else if e.Kind != "realm" {
-			return nil, badRequest("intermediate hops must be transparent Realm forwarding endpoints")
+			return nil, badRequest("入口和中转必须是 Realm 透明中转端点")
 		}
 		if (l.Mode == "managed" || (l.Mode == "hybrid" && i < len(l.EndpointIDs)-1)) && (!n.effective().Managed || !e.Capabilities.Managed || timeSince(n.LastSeen) > s.Config.NodeTimeout) {
-			return nil, badRequest("managed node must be online and support leased runtimes")
+			return nil, badRequest("平台托管的节点必须在线并支持托管进程")
 		}
 		if (l.Mode == "imported" || (l.Mode == "hybrid" && i == len(l.EndpointIDs)-1)) && e.CredentialID == "" {
-			return nil, badRequest("imported endpoint requires protocol credentials")
+			return nil, badRequest("导入的端点需要填写线路密钥")
 		}
 		if e.OwnerID != "" {
 			if len(l.UserIDs) != 1 || l.UserIDs[0] != e.OwnerID {
-				return nil, badRequest("private egress requires an owner-only line policy")
+				return nil, badRequest("私有落地只能用于限定了该用户的线路")
 			}
 		}
 		if l.Mode == "hybrid" && i == len(l.EndpointIDs)-1 && e.Capabilities.Managed {
-			return nil, badRequest("hybrid exit must be externally managed")
+			return nil, badRequest("“平台入口＋自带落地”模式下，落地端点不能由平台管理")
 		}
 		hops = append(hops, c.Hop{EndpointID: e.ID, NodeID: n.ID, Kind: e.Kind, Host: e.Host, Port: e.Port, PortEnd: e.PortEnd, Cipher: e.Cipher, CredentialID: e.CredentialID, Capabilities: e.Capabilities})
 	}
 	for _, gameID := range l.GameIDs {
 		var game Game
 		if tx.First(&game, "id = ?", gameID).Error != nil {
-			return nil, badRequest("unknown game restriction")
+			return nil, badRequest("限定游戏中有不存在的游戏")
 		}
 		if game.Draft.UDP {
 			for _, h := range hops {
 				if !h.Capabilities.UDP {
-					return nil, badRequest("game " + gameID + " requires UDP across the complete path")
+					return nil, badRequest("游戏 " + gameID + " 需要 UDP，但线路中有一跳不支持 UDP")
 				}
 			}
 		}

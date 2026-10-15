@@ -2,6 +2,7 @@ package control
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	c "github.com/mbfczzz/FlowLight-Accelerator/packages/contracts"
 	"golang.org/x/crypto/bcrypt"
@@ -14,7 +15,32 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
+
+// Password lengths, in characters. Staff accounts can change lines and
+// accounts, so they need the longer one; bcrypt reads at most 72 bytes.
+const (
+	playerPasswordMin = 8
+	staffPasswordMin  = 14
+	passwordMaxBytes  = 72
+)
+
+// checkName rejects an empty or overlong display name with a message that
+// names the field.
+func checkName(s, field string) error {
+	if !nameOK(s) {
+		return badRequest("请填写" + field + "（不超过 100 个字符）")
+	}
+	return nil
+}
+
+func checkHost(s, field string) error {
+	if !validHost(s) {
+		return badRequest(field + "不能为空，且不能包含空格、斜杠、引号或逗号")
+	}
+	return nil
+}
 
 func (s *Server) save(kind string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -33,8 +59,13 @@ func (s *Server) save(kind string) http.HandlerFunc {
 			}
 			_ = json.Unmarshal(raw, &p)
 			if p.Password != "" {
-				if len(p.Password) < 14 || len(p.Password) > 72 {
-					respond(w, nil, badRequest("password must contain 14-72 bytes"))
+				// The role-specific minimum is checked once the role is known.
+				if utf8.RuneCountInString(p.Password) < playerPasswordMin {
+					respond(w, nil, badRequest("密码至少 "+strconv.Itoa(playerPasswordMin)+" 位"))
+					return
+				}
+				if len(p.Password) > passwordMaxBytes {
+					respond(w, nil, badRequest("密码过长：最多 72 字节（约 72 个英文字符或 24 个汉字）"))
 					return
 				}
 				var e error
@@ -55,8 +86,11 @@ func (s *Server) save(kind string) http.HandlerFunc {
 			switch kind {
 			case "games":
 				var in Game
-				if json.Unmarshal(raw, &in) != nil || !nameOK(in.Name) {
+				if json.Unmarshal(raw, &in) != nil {
 					return errInvalid
+				}
+				if e := checkName(in.Name, "游戏名称"); e != nil {
+					return e
 				}
 				old, _ := load[Game](tx, id)
 				in.ID = id
@@ -71,8 +105,14 @@ func (s *Server) save(kind string) http.HandlerFunc {
 				}
 			case "nodes":
 				var in Node
-				if json.Unmarshal(raw, &in) != nil || !nameOK(in.Name) || !validHost(in.Address) {
+				if json.Unmarshal(raw, &in) != nil {
 					return errInvalid
+				}
+				if e := checkName(in.Name, "节点名称"); e != nil {
+					return e
+				}
+				if e := checkHost(in.Address, "节点地址"); e != nil {
+					return e
 				}
 				old, _ := load[Node](tx, id)
 				in.ID = id
@@ -94,12 +134,27 @@ func (s *Server) save(kind string) http.HandlerFunc {
 					Endpoint
 					Password string `json:"password"`
 				}
-				if json.Unmarshal(raw, &in) != nil || !validHost(in.Host) || in.Port < 1 || (in.Capabilities.Managed && in.Port < 1024) || in.PortEnd < in.Port || in.PortEnd > 65535 || !nameOK(in.Name) {
+				if json.Unmarshal(raw, &in) != nil {
 					return errInvalid
+				}
+				if e := checkName(in.Name, "端点名称"); e != nil {
+					return e
+				}
+				if e := checkHost(in.Host, "服务地址"); e != nil {
+					return e
+				}
+				if in.Port < 1 || in.Port > 65535 {
+					return badRequest("起始端口须在 1–65535 之间")
+				}
+				if in.Capabilities.Managed && in.Port < 1024 {
+					return badRequest("平台管理的端点，起始端口不能低于 1024")
+				}
+				if in.PortEnd < in.Port || in.PortEnd > 65535 {
+					return badRequest("结束端口须不小于起始端口，且不超过 65535")
 				}
 				var n Node
 				if tx.First(&n, "id = ?", in.NodeID).Error != nil {
-					return badRequest("unknown node")
+					return badRequest("所属节点不存在，请重新选择")
 				}
 				old, _ := load[Endpoint](tx, id)
 				in.ID = id
@@ -107,7 +162,7 @@ func (s *Server) save(kind string) http.HandlerFunc {
 				in.OwnerID = old.OwnerID
 				if in.Password != "" {
 					if !validKey(in.Cipher, in.Password) {
-						return badRequest("invalid SS2022 key or cipher")
+						return badRequest("线路密钥与加密方法不匹配：AES-128 需要 16 字节、AES-256 需要 32 字节的 Base64 密钥")
 					}
 					enc, e := s.Store.Seal(in.Password)
 					if e != nil {
@@ -120,7 +175,7 @@ func (s *Server) save(kind string) http.HandlerFunc {
 					in.CredentialID = cred.ID
 				}
 				if in.Kind != "realm" && in.Kind != "ss2022" {
-					return badRequest("unsupported endpoint kind")
+					return badRequest("服务类型只能是 SS2022 落地或 Realm 中转")
 				}
 				out = in.Endpoint
 				if e := tx.Save(&in.Endpoint).Error; e != nil {
@@ -128,8 +183,19 @@ func (s *Server) save(kind string) http.HandlerFunc {
 				}
 			case "lines":
 				var in Line
-				if json.Unmarshal(raw, &in) != nil || !nameOK(in.Name) || in.Capacity < 1 {
+				if json.Unmarshal(raw, &in) != nil {
 					return errInvalid
+				}
+				if e := checkName(in.Name, "线路名称"); e != nil {
+					return e
+				}
+				if in.Capacity < 1 || in.Capacity > 10000 {
+					return badRequest("并发容量须在 1–10000 之间")
+				}
+				for _, endpointID := range in.EndpointIDs {
+					if strings.TrimSpace(endpointID) == "" {
+						return badRequest("线路顺序里有未选择的服务端点")
+					}
 				}
 				old, _ := load[Line](tx, id)
 				in.ID = id
@@ -148,12 +214,35 @@ func (s *Server) save(kind string) http.HandlerFunc {
 					Enabled     bool   `json:"enabled"`
 					MaxSessions int    `json:"max_sessions"`
 				}
-				if json.Unmarshal(raw, &in) != nil || !nameOK(in.Username) || !slices.Contains([]string{"admin", "operator", "publisher", "viewer", "player"}, in.Role) || in.MaxSessions < 1 || in.MaxSessions > 20 {
+				if json.Unmarshal(raw, &in) != nil {
 					return errInvalid
+				}
+				// Login trims the name it is given; a stored name with
+				// surrounding spaces could never sign in.
+				in.Username = strings.TrimSpace(in.Username)
+				if e := checkName(in.Username, "账号"); e != nil {
+					return e
+				}
+				if strings.ContainsAny(in.Username, " \t\r\n") {
+					return badRequest("账号不能包含空格")
+				}
+				if !slices.Contains([]string{"admin", "operator", "publisher", "viewer", "player"}, in.Role) {
+					return badRequest("请选择权限")
+				}
+				if in.MaxSessions < 1 || in.MaxSessions > 20 {
+					return badRequest("并发会话上限须在 1–20 之间")
 				}
 				old, e := load[User](tx, id)
 				if e != nil && in.Password == "" {
-					return badRequest("password required")
+					return badRequest("新用户需要设置密码")
+				}
+				staff := in.Role != "player"
+				if staff && in.Password != "" && utf8.RuneCountInString(in.Password) < staffPasswordMin {
+					return badRequest("管理和运维账号的密码至少 " + strconv.Itoa(staffPasswordMin) + " 位")
+				}
+				// A player's password may be shorter than staff accounts allow.
+				if staff && in.Password == "" && e == nil && old.Role == "player" {
+					return badRequest("把玩家改为管理或运维角色时，请同时设置至少 " + strconv.Itoa(staffPasswordMin) + " 位的新密码")
 				}
 				if e != nil {
 					old.CreatedAt = time.Now().UTC()
@@ -169,10 +258,10 @@ func (s *Server) save(kind string) http.HandlerFunc {
 					return e
 				}
 				if clash > 0 {
-					return badRequest("username already exists")
+					return badRequest("账号已存在")
 				}
 				if id == actor(r).ID && (!in.Enabled || in.Role != "admin") {
-					return badRequest("cannot demote or disable your own administrator")
+					return badRequest("不能停用自己的账号，也不能取消自己的管理员权限")
 				}
 				old.ID = id
 				old.Username = in.Username
@@ -195,19 +284,19 @@ func (s *Server) save(kind string) http.HandlerFunc {
 					in.VerifiedAt = nil
 				}
 				if in.Kind != "shared" && in.Kind != "dedicated" && in.Kind != "byo" {
-					return errInvalid
+					return badRequest("请选择来源（共享、独享或自带落地）")
 				}
 				if _, e := load[User](tx, in.UserID); e != nil {
-					return badRequest("unknown user")
+					return badRequest("用户不存在，请重新选择")
 				}
 				if _, e := load[Endpoint](tx, in.EndpointID); e != nil {
-					return badRequest("unknown endpoint")
+					return badRequest("落地端点不存在，请重新选择")
 				}
 				if in.Kind == "dedicated" {
 					var n int64
 					tx.Model(&Binding{}).Where("endpoint_id = ? AND enabled = ? AND id <> ?", in.EndpointID, true, id).Count(&n)
 					if n > 0 {
-						return badRequest("egress already assigned")
+						return badRequest("该落地端点已独享给其他用户")
 					}
 				}
 				out = in
@@ -219,9 +308,18 @@ func (s *Server) save(kind string) http.HandlerFunc {
 				if json.Unmarshal(raw, &in) != nil {
 					return errInvalid
 				}
+				if e := checkName(in.Version, "版本号"); e != nil {
+					return e
+				}
 				u, e := url.Parse(in.URL)
-				if e != nil || u.Scheme != "https" || len(in.SHA256) != 64 || in.Signature == "" || !nameOK(in.Version) {
-					return badRequest("HTTPS URL, SHA256 and signed release manifest required")
+				if e != nil || u.Scheme != "https" || u.Host == "" {
+					return badRequest("下载地址必须是 https:// 开头的完整地址")
+				}
+				if _, e := hex.DecodeString(in.SHA256); e != nil || len(in.SHA256) != 64 {
+					return badRequest("安装包 SHA256 应为 64 位十六进制字符")
+				}
+				if strings.TrimSpace(in.Signature) == "" {
+					return badRequest("请填写可信发布清单签名")
 				}
 				in.ID = id
 				// Editing an old release must not make it look newer.
@@ -256,14 +354,14 @@ func (s *Server) device(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(in.ID) < 8 || len(in.ID) > 64 || !nameOK(in.Name) {
-		fail(w, 400, "device identifier and name required")
+		fail(w, 400, "设备信息不完整")
 		return
 	}
 	out := Device{ID: in.ID, UserID: actor(r).ID, Name: in.Name, Capabilities: in.Capabilities, LastSeen: timePointer(time.Now().UTC())}
 	e := s.Store.Tx(func(tx *gorm.DB) error {
 		old, e := load[Device](tx, in.ID)
 		if e == nil && old.UserID != out.UserID {
-			return badRequest("device belongs to a different account")
+			return badRequest("此设备已绑定到其他账号")
 		}
 		return tx.Save(&out).Error
 	})
@@ -382,13 +480,13 @@ func (s *Server) clientBinding(w http.ResponseWriter, r *http.Request) {
 	err := s.Store.Tx(func(tx *gorm.DB) error {
 		if in.EndpointID == "" {
 			if !s.Config.AllowImported {
-				return badRequest("operator has not enabled external egress registration")
+				return badRequest("运营方未开放自备落地注册")
 			}
 			if !validHost(in.Host) || in.Port < 1 || in.Port > 65535 || !validKey(in.Cipher, in.Password) || !nameOK(in.Name) {
 				return errInvalid
 			}
 			if !publicHost(in.Host) {
-				return badRequest("external egress must be a public address or hostname")
+				return badRequest("自备落地必须是公网地址或域名")
 			}
 			if e := resolvesPublic(in.Host); e != nil {
 				return e
@@ -398,7 +496,7 @@ func (s *Server) clientBinding(w http.ResponseWriter, r *http.Request) {
 				return e
 			}
 			if owned >= maxOwnedEgress {
-				return badRequest("external egress limit reached; remove one first")
+				return badRequest("自备落地数量已达上限，请先删除一个")
 			}
 			node := Node{ID: ID(), Name: in.Name, Address: in.Host, Enabled: true, Capabilities: c.Capabilities{TCP: true, UDP: true, IPv4: true}}
 			if e := tx.Create(&node).Error; e != nil {
@@ -440,7 +538,7 @@ func (s *Server) clientBinding(w http.ResponseWriter, r *http.Request) {
 				return tx.Create(&out).Error
 			}
 		}
-		return badRequest("egress not available to this account")
+		return badRequest("该落地不对当前账号开放")
 	})
 	respond(w, out, err)
 }
@@ -508,7 +606,7 @@ func (s *Server) publishGame(w http.ResponseWriter, r *http.Request) {
 			return e
 		}
 		if len(out.Regions) == 0 {
-			return badRequest("configure at least one region before publishing")
+			return badRequest("发布前请至少配置一个区服")
 		}
 		if e = validateProfile(out.Draft); e != nil {
 			return e
@@ -518,7 +616,7 @@ func (s *Server) publishGame(w http.ResponseWriter, r *http.Request) {
 		if raw := r.PathValue("version"); raw != "" {
 			v, e := strconv.Atoi(raw)
 			if e != nil || v < 1 {
-				return badRequest("invalid profile version")
+				return badRequest("规则版本号不正确")
 			}
 			var previous GameVersion
 			if tx.First(&previous, "game_id = ? AND version = ?", out.ID, v).Error == nil {
@@ -529,7 +627,7 @@ func (s *Server) publishGame(w http.ResponseWriter, r *http.Request) {
 				return audit(tx, actor(r).ID, "game.profile.activate", out.ID, raw)
 			}
 			if v != maxVersion+1 {
-				return badRequest("profile version does not exist")
+				return badRequest("该规则版本不存在")
 			}
 		}
 		out.PublishedVersion = maxVersion + 1
@@ -567,16 +665,16 @@ func (s *Server) publishLine(w http.ResponseWriter, r *http.Request) {
 		if l.Mode == "imported" {
 			probeNode, err := load[Node](tx, s.Config.ProbeNodeID)
 			if err != nil || !probeNode.Enabled || timeSince(probeNode.LastSeen) > s.Config.NodeTimeout {
-				return badRequest("configure an online PROBE_NODE_ID for imported line validation")
+				return badRequest("导入线路的验证需要一个在线的探测节点，请在控制服务配置 PROBE_NODE_ID")
 			}
 		}
 		if s.Config.ProbeURL == "" || s.Config.ProbeUDP == "" {
-			return badRequest("configure controlled TCP and UDP probe endpoints before publication")
+			return badRequest("发布前请在控制服务配置 TCP 与 UDP 探测端点（PROBE_URL、PROBE_UDP）")
 		}
 		var pending int64
 		tx.Model(&LineVersion{}).Where("line_id = ? AND status = ?", l.ID, "validating").Count(&pending)
 		if pending > 0 {
-			return badRequest("publication already in progress")
+			return badRequest("这条线路正在发布验证中，请等待结果")
 		}
 		var n int64
 		tx.Model(&LineVersion{}).Where("line_id = ?", l.ID).Count(&n)
@@ -605,7 +703,7 @@ func (s *Server) rollbackLine(w http.ResponseWriter, r *http.Request) {
 	e := s.Store.Tx(func(tx *gorm.DB) error {
 		v, e := load[LineVersion](tx, in.Version)
 		if e != nil || v.LineID != r.PathValue("id") || v.Status != "ready" {
-			return badRequest("choose a verified version of this line")
+			return badRequest("请选择这条线路已验证通过的版本")
 		}
 		// A validation finishing later would replace the version chosen here.
 		var pending int64
@@ -613,7 +711,7 @@ func (s *Server) rollbackLine(w http.ResponseWriter, r *http.Request) {
 			return e
 		}
 		if pending > 0 {
-			return badRequest("a publication is being validated; stop its validation session before rolling back")
+			return badRequest("这条线路正在发布验证中，请先在“加速会话”里停止验证会话，再切换版本")
 		}
 		if e = tx.Model(&Line{}).Where("id = ?", v.LineID).Update("published_version", v.ID).Error; e != nil {
 			return e
@@ -721,11 +819,11 @@ func resolvesPublic(host string) error {
 		defer cancel()
 		addrs, e := net.DefaultResolver.LookupNetIP(ctx, "ip", host)
 		if e != nil {
-			return badRequest("external egress hostname does not resolve")
+			return badRequest("自备落地的域名无法解析")
 		}
 		for _, a := range addrs {
 			if !publicHost(a.Unmap().String()) {
-				return badRequest("external egress hostname resolves to an internal address")
+				return badRequest("自备落地的域名解析到了内网地址")
 			}
 		}
 	}

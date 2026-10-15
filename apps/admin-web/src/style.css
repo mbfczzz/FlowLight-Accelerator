@@ -108,16 +108,9 @@ aside {
   color: var(--muted);
   margin-top: 3px;
 }
-.brand-symbol {
-  display: grid;
-  place-items: center;
-  background: var(--accent);
-  color: white;
-  width: 35px;
-  height: 38px;
-  font-size: 23px;
-  font-weight: 750;
-  border-radius: 8px;
+.brand-mark {
+  flex: none;
+  display: block;
 }
 .workspace {
   margin: 32px 10px 15px;

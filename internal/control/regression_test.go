@@ -198,8 +198,8 @@ func TestInternalErrorsAreNotLeaked(t *testing.T) {
 		t.Fatalf("driver error leaked: %d %s", w.Code, w.Body.String())
 	}
 	w = httptest.NewRecorder()
-	respond(w, nil, badRequest("line capacity exhausted"))
-	if w.Code != 400 || !strings.Contains(w.Body.String(), "line capacity exhausted") {
+	respond(w, nil, badRequest("线路容量已满，请选择其他线路"))
+	if w.Code != 400 || !strings.Contains(w.Body.String(), "线路容量已满") {
 		t.Fatalf("validation error hidden: %d %s", w.Code, w.Body.String())
 	}
 }
@@ -207,7 +207,7 @@ func TestInternalErrorsAreNotLeaked(t *testing.T) {
 func TestDuplicateUsernameIsAValidationError(t *testing.T) {
 	s, token, _ := setup(t)
 	body := map[string]any{"username": "admin", "password": "another-password-1234", "role": "viewer", "enabled": true, "max_sessions": 1}
-	if w := request(s, token, "POST", "/api/admin/v1/users", body, ""); w.Code != 400 || !strings.Contains(w.Body.String(), "already exists") {
+	if w := request(s, token, "POST", "/api/admin/v1/users", body, ""); w.Code != 400 || !strings.Contains(w.Body.String(), "账号已存在") {
 		t.Fatalf("duplicate username: %d %s", w.Code, w.Body.String())
 	}
 }
@@ -347,5 +347,34 @@ func TestConfiguredProbeAgentValidatesManagedLines(t *testing.T) {
 	}
 	if probe.NodeID != "probe-node" {
 		t.Fatalf("probe assigned to %s", probe.NodeID)
+	}
+}
+
+func TestPasswordLengthDependsOnRole(t *testing.T) {
+	s, token, _ := setup(t)
+	user := func(name, password, role string) map[string]any {
+		return map[string]any{"username": name, "password": password, "role": role, "enabled": true, "max_sessions": 1}
+	}
+	if w := request(s, token, "POST", "/api/admin/v1/users", user("short", "pw12345", "player"), ""); w.Code != 400 || !strings.Contains(w.Body.String(), "至少 8 位") {
+		t.Fatalf("7-character player password accepted: %d %s", w.Code, w.Body.String())
+	}
+	w := request(s, token, "POST", "/api/admin/v1/users", user("player1", "pw123456", "player"), "")
+	if w.Code != 200 {
+		t.Fatalf("8-character player password rejected: %d %s", w.Code, w.Body.String())
+	}
+	var created User
+	_ = json.Unmarshal(w.Body.Bytes(), &created)
+	if w := request(s, token, "POST", "/api/admin/v1/users", user("ops1", "pw123456", "operator"), ""); w.Code != 400 || !strings.Contains(w.Body.String(), "至少 14 位") {
+		t.Fatalf("8-character operator password accepted: %d %s", w.Code, w.Body.String())
+	}
+	promote := map[string]any{"username": "player1", "role": "operator", "enabled": true, "max_sessions": 1}
+	if w := request(s, token, "PATCH", "/api/admin/v1/users/"+created.ID, promote, ""); w.Code != 400 || !strings.Contains(w.Body.String(), "新密码") {
+		t.Fatalf("player promoted to staff without a new password: %d %s", w.Code, w.Body.String())
+	}
+	if w := request(s, token, "POST", "/api/admin/v1/users", user(" spaced ", "pw123456", "player"), ""); w.Code != 200 || !strings.Contains(w.Body.String(), `"username":"spaced"`) {
+		t.Fatalf("username not trimmed: %d %s", w.Code, w.Body.String())
+	}
+	if w := request(s, "", "POST", "/api/client/v1/auth/login", map[string]string{"username": "player1", "password": "pw123456"}, ""); w.Code != 200 {
+		t.Fatalf("player cannot sign in with an 8-character password: %d %s", w.Code, w.Body.String())
 	}
 }

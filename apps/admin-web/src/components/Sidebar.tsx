@@ -2,6 +2,7 @@ import { ChevronRight, LogOut } from "lucide-react";
 import type { Row } from "../api";
 import { stateNames } from "../format";
 import { sections } from "../sections";
+import { BrandMark } from "./BrandMark";
 
 export function Sidebar({
   section,
@@ -24,7 +25,7 @@ export function Sidebar({
           onSelect("overview");
         }}
       >
-        <span className="brand-symbol">F</span>
+        <BrandMark />
         <span>
           FlowLight<strong>Accelerator</strong>
         </span>

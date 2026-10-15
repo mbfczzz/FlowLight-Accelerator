@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 type Config struct {
@@ -121,14 +122,14 @@ func (s *Server) Handler() http.Handler {
 		defer func() {
 			if failure := recover(); failure != nil {
 				log.Printf("panic serving %s %s: %v\n%s", r.Method, r.URL.Path, failure, debug.Stack())
-				fail(w, 500, "internal request failure")
+				fail(w, 500, "控制服务内部错误，请稍后重试；如持续出现，请查看控制服务日志")
 			}
 		}()
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		if origin := r.Header.Get("Origin"); origin != "" {
 			if origin != s.Config.Origin {
-				fail(w, 403, "origin is not allowed")
+				fail(w, 403, "请求来源不被允许：请通过控制服务 ADMIN_ORIGIN 中配置的后台地址访问")
 				return
 			}
 			w.Header().Set("Access-Control-Allow-Origin", origin)
@@ -301,7 +302,7 @@ func cleanID(r *http.Request) string {
 	return id
 }
 
-var errInvalid = badRequest("invalid resource configuration")
+var errInvalid = badRequest("提交的内容格式不正确，请刷新页面后重试")
 
 // invalid marks an error the client caused and can correct. respond reports
 // these as 400 with their message; any other error is internal.
@@ -313,4 +314,8 @@ func isInvalid(e error) bool {
 	return errors.As(e, &i)
 }
 
-func nameOK(s string) bool { return len(strings.TrimSpace(s)) > 0 && len(s) < 150 }
+// nameOK accepts a non-blank name of at most 100 characters, the size of
+// the username column.
+func nameOK(s string) bool {
+	return len(strings.TrimSpace(s)) > 0 && utf8.RuneCountInString(s) <= 100
+}

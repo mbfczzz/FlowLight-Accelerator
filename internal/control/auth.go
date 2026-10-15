@@ -33,12 +33,12 @@ func (s *Server) auth(next http.HandlerFunc, roles ...string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var token Token
 		if raw := bearer(r); raw == "" || s.Store.DB.First(&token, "hash = ? AND kind = ?", hash(raw), "access").Error != nil || token.Used || time.Now().After(token.ExpiresAt) {
-			fail(w, 401, "authentication required")
+			fail(w, 401, "登录已过期，请重新登录")
 			return
 		}
 		var u User
 		if s.Store.DB.First(&u, "id = ?", token.UserID).Error != nil || !u.Enabled {
-			fail(w, 401, "account unavailable")
+			fail(w, 401, "账号已被停用或不存在")
 			return
 		}
 		if len(roles) > 0 {
@@ -47,7 +47,7 @@ func (s *Server) auth(next http.HandlerFunc, roles ...string) http.HandlerFunc {
 				ok = ok || role == u.Role
 			}
 			if !ok {
-				fail(w, 403, "insufficient role")
+				fail(w, 403, "当前账号没有权限执行此操作")
 				return
 			}
 		}
@@ -134,7 +134,7 @@ func (s *Server) clientAddress(r *http.Request) string {
 }
 func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	if !s.limiter.Allow("addr:"+s.clientAddress(r), loginPerAddress, time.Minute) {
-		fail(w, 429, "too many login attempts")
+		fail(w, 429, "登录尝试过于频繁，请一分钟后再试")
 		return
 	}
 	var in struct {
@@ -147,7 +147,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	name := strings.TrimSpace(in.Username)
 	account := "user:" + strings.ToLower(name)
 	if s.limiter.Count(account, loginWindow) >= loginFailures {
-		fail(w, 429, "too many failed attempts for this account; try again later")
+		fail(w, 429, "该账号密码错误次数过多，请 15 分钟后再试")
 		return
 	}
 	var u User
@@ -158,7 +158,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	}
 	if bcrypt.CompareHashAndPassword(hashed, []byte(in.Password)) != nil || !found || !u.Enabled {
 		s.limiter.Allow(account, loginFailures, loginWindow)
-		fail(w, 401, "invalid credentials")
+		fail(w, 401, "账号或密码错误")
 		return
 	}
 	s.limiter.Reset(account)
@@ -199,7 +199,7 @@ func (s *Server) refresh(w http.ResponseWriter, r *http.Request) {
 		return err
 	})
 	if rejected {
-		fail(w, 401, "refresh token expired or reused")
+		fail(w, 401, "登录已过期，请重新登录")
 		return
 	}
 	respond(w, out, e)
@@ -214,12 +214,12 @@ func decode(w http.ResponseWriter, r *http.Request, v any) bool {
 	d := json.NewDecoder(r.Body)
 	d.DisallowUnknownFields()
 	if e := d.Decode(v); e != nil {
-		fail(w, 400, "invalid JSON request: "+e.Error())
+		fail(w, 400, "请求格式错误，请刷新页面后重试")
 		return false
 	}
 	var tail any
 	if d.Decode(&tail) != io.EOF {
-		fail(w, 400, "multiple JSON objects are not accepted")
+		fail(w, 400, "请求格式错误，请刷新页面后重试")
 		return false
 	}
 	return true
@@ -241,12 +241,12 @@ func respond(w http.ResponseWriter, out any, e error) {
 	if e != nil {
 		switch {
 		case errors.Is(e, gorm.ErrRecordNotFound):
-			fail(w, 404, "resource not found")
+			fail(w, 404, "要操作的内容不存在，可能已被删除，请刷新后重试")
 		case isInvalid(e):
 			fail(w, 400, e.Error())
 		default:
 			log.Printf("request failed: %v", e)
-			fail(w, 500, "internal request failure")
+			fail(w, 500, "控制服务内部错误，请稍后重试；如持续出现，请查看控制服务日志")
 		}
 		return
 	}

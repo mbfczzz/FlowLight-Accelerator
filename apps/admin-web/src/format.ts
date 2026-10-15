@@ -73,6 +73,15 @@ export const stateNames: Record<string, string> = {
   shared: "共享",
   dedicated: "独享",
   byo: "自带落地",
+  ss2022: "SS2022 落地",
+  realm: "Realm 中转",
+  prepare: "准备转发",
+  probe: "线路探测",
+  revoke: "回收资源",
+  game: "玩家加速",
+  validation: "发布验证",
+  stable: "稳定版",
+  beta: "测试版",
   player: "玩家",
   admin: "管理员",
   operator: "配置运维",
@@ -80,11 +89,64 @@ export const stateNames: Record<string, string> = {
   viewer: "只读运维",
 };
 
+/** Why a session ended, as the control service records it. */
+const endReasons: Record<string, string> = {
+  requested: "按请求停止",
+  "lease or preparation timeout": "准备或租约超时",
+  "line terminated by operator": "线路被终止",
+  "validation complete": "验证完成",
+  runtime_failed: "转发进程异常退出",
+  lease_expired: "节点租约过期",
+};
+
+/** Audit log actions. */
+const auditActions: Record<string, string> = {
+  "resource.save": "保存配置",
+  "game.publish": "发布游戏规则",
+  "game.profile.activate": "切换游戏规则版本",
+  "line.publish.begin": "开始发布线路",
+  "line.publish.ready": "线路验证通过",
+  "line.rollback": "切换线路版本",
+  "line.drain": "排空或恢复线路",
+  "line.terminate": "终止线路",
+  "node.enroll": "生成注册凭据",
+  "node.register": "节点注册",
+  "node.certificate.renew": "节点证书续期",
+  "egress.register": "注册自备落地",
+  "session.create": "创建会话",
+  "session.stop": "停止会话",
+  "session.closed": "会话关闭",
+};
+
+function endReason(v: string) {
+  if (endReasons[v]) return endReasons[v];
+  const failed = /^node task failed: (\w+)$/.exec(v);
+  if (failed) return "节点任务失败：" + (stateNames[failed[1]] || failed[1]);
+  return v;
+}
+
+/** Columns whose values are enumerations with Chinese display names. */
+const enumColumns = ["state", "status", "mode", "role", "kind", "purpose", "channel"];
+
 /** Columns whose values render as a badge rather than plain text. */
 export const badgeColumns = ["state", "status", "enabled", "mode"];
 
-/** Display form of one cell value. */
-export function text(v: any, key = "") {
+/** Columns that hold the id of another row. */
+const referenceColumns = [
+  "actor",
+  "user_id",
+  "node_id",
+  "endpoint_id",
+  "line_id",
+  "game_id",
+  "device_id",
+  "resource",
+];
+
+/** Display form of one cell value; `names` maps ids to display names. */
+export function text(v: any, key = "", names: Record<string, string> = {}) {
+  if (referenceColumns.includes(key) && typeof v === "string" && names[v])
+    return names[v];
   if (key === "published_version")
     return !v ? "草稿" : typeof v === "number" ? "v" + v : "已发布";
   if (
@@ -99,5 +161,10 @@ export function text(v: any, key = "") {
   if (typeof v === "object") return JSON.stringify(v);
   if (key.endsWith("_at") || key === "last_seen" || key === "lease_until")
     return new Date(v).toLocaleString("zh-CN", { hour12: false });
+  if (key === "end_reason") return endReason(String(v));
+  if (key === "action") return auditActions[v] || String(v);
+  // Only enumerated columns are translated: a user named "admin" or a game
+  // whose id is "probe" keeps its own name.
+  if (!enumColumns.includes(key)) return String(v);
   return stateNames[v] || String(v);
 }

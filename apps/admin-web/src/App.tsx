@@ -16,6 +16,7 @@ import {
   sectionTitle,
 } from "./sections";
 import { messageOf, useSectionData } from "./useSectionData";
+import { useNames } from "./useNames";
 import { DetailModal } from "./components/DetailModal";
 import { Editor } from "./components/Editor";
 import { EnrollmentModal } from "./components/EnrollmentModal";
@@ -82,6 +83,7 @@ function Workspace({
   onLoggedOut: () => void;
 }) {
   const data = useSectionData(section);
+  const { names, reloadNames } = useNames(section);
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<Row | null>(null);
   const [detail, setDetail] = useState<Row | null>(null);
@@ -254,6 +256,7 @@ function Workspace({
               onLoadMore={() => void data.loadMore()}
               search={search}
               onSearch={setSearch}
+              names={names}
               editable={editable}
               renderActions={(row) => (
                 <RowActions
@@ -287,7 +290,16 @@ function Workspace({
               body,
             );
             setEditing(null);
-            setNotice("已保存。配置变更需要发布后供新会话使用。");
+            void reloadNames();
+            // Only game rules and lines go through a publication; every
+            // other change applies as soon as it is saved.
+            setNotice(
+              section === "games"
+                ? "已保存草稿。发布规则后，新会话才会使用它。"
+                : section === "lines"
+                  ? "已保存。发布线路并通过验证后，新会话才会使用它。"
+                  : "已保存",
+            );
             await data.reload();
           }}
         />
@@ -299,6 +311,7 @@ function Workspace({
           pending={pending}
           onConfirm={askConfirm}
           onClose={() => setDetail(null)}
+          names={names}
         />
       )}
       {enroll && (

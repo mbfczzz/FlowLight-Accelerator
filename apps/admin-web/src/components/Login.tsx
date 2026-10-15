@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { login, type Row } from "../api";
+import { BrandMark } from "./BrandMark";
 
 export function Login({
   onLogin,
@@ -18,7 +19,7 @@ export function Login({
     <div className="login">
       <div className="login-art">
         <div className="brand">
-          <span className="brand-symbol">F</span>
+          <BrandMark />
           <span>
             FlowLight<strong>Accelerator</strong>
           </span>
@@ -90,7 +91,7 @@ export function Login({
           {busy ? "正在登录…" : "登录"}
           <ChevronRight size={16} />
         </button>
-        <small>首次账号由控制服务启动配置创建。</small>
+        <small>忘记密码请联系管理员在“用户与权限”中重置。</small>
       </form>
     </div>
   );
