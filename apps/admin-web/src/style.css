@@ -1085,10 +1085,13 @@ b.region-code.idle {
   top: -3px;
   border-top: 1px solid var(--line);
 }
-.menu .danger-item:first-child {
+/* One hairline above the danger group, not between its items. */
+.menu .danger-item:first-child,
+.menu .danger-item + .danger-item {
   margin-top: 0;
 }
-.menu .danger-item:first-child::before {
+.menu .danger-item:first-child::before,
+.menu .danger-item + .danger-item::before {
   display: none;
 }
 .menu .danger-item svg {
@@ -1673,6 +1676,148 @@ dialog.confirm {
   font-size: 11.5px;
   line-height: 1.6;
   white-space: pre-wrap;
+}
+/* Line connectivity check (LineCheck.tsx): the path as a vertical rail,
+   each stop a card and each link a row on the rail coloured by its result. */
+.check-summary {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+.check-summary p {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+.check-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 10px;
+}
+.check-banner div {
+  display: grid;
+  gap: 3px;
+}
+.check-banner span {
+  font-size: 13px;
+  line-height: 1.5;
+}
+.check-banner.tone-neutral span {
+  color: var(--text-3);
+}
+.check-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+.check-path {
+  list-style: none;
+  margin: 20px 0 0;
+  padding: 0;
+}
+.check-stop {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.check-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: var(--surface-2);
+  color: var(--text-2);
+}
+.check-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 34px;
+}
+.check-detail {
+  display: grid;
+  gap: 3px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+.check-link {
+  --rail: var(--line);
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 12px;
+  padding: 4px 14px;
+  min-height: 52px;
+}
+.check-link[data-status="ok"] {
+  --rail: var(--good);
+}
+.check-link[data-status="warn"] {
+  --rail: var(--warn);
+}
+.check-link[data-status="failed"] {
+  --rail: var(--bad);
+}
+.check-rail {
+  justify-self: center;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--rail);
+}
+.check-link > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 8px 0;
+  font-size: 13px;
+}
+.check-note {
+  flex-basis: 100%;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.check-figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  color: var(--text-2);
+}
+.check-figures .figure {
+  color: var(--text);
+}
+.check-good {
+  color: var(--good);
+}
+.check-bad {
+  color: var(--bad);
+}
+/* Below this width the line row has no room for the label; the icon keeps
+   the name in its tooltip. */
+@media (max-width: 1499px) {
+  .row-actions .check-label {
+    display: none;
+  }
+}
+.spin {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 .versions {
   display: grid;

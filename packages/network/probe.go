@@ -33,20 +33,11 @@ func Probe(ctx context.Context, socks, urlString, udpTarget string) (c.ProbeResu
 	// TLS handshakes and is not timed, so samples measure the path RTT.
 	transport := &http.Transport{DialContext: cd.DialContext, MaxIdleConnsPerHost: 1}
 	defer transport.CloseIdleConnections()
-	client := &http.Client{Transport: transport, Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	rtts := []float64{}
-	for i := 0; i <= tcpSamples; i++ {
-		start := time.Now()
-		ip, e := probeOnce(ctx, client, urlString)
-		if e != nil {
-			return out, fmt.Errorf("TCP tunnel probe failed: %w", e)
-		}
-		out.ExitIP = ip
-		if i > 0 {
-			rtts = append(rtts, float64(time.Since(start).Microseconds())/1000)
-		}
+	ip, rtts, e := timedRequests(ctx, transport, urlString)
+	if e != nil {
+		return out, fmt.Errorf("TCP tunnel probe failed: %w", e)
 	}
-	sort.Float64s(rtts)
+	out.ExitIP = ip
 	out.TCP = true
 	out.RTTMS = rtts[len(rtts)/2]
 	out.JitterMS = rtts[len(rtts)-1] - rtts[0]
@@ -77,6 +68,28 @@ const (
 	udpSamples  = 5
 	udpRequired = 4
 )
+
+// timedRequests makes one untimed request, then tcpSamples timed ones over
+// the warmed connection, and returns the address the probe saw and the
+// sorted round trips.
+func timedRequests(ctx context.Context, transport *http.Transport, urlString string) (string, []float64, error) {
+	client := &http.Client{Transport: transport, Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	ip := ""
+	rtts := []float64{}
+	for i := 0; i <= tcpSamples; i++ {
+		start := time.Now()
+		seen, e := probeOnce(ctx, client, urlString)
+		if e != nil {
+			return ip, rtts, e
+		}
+		ip = seen
+		if i > 0 {
+			rtts = append(rtts, float64(time.Since(start).Microseconds())/1000)
+		}
+	}
+	sort.Float64s(rtts)
+	return ip, rtts, nil
+}
 
 func probeOnce(ctx context.Context, client *http.Client, urlString string) (string, error) {
 	req, _ := http.NewRequestWithContext(ctx, "GET", urlString, nil)

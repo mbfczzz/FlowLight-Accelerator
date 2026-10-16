@@ -192,6 +192,9 @@ export function renderCell(
         return <Entity lead={<Avatar name={n} />} title={n || "系统"} />;
       }
       if (col === "action") return <b>{text(v, col)}</b>;
+      // A deleted row has no name to look up; the entry keeps the one it had.
+      if (col === "resource" && row.action === "resource.delete" && row.detail)
+        return <span title={String(v)}>{String(row.detail)}</span>;
       if (col === "resource") return <Ref id={v} names={names} />;
       break;
   }

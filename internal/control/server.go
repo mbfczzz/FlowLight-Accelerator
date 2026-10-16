@@ -15,6 +15,9 @@ import (
 	"sync"
 	"time"
 	"unicode/utf8"
+
+	c "github.com/mbfczzz/FlowLight-Accelerator/packages/contracts"
+	"github.com/mbfczzz/FlowLight-Accelerator/packages/network"
 )
 
 type Config struct {
@@ -48,6 +51,8 @@ type Server struct {
 	CA      *Authority
 	// sums caches the node package checksums per arch.
 	sums sync.Map
+	// checkDialer is how the control service measures a line's entry.
+	checkDialer func(context.Context, c.CheckTarget) c.CheckLinkResult
 }
 
 func New(store *Store, c Config) (*Server, error) {
@@ -67,7 +72,7 @@ func New(store *Store, c Config) (*Server, error) {
 	if e != nil {
 		return nil, e
 	}
-	return &Server{Store: store, Config: c, CA: ca, limiter: limiter{Entries: map[string]limitEntry{}}}, nil
+	return &Server{Store: store, Config: c, CA: ca, limiter: limiter{Entries: map[string]limitEntry{}}, checkDialer: network.CheckDial}, nil
 }
 func (s *Server) Handler() http.Handler {
 	m := http.NewServeMux()
@@ -112,6 +117,19 @@ func (s *Server) Handler() http.Handler {
 		m.HandleFunc("POST /api/admin/v1/"+kind, s.auth(s.save(kind), roles...))
 		m.HandleFunc("PATCH /api/admin/v1/"+kind+"/{id}", s.auth(s.save(kind), roles...))
 	}
+	// Deleting refuses anything still in use (remove.go). Lines and games
+	// are what players see, so removing them takes a publisher, like
+	// publishing them does.
+	for kind, roles := range map[string][]string{
+		"nodes":     {"operator", "publisher"},
+		"endpoints": {"operator", "publisher"},
+		"releases":  {"operator", "publisher"},
+		"lines":     {"publisher"},
+		"games":     {"publisher"},
+		"bindings":  {"admin"},
+	} {
+		m.HandleFunc("DELETE /api/admin/v1/"+kind+"/{id}", s.auth(s.remove(kind), roles...))
+	}
 	m.HandleFunc("GET /api/admin/v1/overview", s.auth(s.overview, "viewer", "operator", "publisher"))
 	m.HandleFunc("GET /api/admin/v1/traffic", s.auth(s.traffic, "viewer", "operator", "publisher"))
 	m.HandleFunc("GET /api/admin/v1/jobs/{id}", s.auth(s.getJob, "viewer", "operator", "publisher"))
@@ -125,6 +143,8 @@ func (s *Server) Handler() http.Handler {
 	m.HandleFunc("POST /api/admin/v1/lines/{id}/drain", s.auth(s.drainLine, "publisher"))
 	m.HandleFunc("POST /api/admin/v1/lines/{id}/terminate", s.auth(s.terminateLine, "publisher"))
 	m.HandleFunc("GET /api/admin/v1/lines/{id}/versions", s.auth(s.versions, "viewer", "operator", "publisher"))
+	m.HandleFunc("POST /api/admin/v1/lines/{id}/check", s.auth(s.startCheck, "operator", "publisher"))
+	m.HandleFunc("GET /api/admin/v1/lines/{id}/check", s.auth(s.lineCheck, "viewer", "operator", "publisher"))
 	m.HandleFunc("POST /api/admin/v1/nodes/{id}/enrollment", s.auth(s.enrollment, "operator"))
 	m.HandleFunc("POST /api/admin/v1/sessions/{id}/stop", s.auth(s.stopSession, "operator"))
 	m.HandleFunc("POST /api/node/v1/register", s.registerNode)
@@ -197,6 +217,9 @@ func (s *Server) Purge() error {
 		return e
 	}
 	if e := db.Where("created_at < ?", now.Add(-idempotencyRetention)).Delete(&Idempotency{}).Error; e != nil {
+		return e
+	}
+	if e := db.Where("created_at < ?", now.Add(-jobRetention)).Delete(&LineCheck{}).Error; e != nil {
 		return e
 	}
 	return db.Where("created_at < ? AND status IN ?", now.Add(-jobRetention), []string{"succeeded", "failed", "cancelled"}).Delete(&Job{}).Error

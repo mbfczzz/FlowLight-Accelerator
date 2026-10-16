@@ -72,7 +72,7 @@ func Open(driver, dsn, key string) (*Store, error) {
 	} else {
 		sqlDB.SetMaxOpenConns(20)
 	}
-	e = db.AutoMigrate(&Gate{}, &User{}, &Token{}, &Device{}, &Game{}, &GameVersion{}, &CoverArt{}, &Node{}, &Endpoint{}, &Credential{}, &Line{}, &LineVersion{}, &Binding{}, &Session{}, &Reservation{}, &Idempotency{}, &Job{}, &Audit{}, &Release{}, &TrafficHour{})
+	e = db.AutoMigrate(&Gate{}, &User{}, &Token{}, &Device{}, &Game{}, &GameVersion{}, &CoverArt{}, &Node{}, &Endpoint{}, &Credential{}, &Line{}, &LineVersion{}, &Binding{}, &Session{}, &Reservation{}, &Idempotency{}, &Job{}, &Audit{}, &Release{}, &TrafficHour{}, &LineCheck{})
 	if e != nil {
 		return nil, e
 	}

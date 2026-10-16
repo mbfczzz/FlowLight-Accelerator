@@ -223,12 +223,12 @@ func (m *Manager) start(rt c.Runtime, restarts int) (*Process, error) {
 	}
 	var data []byte
 	if rt.Kind == "ss2022" {
-		data, e = json.Marshal(map[string]any{"server": "0.0.0.0", "server_port": rt.ListenPort, "password": rt.Password, "method": rt.Cipher, "mode": mode, "timeout": 60})
+		data, e = json.Marshal(map[string]any{"server": serviceHost, "server_port": rt.ListenPort, "password": rt.Password, "method": rt.Cipher, "mode": mode, "timeout": 60})
 	} else if rt.Kind == "realm" {
 		if rt.RemoteHost == "" || rt.RemotePort < 1 || rt.RemotePort > 65535 {
 			return nil, errors.New("invalid forwarding destination")
 		}
-		data, e = json.Marshal(map[string]any{"network": map[string]any{"no_tcp": false, "use_udp": rt.UDP}, "endpoints": []map[string]string{{"listen": net.JoinHostPort("0.0.0.0", fmt.Sprint(rt.ListenPort)), "remote": net.JoinHostPort(rt.RemoteHost, fmt.Sprint(rt.RemotePort))}}})
+		data, e = json.Marshal(map[string]any{"network": map[string]any{"no_tcp": false, "use_udp": rt.UDP}, "endpoints": []map[string]string{{"listen": net.JoinHostPort(serviceHost, fmt.Sprint(rt.ListenPort)), "remote": net.JoinHostPort(rt.RemoteHost, fmt.Sprint(rt.RemotePort))}}})
 	} else {
 		return nil, errors.New("unsupported runtime kind")
 	}
@@ -601,11 +601,16 @@ func (m *Manager) ActualVersions() []string {
 	return out
 }
 
+// serviceHost is the address session services listen on: IPv4 only. The
+// connectivity check's test listener uses it too, so a path it finds open is
+// one a session can use.
+const serviceHost = "0.0.0.0"
+
 // portAvailable reports whether both the TCP and, when required, the UDP
 // listener can be bound, so a conflict fails the prepare task instead of
 // surfacing later as a probe failure.
 func portAvailable(port int, udp bool) bool {
-	tcp, e := net.Listen("tcp", net.JoinHostPort("0.0.0.0", fmt.Sprint(port)))
+	tcp, e := net.Listen("tcp", net.JoinHostPort(serviceHost, fmt.Sprint(port)))
 	if e != nil {
 		return false
 	}
@@ -613,7 +618,7 @@ func portAvailable(port int, udp bool) bool {
 	if !udp {
 		return true
 	}
-	packet, e := net.ListenPacket("udp", net.JoinHostPort("0.0.0.0", fmt.Sprint(port)))
+	packet, e := net.ListenPacket("udp", net.JoinHostPort(serviceHost, fmt.Sprint(port)))
 	if e != nil {
 		return false
 	}

@@ -18,6 +18,7 @@ import {
 } from "./sections";
 import { messageOf, useSectionData } from "./useSectionData";
 import { useNames } from "./useNames";
+import { LineCheckPanel } from "./components/LineCheck";
 import { DetailModal } from "./components/DetailModal";
 import { Editor } from "./components/Editor";
 import { EnrollmentModal } from "./components/EnrollmentModal";
@@ -90,6 +91,7 @@ function Workspace({
   const [trafficTick, setTrafficTick] = useState(0);
   const [editing, setEditing] = useState<Row | null>(null);
   const [detail, setDetail] = useState<Row | null>(null);
+  const [checking, setChecking] = useState<Row | null>(null);
   const [enroll, setEnroll] = useState<Row | null>(null);
   const [notice, setNotice] = useState("");
   const [actionError, setActionError] = useState("");
@@ -133,7 +135,7 @@ function Workspace({
     setConfirmError("");
     setActionError("");
     try {
-      const result = await api(spec.path, "POST", spec.body);
+      const result = await api(spec.path, spec.method || "POST", spec.body);
       if (spec.action === "enroll") setEnroll({ ...result, node_name: spec.subject });
       if (spec.action === "rollback")
         setDetail((d) =>
@@ -141,6 +143,7 @@ function Workspace({
         );
       setNotice(spec.success);
       if (openConfirm.current === spec) closeConfirm();
+      if (spec.action === "delete") void reloadNames();
       // Hold the row lock until the reload lands: an action such as drain
       // derives its request from the row, and the old row would repeat it.
       await data.reload();
@@ -279,6 +282,7 @@ function Workspace({
                   onDetail={setDetail}
                   onEdit={setEditing}
                   onVersions={showVersions}
+                  onCheck={setChecking}
                   onConfirm={askConfirm}
                 />
               )}
@@ -325,6 +329,9 @@ function Workspace({
             await data.reload();
           }}
         />
+      )}
+      {checking && (
+        <LineCheckPanel line={checking} canRun={permissions.canEdit} onClose={() => setChecking(null)} />
       )}
       {detail && (
         <DetailModal

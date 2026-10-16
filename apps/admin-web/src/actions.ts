@@ -15,6 +15,8 @@ export type Confirmable = {
   /** Interrupts traffic or players; rendered with the danger style. */
   danger?: boolean;
   path: string;
+  /** POST unless given. */
+  method?: "POST" | "DELETE";
   body?: unknown;
   /** Notice shown once the request succeeds. */
   success: string;
@@ -121,6 +123,57 @@ export function stopSession(row: Row): Confirmable {
     danger: true,
     path: "/sessions/" + row.id + "/stop",
     success: DONE,
+  };
+}
+
+/** What deleting a row takes with it, and what has to go first. */
+const deletion: Record<string, [string, (name: string) => string]> = {
+  nodes: [
+    "节点服务器",
+    (n) =>
+      "将删除节点服务器「" + n + "」。上面还有服务端点时不能删除，需要先删除那些端点。" +
+      "删除后这台服务器上的节点程序无法再连接控制服务；不再使用的话，在服务器上运行 sudo systemctl disable --now flowlight-node 停掉它。",
+  ],
+  endpoints: [
+    "服务端点",
+    (n) =>
+      "将删除服务端点「" + n + "」和它保存的密钥。仍被线路（含已发布的版本）、落地绑定或进行中的会话使用时不能删除。",
+  ],
+  lines: [
+    "线路",
+    (n) =>
+      "将删除线路「" + n + "」，玩家不再看到它；历史会话和流量记录会保留。还有进行中的会话时不能删除，可以先在“更多”里终止线路。",
+  ],
+  games: [
+    "游戏",
+    (n) =>
+      "将删除游戏「" + n + "」和它的全部规则版本、封面，玩家不再看到它；历史会话和流量记录会保留。仍被线路限定或有玩家正在加速时不能删除。",
+  ],
+  bindings: [
+    "落地绑定",
+    () => "将删除这个落地绑定。还有进行中的会话使用它时不能删除。",
+  ],
+  releases: [
+    "客户端版本",
+    (n) =>
+      "将删除客户端版本 " + n + "。已安装的客户端不受影响；它是最新版本的话，客户端会改为提示上一个已发布的版本。",
+  ],
+};
+
+export const deletable = (section: string) => section in deletion;
+
+export function removeRow(section: string, row: Row): Confirmable {
+  const [kind, message] = deletion[section];
+  return {
+    lock: rowLock(section, row.id),
+    action: "delete",
+    title: "删除" + kind,
+    message: message(section === "releases" ? row.version : nameOf(row)) + "删除后不能恢复。",
+    confirmLabel: "删除",
+    danger: true,
+    method: "DELETE",
+    path: "/" + section + "/" + row.id,
+    success: "已删除",
   };
 }
 

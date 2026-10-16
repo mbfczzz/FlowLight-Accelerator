@@ -249,8 +249,9 @@ func (c *Client) heartbeat(ctx context.Context) error {
 	return nil
 }
 
-// AgentVersion is reported in heartbeats; 0.2.0 counts traffic.
-const AgentVersion = "0.2.0"
+// AgentVersion is reported in heartbeats; 0.2.0 counts traffic and 0.3.0
+// takes part in line connectivity checks.
+const AgentVersion = "0.3.0"
 
 // reportUsage sends traffic totals. It is a separate request, not part of
 // the heartbeat, so a control service that predates it (and rejects
@@ -296,44 +297,58 @@ func (c *Client) reportFailures(ctx context.Context) error {
 	}
 	return nil
 }
-func (c *Client) execute(ctx context.Context, j contract.Job) (bool, string, contract.ProbeResult) {
+func (c *Client) execute(ctx context.Context, j contract.Job) (bool, string, contract.ProbeResult, *contract.CheckReport) {
 	var e error
 	var probe contract.ProbeResult
+	var report *contract.CheckReport
 	switch j.Kind {
 	case "prepare":
 		if j.Payload.Runtime == nil {
-			return false, "runtime missing", probe
+			return false, "runtime missing", probe, nil
 		}
 		rt := *j.Payload.Runtime
 		rt.ExpiresAt = rt.ExpiresAt.Add(-time.Duration(c.clockOffset.Load()))
 		e = c.Manager.Prepare(rt)
 	case "revoke":
 		if j.Payload.Runtime == nil {
-			return false, "runtime missing", probe
+			return false, "runtime missing", probe, nil
 		}
 		e = c.Manager.Stop(j.Payload.Runtime.ID)
 	case "probe":
 		if j.Payload.Connection == nil {
-			return false, "connection missing", probe
+			return false, "connection missing", probe, nil
 		}
 		probe, e = c.Manager.Probe(ctx, *j.Payload.Connection)
+	case "check-listen", "check-dial":
+		if j.Payload.Check == nil {
+			return false, "check missing", probe, nil
+		}
+		if j.Kind == "check-listen" {
+			report, e = checkListen(*j.Payload.Check)
+		} else {
+			report, e = checkDial(ctx, *j.Payload.Check)
+		}
 	default:
 		e = errors.New("unsupported structured task")
 	}
 	if e != nil {
 		log.Printf("%s task %s failed: %v", j.Kind, j.ID, e)
-		return false, e.Error(), probe
+		return false, e.Error(), probe, nil
 	}
-	return true, "", probe
+	return true, "", probe, report
 }
 
 const maxConcurrentProbes = 4
 
 func (c *Client) runJob(ctx context.Context, j contract.Job) {
 	taskCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
-	ok, message, probe := c.execute(taskCtx, j)
+	ok, message, probe, report := c.execute(taskCtx, j)
 	cancel()
-	if e := c.call(ctx, "POST", "/api/node/v1/jobs/"+j.ID+"/result", map[string]any{"claim": j.Claim, "success": ok, "error": message, "probe": probe}, &map[string]any{}); e != nil && ctx.Err() == nil {
+	result := map[string]any{"claim": j.Claim, "success": ok, "error": message, "probe": probe}
+	if report != nil {
+		result["check"] = report
+	}
+	if e := c.call(ctx, "POST", "/api/node/v1/jobs/"+j.ID+"/result", result, &map[string]any{}); e != nil && ctx.Err() == nil {
 		log.Printf("reporting %s task %s failed: %v", j.Kind, j.ID, e)
 	}
 }
@@ -396,14 +411,15 @@ func (c *Client) Run(ctx context.Context) error {
 			}
 		}
 	}()
-	// Probes can take up to 45 s; they run alongside the job loop so a slow
-	// probe never delays prepare and revoke tasks queued behind it.
+	// Probes can take up to 45 s, and a check's measurements several; they
+	// run alongside the job loop so they never delay prepare and revoke
+	// tasks queued behind them.
 	probes := make(chan struct{}, maxConcurrentProbes)
 	for {
 		var jobs []contract.Job
 		if e := c.call(ctx, "GET", "/api/node/v1/jobs", nil, &jobs); e == nil {
 			for _, j := range jobs {
-				if j.Kind != "probe" {
+				if j.Kind != "probe" && j.Kind != "check-dial" {
 					c.runJob(ctx, j)
 					continue
 				}

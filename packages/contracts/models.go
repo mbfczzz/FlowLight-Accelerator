@@ -52,9 +52,59 @@ type Runtime struct {
 	UDP        bool      `json:"udp"`
 	ExpiresAt  time.Time `json:"expires_at"`
 }
+
+// CheckTask is one node's part in a line connectivity check: open a test
+// listener on the first free port of Ports, or measure Targets.
+type CheckTask struct {
+	Hop     int           `json:"hop"`
+	Ports   []int         `json:"ports,omitempty"`
+	UDP     bool          `json:"udp,omitempty"`
+	Seconds int           `json:"seconds,omitempty"`
+	Token   string        `json:"token,omitempty"`
+	Targets []CheckTarget `json:"targets,omitempty"`
+}
+
+// CheckTarget is one link to measure. With URL, it is the node's own
+// internet access through the probe service; otherwise Host:Port, which
+// with Token is a check listener that must answer, and without it a
+// service that only has to accept.
+type CheckTarget struct {
+	ID        string `json:"id"`
+	Host      string `json:"host,omitempty"`
+	Port      int    `json:"port,omitempty"`
+	Token     string `json:"token,omitempty"`
+	UDP       bool   `json:"udp,omitempty"`
+	URL       string `json:"url,omitempty"`
+	UDPTarget string `json:"udp_target,omitempty"`
+}
+
+// CheckMeasure is one protocol over one link: OK, the median round trip
+// and its spread, and the share of samples lost.
+type CheckMeasure struct {
+	OK      bool    `json:"ok"`
+	RTTMS   float64 `json:"rtt_ms"`
+	MinMS   float64 `json:"min_ms"`
+	MaxMS   float64 `json:"max_ms"`
+	Loss    float64 `json:"loss"`
+	Samples int     `json:"samples"`
+	Error   string  `json:"error,omitempty"`
+}
+type CheckLinkResult struct {
+	ID     string        `json:"id"`
+	TCP    *CheckMeasure `json:"tcp,omitempty"`
+	UDP    *CheckMeasure `json:"udp,omitempty"`
+	ExitIP string        `json:"exit_ip,omitempty"`
+}
+
+// CheckReport answers a CheckTask: the port listened on, or the links.
+type CheckReport struct {
+	Port  int               `json:"port,omitempty"`
+	Links []CheckLinkResult `json:"links,omitempty"`
+}
 type JobPayload struct {
 	Runtime       *Runtime    `json:"runtime,omitempty"`
 	Connection    *Connection `json:"connection,omitempty"`
+	Check         *CheckTask  `json:"check,omitempty"`
 	EndpointKinds []string    `json:"endpoint_kinds,omitempty"`
 }
 type ProbeResult struct {

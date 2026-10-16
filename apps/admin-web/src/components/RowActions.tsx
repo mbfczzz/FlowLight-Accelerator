@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Ellipsis, Eye, History, LoaderCircle, OctagonX, Pause, Pencil, Play, Rocket, Terminal } from "lucide-react";
+import { Activity, Ellipsis, Eye, History, LoaderCircle, OctagonX, Pause, Pencil, Play, Rocket, Terminal, Trash2 } from "lucide-react";
 import type { Row } from "../api";
 import {
+  deletable,
   drainLine,
   publishGame,
   publishLine,
   regenerateEnrollment,
+  removeRow,
   rowLock,
   stopSession,
   terminateLine,
@@ -27,6 +29,7 @@ export function RowActions({
   onDetail,
   onEdit,
   onVersions,
+  onCheck,
   onConfirm,
 }: {
   section: string;
@@ -37,10 +40,18 @@ export function RowActions({
   onDetail: (row: Row) => void;
   onEdit: (row: Row) => void;
   onVersions: (row: Row) => void;
+  onCheck: (row: Row) => void;
   onConfirm: (spec: Confirmable) => void;
 }) {
   const { canEdit, canPublish } = permissions;
   const inFlight = pending[rowLock(section, row.id)];
+  // Lines and games are what players see, so removing them takes the
+  // right to publish them, as on the control API.
+  const canDelete =
+    deletable(section) && editable && (canPublish || !["lines", "games"].includes(section));
+  const remove: MenuItem[] = canDelete
+    ? [{ label: "删除", icon: <Trash2 size={15} />, run: () => onConfirm(removeRow(section, row)), danger: true }]
+    : [];
 
   function guarded(
     spec: Confirmable,
@@ -75,6 +86,12 @@ export function RowActions({
         guarded(publishGame(row), "发布规则", <Rocket size={14} />, row.published_version ? undefined : "emphasis")}
       {section === "lines" && canPublish &&
         guarded(publishLine(row), "发布", <Rocket size={14} />, row.published_version ? undefined : "emphasis")}
+      {section === "lines" && (
+        <button aria-label="检查连通性" title="检查连通性" onClick={() => onCheck(row)}>
+          <Activity size={14} />
+          <span className="check-label">连通性</span>
+        </button>
+      )}
       {section === "nodes" &&
         canEdit &&
         guarded(regenerateEnrollment(row), "接入命令", <Terminal size={14} />, row.agent_version ? undefined : "emphasis")}
@@ -112,9 +129,11 @@ export function RowActions({
                   },
                 ]
               : []),
+            ...remove,
           ]}
         />
       )}
+      {section !== "lines" && remove.length > 0 && <MoreMenu disabled={!!inFlight} items={remove} />}
       <button className="icon-only" aria-label="详情" title="详情" onClick={() => onDetail(row)}>
         <Eye size={15} />
       </button>

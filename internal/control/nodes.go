@@ -179,20 +179,30 @@ func (s *Server) claimJobs(w http.ResponseWriter, r *http.Request) {
 			return e
 		}
 		for _, j := range jobs {
-			var x Session
-			if tx.First(&x, "id = ?", j.SessionID).Error != nil || x.State == "CLOSED" || (x.State == "STOPPING" && j.Kind != "revoke") {
-				j.Status = "cancelled"
-				tx.Save(&j)
-				continue
-			}
-			if j.Attempts >= 5 {
-				j.Status = "failed"
-				j.Result = "retry limit exceeded"
-				tx.Save(&j)
-				if e := s.stopping(tx, &x, j.Result); e != nil {
-					return e
+			if j.CheckID != "" {
+				// A check's step is over within a minute; there is nothing
+				// left to measure for a node that asks later or again.
+				if now.Sub(j.CreatedAt) > checkJobLife || j.Attempts > 0 {
+					j.Status = "cancelled"
+					tx.Save(&j)
+					continue
 				}
-				continue
+			} else {
+				var x Session
+				if tx.First(&x, "id = ?", j.SessionID).Error != nil || x.State == "CLOSED" || (x.State == "STOPPING" && j.Kind != "revoke") {
+					j.Status = "cancelled"
+					tx.Save(&j)
+					continue
+				}
+				if j.Attempts >= 5 {
+					j.Status = "failed"
+					j.Result = "retry limit exceeded"
+					tx.Save(&j)
+					if e := s.stopping(tx, &x, j.Result); e != nil {
+						return e
+					}
+					continue
+				}
 			}
 			claim := secret()
 			j.Status = "running"
@@ -214,15 +224,17 @@ func (s *Server) claimJobs(w http.ResponseWriter, r *http.Request) {
 }
 func (s *Server) jobResult(w http.ResponseWriter, r *http.Request) {
 	var in struct {
-		Claim   string        `json:"claim"`
-		Success bool          `json:"success"`
-		Error   string        `json:"error"`
-		Probe   c.ProbeResult `json:"probe"`
+		Claim   string         `json:"claim"`
+		Success bool           `json:"success"`
+		Error   string         `json:"error"`
+		Probe   c.ProbeResult  `json:"probe"`
+		Check   *c.CheckReport `json:"check"`
 	}
 	if !decode(w, r, &in) {
 		return
 	}
 	node := r.Context().Value(nodeKey).(Node)
+	var after []func()
 	e := s.Store.Tx(func(tx *gorm.DB) error {
 		j, e := load[Job](tx, r.PathValue("id"))
 		if e != nil || j.NodeID != node.ID {
@@ -237,6 +249,20 @@ func (s *Server) jobResult(w http.ResponseWriter, r *http.Request) {
 		if j.Status != "running" || j.ClaimUntil == nil || time.Now().After(*j.ClaimUntil) {
 			return badRequest("job claim expired")
 		}
+		if len(in.Error) > 500 {
+			in.Error = in.Error[:500]
+		}
+		if j.CheckID != "" {
+			j.Status, j.Result = "succeeded", in.Error
+			if !in.Success {
+				j.Status = "failed"
+			}
+			if e = tx.Save(&j).Error; e != nil {
+				return e
+			}
+			after, e = s.checkJobDone(tx, j, node, in.Success, in.Error, in.Check)
+			return e
+		}
 		x, e := load[Session](tx, j.SessionID)
 		if e != nil {
 			return e
@@ -250,9 +276,6 @@ func (s *Server) jobResult(w http.ResponseWriter, r *http.Request) {
 		j.Status = "succeeded"
 		if !in.Success {
 			j.Status = "failed"
-		}
-		if len(in.Error) > 500 {
-			in.Error = in.Error[:500]
 		}
 		j.Result = in.Error
 		if j.Kind == "probe" && in.Success {
@@ -337,6 +360,9 @@ func (s *Server) jobResult(w http.ResponseWriter, r *http.Request) {
 		}
 		return nil
 	})
+	for _, f := range after {
+		go f()
+	}
 	respond(w, map[string]bool{"accepted": e == nil}, e)
 }
 func (s *Server) nodeEvents(w http.ResponseWriter, r *http.Request) {

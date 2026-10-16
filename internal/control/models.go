@@ -203,6 +203,7 @@ type Job struct {
 	ID            string     `json:"id" gorm:"primaryKey;size:64"`
 	NodeID        string     `json:"node_id" gorm:"index;size:64"`
 	SessionID     string     `json:"session_id" gorm:"index;size:64"`
+	CheckID       string     `json:"check_id,omitempty" gorm:"index;size:64"`
 	VersionID     string     `json:"version_id"`
 	Kind          string     `json:"kind"`
 	PayloadCipher string     `json:"-" gorm:"type:text"`
