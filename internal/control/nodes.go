@@ -7,6 +7,7 @@ import (
 	"gorm.io/gorm"
 	"net"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -164,6 +165,30 @@ func (s *Server) prober(v LineVersion) string {
 	return v.Hops[0].NodeID
 }
 
+// recordEcho gives the session the latency echo its exit reported for the
+// prepare task that asked for one. The client is handed the connection only
+// after every prepare task and the probe, so it has the echo from the start.
+func (s *Server) recordEcho(tx *gorm.DB, x *Session, j Job, port int) error {
+	var p c.JobPayload
+	if e := s.Store.Unseal(j.PayloadCipher, &p); e != nil {
+		return e
+	}
+	if p.Runtime == nil || !p.Runtime.Echo || port > 65535 {
+		return nil
+	}
+	var conn c.Connection
+	if e := s.Store.Unseal(x.ConnectionCipher, &conn); e != nil {
+		return e
+	}
+	conn.ExitEcho = net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
+	sealed, e := s.Store.Seal(conn)
+	if e != nil {
+		return e
+	}
+	x.ConnectionCipher = sealed
+	return tx.Model(&Session{}).Where("id = ?", x.ID).Update("connection_cipher", sealed).Error
+}
+
 // claimBatch bounds the jobs handed out per poll. Every claim lasts 60 s and
 // the agent runs prepare and revoke tasks in order, so the batch stays small
 // enough to finish inside the claim.
@@ -229,6 +254,7 @@ func (s *Server) jobResult(w http.ResponseWriter, r *http.Request) {
 		Error   string         `json:"error"`
 		Probe   c.ProbeResult  `json:"probe"`
 		Check   *c.CheckReport `json:"check"`
+		Echo    int            `json:"echo"`
 	}
 	if !decode(w, r, &in) {
 		return
@@ -314,6 +340,11 @@ func (s *Server) jobResult(w http.ResponseWriter, r *http.Request) {
 			return nil
 		}
 		if j.Kind == "prepare" {
+			if in.Echo > 0 {
+				if e = s.recordEcho(tx, &x, j, in.Echo); e != nil {
+					return e
+				}
+			}
 			var pending int64
 			tx.Model(&Job{}).Where("session_id = ? AND kind = ? AND status <> ?", x.ID, "prepare", "succeeded").Count(&pending)
 			if pending == 0 {

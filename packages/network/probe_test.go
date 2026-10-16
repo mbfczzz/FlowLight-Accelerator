@@ -114,7 +114,7 @@ func TestProbeReusesOneTunnelConnection(t *testing.T) {
 	srv := probeServer(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	out, e := Probe(ctx, socks.listener.Addr().String(), srv.URL, "127.0.0.1:9")
+	out, e := Probe(ctx, socks.listener.Addr().String(), srv.URL, "127.0.0.1:9", "")
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -129,7 +129,7 @@ func TestProbeReusesOneTunnelConnection(t *testing.T) {
 func TestProbeToleratesOneLostDatagram(t *testing.T) {
 	socks := newSocks5(t, func(n int32) bool { return n == 2 })
 	srv := probeServer(t)
-	out, e := Probe(context.Background(), socks.listener.Addr().String(), srv.URL, "127.0.0.1:9")
+	out, e := Probe(context.Background(), socks.listener.Addr().String(), srv.URL, "127.0.0.1:9", "")
 	if e != nil {
 		t.Fatalf("single lost datagram failed the probe: %v", e)
 	}
@@ -141,7 +141,7 @@ func TestProbeToleratesOneLostDatagram(t *testing.T) {
 func TestProbeFailsOnHeavyUDPLoss(t *testing.T) {
 	socks := newSocks5(t, func(n int32) bool { return n%2 == 0 })
 	srv := probeServer(t)
-	out, e := Probe(context.Background(), socks.listener.Addr().String(), srv.URL, "127.0.0.1:9")
+	out, e := Probe(context.Background(), socks.listener.Addr().String(), srv.URL, "127.0.0.1:9", "")
 	if e == nil || out.UDP {
 		t.Fatalf("40%% UDP loss reported as healthy: %+v", out)
 	}

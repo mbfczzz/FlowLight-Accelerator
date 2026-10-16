@@ -251,8 +251,9 @@ func (c *Client) heartbeat(ctx context.Context) error {
 
 // AgentVersion is reported in heartbeats; 0.2.0 counts traffic, 0.3.0
 // takes part in line connectivity checks, 0.3.1 gives a test port up to a
-// session or a new check at once and 0.3.2 closes it when its check is done.
-const AgentVersion = "0.3.2"
+// session or a new check at once, 0.3.2 closes it when its check is done
+// and 0.4.0 runs the latency echo for sessions that leave the line here.
+const AgentVersion = "0.4.0"
 
 // reportUsage sends traffic totals. It is a separate request, not part of
 // the heartbeat, so a control service that predates it (and rejects
@@ -351,6 +352,15 @@ func (c *Client) runJob(ctx context.Context, j contract.Job) {
 	result := map[string]any{"claim": j.Claim, "success": ok, "error": message, "probe": probe}
 	if report != nil {
 		result["check"] = report
+	}
+	// Only a control service that knows the echo asks for it, so only one
+	// that accepts the field is sent it. The session still works without.
+	if ok && j.Kind == "prepare" && j.Payload.Runtime.Echo {
+		if port, e := c.Manager.Echo(); e == nil {
+			result["echo"] = port
+		} else {
+			log.Printf("latency echo not started: %v", e)
+		}
 	}
 	if e := c.call(ctx, "POST", "/api/node/v1/jobs/"+j.ID+"/result", result, &map[string]any{}); e != nil && ctx.Err() == nil {
 		log.Printf("reporting %s task %s failed: %v", j.Kind, j.ID, e)

@@ -18,7 +18,11 @@ import (
 	"time"
 )
 
-func Probe(ctx context.Context, socks, urlString, udpTarget string) (c.ProbeResult, error) {
+// Probe proves the path out through the SOCKS5 proxy at socks: HTTP to the
+// probe service (which also names the exit address) and UDP echoes. With
+// echo, the exit's latency echo, the round trip reported is the one to the
+// exit; an echo that does not answer leaves the probe service's.
+func Probe(ctx context.Context, socks, urlString, udpTarget, echo string) (c.ProbeResult, error) {
 	out := c.ProbeResult{ObservedAt: time.Now().UTC()}
 	u, e := url.Parse(urlString)
 	if e != nil || u.Host == "" || (u.Scheme != "https" && u.Scheme != "http") {
@@ -42,6 +46,13 @@ func Probe(ctx context.Context, socks, urlString, udpTarget string) (c.ProbeResu
 	out.RTTMS = rtts[len(rtts)/2]
 	out.JitterMS = rtts[len(rtts)-1] - rtts[0]
 	out.Samples = len(rtts)
+	if echo != "" {
+		if rtts, e := EchoRTT(ctx, socks, echo); e == nil {
+			out.RTTMS = rtts[len(rtts)/2]
+			out.JitterMS = rtts[len(rtts)-1] - rtts[0]
+			out.Samples = len(rtts)
+		}
+	}
 	if udpTarget != "" {
 		ok := 0
 		var last error

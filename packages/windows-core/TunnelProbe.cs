@@ -20,10 +20,12 @@ public static class TunnelProbe
     internal const int RttSamples = 3;
     internal const int UdpSamples = 5;
     internal const int UdpRequired = 4;
+    internal const int EchoSamples = 5;
 
     static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(10);
     static readonly TimeSpan UdpProbeTimeout = TimeSpan.FromSeconds(15);
     static readonly TimeSpan UdpReplyTimeout = TimeSpan.FromSeconds(2);
+    static readonly TimeSpan EchoReplyTimeout = TimeSpan.FromSeconds(5);
     static readonly byte[] NonceMagic = "FLA1"u8.ToArray();
 
     public static Task<ProbeResult> Run(Connection conn, int port, CancellationToken ct) =>
@@ -116,7 +118,88 @@ public static class TunnelProbe
         result.JitterMs = times[^1] - times[0];
         result.Samples = times.Count;
         result.Loss = 0;
+
+        // The round trip a game sees ends at the exit; the probe service may
+        // be far beyond it. Without an echo to reach (an older node program,
+        // or one that had to move it), the probe service's round trip stands.
+        if (!string.IsNullOrEmpty(conn.ExitEcho) &&
+            await ProbeEcho(port, conn.ExitEcho, EchoReplyTimeout, ct) is { } echo)
+        {
+            result.RttMs = echo[echo.Count / 2];
+            result.JitterMs = echo[^1] - echo[0];
+            result.Samples = echo.Count;
+        }
         return result;
+    }
+
+    // Bounces frames off the exit's latency echo over one SOCKS5 connection:
+    // one untimed, which opens the path through the line, then EchoSamples
+    // timed. Returns the sorted round trips, or null if the echo did not
+    // answer.
+    internal static async Task<List<double>?> ProbeEcho(
+        int socksPort,
+        string target,
+        TimeSpan replyTimeout,
+        CancellationToken ct)
+    {
+        if (!IPEndPoint.TryParse(target, out var echo) || echo.Port < 1)
+        {
+            return null;
+        }
+        try
+        {
+            using var tcp = new TcpClient { NoDelay = true };
+            await tcp.ConnectAsync(IPAddress.Loopback, socksPort, ct);
+            var stream = tcp.GetStream();
+
+            await stream.WriteAsync(new byte[] { 5, 1, 0 }, ct);
+            var greeting = new byte[2];
+            await stream.ReadExactlyAsync(greeting, ct);
+            if (greeting[0] != 5 || greeting[1] != 0)
+            {
+                return null;
+            }
+            byte type = echo.AddressFamily == AddressFamily.InterNetworkV6 ? (byte)4 : (byte)1;
+            byte[] request = [5, 1, 0, type, .. echo.Address.GetAddressBytes(), (byte)(echo.Port >> 8), (byte)echo.Port];
+            await stream.WriteAsync(request, ct);
+            var header = new byte[4];
+            await stream.ReadExactlyAsync(header, ct);
+            if (header[1] != 0)
+            {
+                return null;
+            }
+            await ReadAddress(stream, header[3], ct);
+            await stream.ReadExactlyAsync(new byte[2], ct);
+
+            var frame = new byte[NonceMagic.Length + 24];
+            NonceMagic.CopyTo(frame, 0);
+            var reply = new byte[frame.Length];
+            var times = new List<double>(EchoSamples);
+            for (var i = 0; i <= EchoSamples; i++)
+            {
+                RandomNumberGenerator.Fill(frame.AsSpan(NonceMagic.Length));
+                using var wait = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                wait.CancelAfter(replyTimeout);
+                var watch = Stopwatch.StartNew();
+                await stream.WriteAsync(frame, wait.Token);
+                await stream.ReadExactlyAsync(reply, wait.Token);
+                var elapsed = watch.Elapsed.TotalMilliseconds;
+                if (!reply.AsSpan().SequenceEqual(frame))
+                {
+                    return null;
+                }
+                if (i > 0)
+                {
+                    times.Add(elapsed);
+                }
+            }
+            times.Sort();
+            return times;
+        }
+        catch (Exception e) when (!ct.IsCancellationRequested && e is IOException or SocketException or OperationCanceledException)
+        {
+            return null;
+        }
     }
 
     // Opens one SOCKS5 UDP association and sends UdpSamples datagrams, each

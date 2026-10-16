@@ -132,6 +132,8 @@ func (s *Server) provision(tx *gorm.DB, x *Session, v LineVersion, p c.Profile) 
 			if h.Kind == "ss2022" {
 				runtime.Cipher = h.Cipher
 				runtime.Password = password
+				// The exit's latency echo, so probes stop timing at the exit.
+				runtime.Echo = i == len(hops)-1
 			}
 			if i+1 < len(hops) {
 				runtime.RemoteHost = hops[i+1].Host

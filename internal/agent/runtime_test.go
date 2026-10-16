@@ -123,7 +123,8 @@ func TestNativeSS2022RealmTCPUDPAndLeaseRevoke(t *testing.T) {
 			t.Fatalf("native process failed to listen on %d (exit=%d entry=%d)", port, exitPort, entryPort)
 		}
 	}
-	result, e := m.Probe(context.Background(), c.Connection{Host: "127.0.0.1", Port: entryPort, Cipher: exit.Cipher, Password: exit.Password, UDP: true, ProbeURL: server.URL, ProbeUDP: udp.LocalAddr().String()})
+	path := c.Connection{Host: "127.0.0.1", Port: entryPort, Cipher: exit.Cipher, Password: exit.Password, UDP: true, ProbeURL: server.URL, ProbeUDP: udp.LocalAddr().String()}
+	result, e := m.Probe(context.Background(), path)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -131,6 +132,16 @@ func TestNativeSS2022RealmTCPUDPAndLeaseRevoke(t *testing.T) {
 		t.Fatalf("incomplete actual probe: %+v", result)
 	}
 	t.Logf("actual SS2022 + Realm TCP/UDP passed: samples=%d RTT=%.2f ms loss=%.0f%%", result.Samples, result.RTTMS, result.Loss*100)
+	// ssserver reaches the exit's latency echo on its loopback for the tunnel.
+	echo, e := m.Echo()
+	if e != nil {
+		t.Fatal(e)
+	}
+	path.ExitEcho = net.JoinHostPort("127.0.0.1", fmtPort(echo))
+	if result, e = m.Probe(context.Background(), path); e != nil || result.Samples != 5 || result.ExitIP != "127.0.0.1" {
+		t.Fatalf("probe through the line to the exit's echo: %+v %v", result, e)
+	}
+	t.Logf("actual SS2022 + Realm to the exit's echo: samples=%d RTT=%.2f ms", result.Samples, result.RTTMS)
 	// An authoritative heartbeat omitting the session must revoke it, even
 	// when the previous local lease still has time left.
 	if err := m.Renew(map[string]time.Time{}, time.Now()); err != nil {

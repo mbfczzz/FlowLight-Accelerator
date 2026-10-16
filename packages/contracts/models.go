@@ -38,6 +38,11 @@ type Connection struct {
 	ProbeURL     string  `json:"probe_url"`
 	ProbeUDP     string  `json:"probe_udp"`
 	ExpectedExit string  `json:"expected_exit,omitempty"`
+	// ExitEcho is the exit node's latency echo, an address on the exit's
+	// loopback that its SS server dials for the tunnel. Probes time their
+	// round trip with it, so latency covers the line and stops at the exit;
+	// ProbeURL still proves the way out and names the exit address.
+	ExitEcho string `json:"exit_echo,omitempty"`
 }
 type Runtime struct {
 	VersionID  string    `json:"version_id,omitempty"`
@@ -51,6 +56,9 @@ type Runtime struct {
 	Password   string    `json:"password,omitempty"`
 	UDP        bool      `json:"udp"`
 	ExpiresAt  time.Time `json:"expires_at"`
+	// Echo asks the exit to report its latency echo's port with the
+	// prepare result (Connection.ExitEcho).
+	Echo bool `json:"echo,omitempty"`
 }
 
 // CheckTask is one node's part in a line connectivity check: open a test

@@ -270,6 +270,49 @@ func TestPartialPatchAndPrivateEgressAccess(t *testing.T) {
 		t.Fatal("denied request reserved a port")
 	}
 }
+
+// The exit reports its latency echo with the prepare task that asked for
+// it; the probe and the client are given it in the connection.
+func TestExitEchoReachesTheConnection(t *testing.T) {
+	s, token, u := setup(t)
+	fixture(t, s, u)
+	w := request(s, token, "POST", "/api/client/v1/sessions", CreateSession{GameID: "valorant", RegionID: "kr", LineID: "line-1", DeviceID: "test-device"}, "echo-attempt")
+	var x Session
+	json.Unmarshal(w.Body.Bytes(), &x)
+	claim := func(kind string) c.Job {
+		t.Helper()
+		w := request(s, "node-test-token", "GET", "/api/node/v1/jobs", nil, "")
+		var jobs []c.Job
+		json.Unmarshal(w.Body.Bytes(), &jobs)
+		if len(jobs) != 1 || jobs[0].Kind != kind {
+			t.Fatal(w.Body.String())
+		}
+		return jobs[0]
+	}
+	j := claim("prepare")
+	if j.Payload.Runtime == nil || !j.Payload.Runtime.Echo {
+		t.Fatal("the exit was not asked for its latency echo")
+	}
+	w = request(s, "node-test-token", "POST", "/api/node/v1/jobs/"+j.ID+"/result", map[string]any{"claim": j.Claim, "success": true, "echo": 41234}, "")
+	if w.Code != 200 {
+		t.Fatal(w.Body.String())
+	}
+	j = claim("probe")
+	if j.Payload.Connection == nil || j.Payload.Connection.ExitEcho != "127.0.0.1:41234" {
+		t.Fatalf("the probe was not given the echo: %+v", j.Payload.Connection)
+	}
+	w = request(s, "node-test-token", "POST", "/api/node/v1/jobs/"+j.ID+"/result", map[string]any{"claim": j.Claim, "success": true, "probe": c.ProbeResult{TCP: true, UDP: true, Samples: 5, ExitIP: "203.0.113.2", RTTMS: 20}}, "")
+	if w.Code != 200 {
+		t.Fatal(w.Body.String())
+	}
+	w = request(s, token, "GET", "/api/client/v1/sessions/"+x.ID, nil, "")
+	var out struct {
+		Connection c.Connection `json:"connection"`
+	}
+	if json.Unmarshal(w.Body.Bytes(), &out) != nil || out.Connection.ExitEcho != "127.0.0.1:41234" {
+		t.Fatalf("the client was not given the echo: %s", w.Body.String())
+	}
+}
 func TestProbeSuccessPromotesSessionAndRevocationClosesIt(t *testing.T) {
 	s, token, u := setup(t)
 	fixture(t, s, u)

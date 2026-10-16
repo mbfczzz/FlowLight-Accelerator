@@ -57,6 +57,8 @@ var conn = new Connection(
 using (var data = JsonDocument.Parse(JsonSerializer.Serialize(conn, Wire.Json)))
 {
     Check(data.RootElement.GetProperty("probe_url").GetString() == conn.ProbeUrl, "contract casing changed");
+    var echoed = JsonSerializer.Deserialize<Connection>("""{"exit_echo":"127.0.0.1:41234"}""", Wire.Json);
+    Check(echoed?.ExitEcho == "127.0.0.1:41234", "exit echo not read from the session");
     Check(data.RootElement.GetProperty("profile").GetProperty("udp").GetBoolean(), "UDP requirement lost");
 }
 
@@ -319,6 +321,11 @@ using (var probeServer = new HttpListener())
             {
                 return;
             }
+            // /far is a probe service 300 ms beyond the exit.
+            if (ctx.Request.Url?.AbsolutePath == "/far")
+            {
+                await Task.Delay(300);
+            }
             var bytes = """{"ip":"203.0.113.9"}"""u8.ToArray();
             ctx.Response.ContentType = "application/json";
             await ctx.Response.OutputStream.WriteAsync(bytes);
@@ -340,6 +347,42 @@ using (var probeServer = new HttpListener())
         Check(
             tcpOnly.RttMs < 200 && tcpOnly.JitterMs < 200,
             $"probe timed connection setup (rtt {tcpOnly.RttMs:0} ms, jitter {tcpOnly.JitterMs:0} ms)");
+
+        // With the exit's latency echo the round trip ends at the exit, and
+        // the probe service still names the exit address.
+        var echo = new TcpListener(IPAddress.Loopback, 0);
+        echo.Start();
+        var echoing = Task.Run(async () =>
+        {
+            using var client = await echo.AcceptTcpClientAsync();
+            var stream = client.GetStream();
+            var frame = new byte[28];
+            while (true)
+            {
+                await stream.ReadExactlyAsync(frame);
+                await stream.WriteAsync(frame);
+            }
+        });
+        var farConn = probeConn with { ProbeUrl = $"http://127.0.0.1:{probePort}/far" };
+        var connects = socks.Connects;
+        var toExit = await TunnelProbe.Run(
+            farConn with { ExitEcho = $"127.0.0.1:{((IPEndPoint)echo.LocalEndpoint).Port}" },
+            socks.Port, shortReply, timeout.Token);
+        Check(
+            toExit.Samples == TunnelProbe.EchoSamples && toExit.RttMs < 200 && toExit.JitterMs < 200,
+            $"echo probe timed past the exit or the tunnel setup (rtt {toExit.RttMs:0} ms, {toExit.Samples} samples)");
+        Check(toExit.ExitIp == "203.0.113.9", "echo probe lost the exit address");
+        Check(socks.Connects == connects + 2, "echo probe did not use one connection each for the probe service and the echo");
+        echo.Stop();
+        await Task.WhenAny(echoing, Task.Delay(1000));
+
+        // An echo that does not answer leaves the probe service's round trip.
+        var fallback = await TunnelProbe.Run(
+            farConn with { ExitEcho = $"127.0.0.1:{FreeTcpPort()}" },
+            socks.Port, shortReply, timeout.Token);
+        Check(
+            fallback.Tcp && fallback.Samples == TunnelProbe.RttSamples && fallback.RttMs >= 300,
+            $"probe without a reachable echo lost its measurement (rtt {fallback.RttMs:0} ms, {fallback.Samples} samples)");
 
         socks.Reply = (index, packet) => index == 2 ? null : packet;
         var tolerated = await TunnelProbe.Run(probeConn with { Udp = true }, socks.Port, shortReply, timeout.Token);

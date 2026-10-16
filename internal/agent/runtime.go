@@ -69,6 +69,8 @@ type Manager struct {
 	statsAddr string
 	carry     map[string]Usage
 	finished  map[string]Usage
+	// The latency echo for sessions that leave the line here (echo.go).
+	echo echoService
 }
 
 // fileStamp identifies a file version cheaply. A binary is re-hashed only
@@ -139,6 +141,12 @@ func NewManager(dir string, b Binaries) (*Manager, error) {
 	}
 	m.loadPending()
 	m.listenStats()
+	// Sessions resumed from the journal may still use the echo.
+	if _, e := os.Stat(filepath.Join(dir, echoFile)); e == nil {
+		if _, e := m.Echo(); e != nil {
+			log.Printf("latency echo not started: %v", e)
+		}
+	}
 	return m, nil
 }
 func (m *Manager) binary(kind string) (string, error) {
@@ -239,6 +247,7 @@ func (m *Manager) start(rt c.Runtime, restarts int) (*Process, error) {
 		return nil, e
 	}
 	releaseTestPort(rt.ListenPort, "")
+	m.echoGiveWay(rt.ListenPort)
 	if !portAvailable(rt.ListenPort, rt.UDP) {
 		return nil, fmt.Errorf("port %d is already in use", rt.ListenPort)
 	}
@@ -440,6 +449,7 @@ func (m *Manager) Shutdown() {
 		running = append(running, p)
 	}
 	m.Unlock()
+	m.closeEcho()
 	for _, p := range running {
 		select {
 		case <-p.done:
@@ -556,7 +566,7 @@ func (m *Manager) Probe(ctx context.Context, conn c.Connection) (c.ProbeResult, 
 	if conn.UDP {
 		udp = conn.ProbeUDP
 	}
-	return network.Probe(ctx, socks, conn.ProbeURL, udp)
+	return network.Probe(ctx, socks, conn.ProbeURL, udp, conn.ExitEcho)
 }
 
 // atomicWrite flushes the file before the rename and the directory after it,

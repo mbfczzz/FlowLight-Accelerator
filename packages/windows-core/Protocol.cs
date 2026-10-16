@@ -357,7 +357,10 @@ public sealed record Connection(
     GameProfile Profile,
     string ProbeUrl,
     string ProbeUdp,
-    string? ExpectedExit);
+    string? ExpectedExit,
+    // The exit's latency echo (on the exit's loopback, reached through the
+    // tunnel); absent where the exit's node program predates it.
+    string? ExitEcho = null);
 
 public sealed class ProbeResult
 {
