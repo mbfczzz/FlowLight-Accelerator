@@ -17,9 +17,12 @@ type Measure = {
 
 type CheckNode = {
   role: string;
+  endpoint_id: string;
   endpoint_name: string;
   kind: string;
   address: string;
+  range_start: number;
+  range_end: number;
   managed: boolean;
   node_name: string;
   online: boolean;
@@ -48,6 +51,7 @@ type Check = {
   phase: "listen" | "dial" | "done";
   nodes: CheckNode[];
   links: CheckLink[];
+  requested_ports?: Record<string, number> | null;
   created_at: string;
 };
 
@@ -100,6 +104,9 @@ export function LineCheckPanel({ line, canRun, onClose }: { line: Row; canRun: b
   const [check, setCheck] = useState<Check | null | undefined>(undefined);
   const [error, setError] = useState("");
   const [starting, setStarting] = useState(false);
+  // Test ports typed per endpoint; empty is automatic.
+  const [ports, setPorts] = useState<Record<string, string>>({});
+  const typed = useRef(false);
   const alive = useRef(true);
   useEffect(
     () => () => {
@@ -108,11 +115,16 @@ export function LineCheckPanel({ line, canRun, onClose }: { line: Row; canRun: b
     [],
   );
 
-  async function run(start: boolean) {
+  /** start: POST, with the ports chosen here, or none to keep the last ones. */
+  async function run(start: boolean, chosen?: Record<string, number>) {
     setError("");
     if (start) setStarting(true);
     try {
-      const result = await api("/lines/" + line.id + "/check", start ? "POST" : "GET");
+      const result = await api(
+        "/lines/" + line.id + "/check",
+        start ? "POST" : "GET",
+        start ? (chosen ? { ports: chosen } : {}) : undefined,
+      );
       if (alive.current) setCheck(result);
     } catch (e) {
       if (!isSessionExpired(e) && alive.current) setError(messageOf(e));
@@ -126,6 +138,14 @@ export function LineCheckPanel({ line, canRun, onClose }: { line: Row; canRun: b
     void run(canRun);
   }, []);
 
+  // Show the ports the check used until the admin types their own.
+  useEffect(() => {
+    if (typed.current || !check) return;
+    const kept: Record<string, string> = {};
+    for (const [id, port] of Object.entries(check.requested_ports || {})) kept[id] = String(port);
+    setPorts(kept);
+  }, [check?.id]);
+
   const running = !!check && check.phase !== "done";
   useEffect(() => {
     if (!running) return;
@@ -138,6 +158,25 @@ export function LineCheckPanel({ line, canRun, onClose }: { line: Row; canRun: b
   const failed = check?.links.filter((l) => l.status === "failed") || [];
   const lossy = check?.links.filter((l) => l.status === "warn") || [];
   const measured = check?.links.filter((l) => l.status !== "skipped") || [];
+  const choosable = hops.filter((n) => n.managed);
+  const portError = (n: CheckNode) => {
+    const v = (ports[n.endpoint_id] || "").trim();
+    if (!v) return "";
+    const p = Number(v);
+    return Number.isInteger(p) && p >= n.range_start && p <= n.range_end
+      ? ""
+      : "须在 " + n.range_start + "–" + n.range_end + " 之间";
+  };
+  const portsValid = choosable.every((n) => !portError(n));
+  function rerun() {
+    if (!portsValid || running || starting) return;
+    const chosen: Record<string, number> = {};
+    for (const n of choosable) {
+      const v = (ports[n.endpoint_id] || "").trim();
+      if (v) chosen[n.endpoint_id] = Number(v);
+    }
+    void run(true, chosen);
+  }
   const stopName = (i: number) =>
     i < 0 ? "控制服务" : i >= hops.length ? "互联网" : hops[i].role + "「" + (hops[i].endpoint_name || "已删除的端点") + "」";
 
@@ -188,13 +227,52 @@ export function LineCheckPanel({ line, canRun, onClose }: { line: Row; canRun: b
             <span>{error}</span>
           </div>
         )}
+        {canRun && choosable.length > 0 && (
+          <div className="check-ports">
+            <div className="check-ports-head">
+              <b>检测端口</b>
+              <span className="muted">
+                留空时在端点的端口范围里随机选；前置转发或防火墙只放行了部分端口时，在这里指定要测的端口。
+              </span>
+            </div>
+            {choosable.map((n) => {
+              const id = "check-port-" + n.endpoint_id;
+              const problem = portError(n);
+              return (
+                <div className="check-port" key={n.endpoint_id}>
+                  <label htmlFor={id}>
+                    {n.role}「{n.endpoint_name || "已删除的端点"}」
+                  </label>
+                  <input
+                    id={id}
+                    inputMode="numeric"
+                    placeholder="自动"
+                    value={ports[n.endpoint_id] || ""}
+                    aria-invalid={problem ? true : undefined}
+                    aria-describedby={id + "-hint"}
+                    onChange={(e) => {
+                      typed.current = true;
+                      setPorts((p) => ({ ...p, [n.endpoint_id]: e.target.value }));
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") rerun();
+                    }}
+                  />
+                  <small id={id + "-hint"} className={problem ? "check-bad" : "muted"}>
+                    {problem || "范围 " + n.range_start + "–" + n.range_end}
+                  </small>
+                </div>
+              );
+            })}
+          </div>
+        )}
         {check && (
           <div className="check-meta">
             <span className="muted">
               检查于 <Ago at={check.created_at} />
             </span>
             {canRun && (
-              <button className="secondary sm" disabled={running || starting} onClick={() => void run(true)}>
+              <button className="secondary sm" disabled={running || starting || !portsValid} onClick={rerun}>
                 <RotateCw size={14} />
                 重新检查
               </button>
@@ -234,7 +312,11 @@ export function LineCheckPanel({ line, canRun, onClose }: { line: Row; canRun: b
                       {n.agent_version && " · 节点程序 " + n.agent_version}
                     </span>
                     <span>
-                      {n.listen === "ok" && "检测端口 " + n.port + " 已开启"}
+                      {n.listen === "ok" &&
+                        "检测端口 " +
+                          n.port +
+                          " 已开启" +
+                          (check.requested_ports?.[n.endpoint_id] ? "（指定）" : "（自动选择）")}
                       {n.listen === "pending" && "正在开启检测端口…"}
                       {n.listen === "skipped" && "不由平台运行：直接连接它自己的服务，只检测 TCP"}
                       {n.listen === "failed" && <span className="check-bad">检测端口没有开启：{n.listen_error}</span>}

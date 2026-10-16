@@ -170,3 +170,23 @@ func TestRestartWaitsForAuthoritativeLease(t *testing.T) {
 		t.Fatal("revoked runtime restarted")
 	}
 }
+
+// A session takes its port from a test listener still open on it, and a
+// check that chose a port takes it over from the last check's listener.
+func TestTestPortsGiveWay(t *testing.T) {
+	port := freePort(t)
+	task := c.CheckTask{Ports: []int{port}, UDP: true, Seconds: 60, Token: "abababababababababababababababab"}
+	if _, e := checkListen(task); e != nil {
+		t.Fatal(e)
+	}
+	if _, e := checkListen(task); e != nil {
+		t.Fatalf("a chosen port was not taken over: %v", e)
+	}
+	if portAvailable(port, true) {
+		t.Fatal("test listener not open")
+	}
+	releaseTestPort(port)
+	if !portAvailable(port, true) {
+		t.Fatal("test listener still holds the port a session needs")
+	}
+}

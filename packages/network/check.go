@@ -38,11 +38,12 @@ var errNotOurs = errors.New("not the check listener")
 
 // CheckListen opens TCP, and UDP when asked, on host and the first of ports
 // that is free in both, answers greetings that carry token until d has
-// passed, and returns the port. host is the address session services listen
-// on, so the check reaches the listener only where a session could.
-func CheckListen(host string, ports []int, token []byte, udp bool, d time.Duration) (int, error) {
+// passed or stop is called, and returns the port. host is the address
+// session services listen on, so the check reaches the listener only where a
+// session could.
+func CheckListen(host string, ports []int, token []byte, udp bool, d time.Duration) (port int, stop func(), e error) {
 	if len(token) != CheckTokenBytes {
-		return 0, errors.New("invalid check token")
+		return 0, nil, errors.New("invalid check token")
 	}
 	greeting := append([]byte(checkMagic), token...)
 	var last error
@@ -64,22 +65,26 @@ func CheckListen(host string, ports []int, token []byte, udp bool, d time.Durati
 				continue
 			}
 		}
-		time.AfterFunc(d, func() {
-			tl.Close()
-			if ul != nil {
-				ul.Close()
-			}
-		})
+		var once sync.Once
+		stop := func() {
+			once.Do(func() {
+				tl.Close()
+				if ul != nil {
+					ul.Close()
+				}
+			})
+		}
+		time.AfterFunc(d, stop)
 		go serveGreetings(tl, greeting)
 		if ul != nil {
 			go serveEchoes(ul, greeting)
 		}
-		return p, nil
+		return p, stop, nil
 	}
 	if last == nil {
 		last = errors.New("no port to listen on")
 	}
-	return 0, last
+	return 0, nil, last
 }
 
 // A listener lives for a minute or two; these bound what anyone else who
@@ -105,6 +110,9 @@ func serveGreetings(l net.Listener, greeting []byte) {
 			got := make([]byte, len(greeting))
 			if _, e := io.ReadFull(conn, got); e == nil && bytes.Equal(got, greeting) {
 				conn.Write(got)
+				// Let the dialer hang up first, so the wait after a close
+				// (TIME_WAIT) is on its side, not on this port.
+				io.Copy(io.Discard, io.LimitReader(conn, 64))
 			}
 		}()
 	}

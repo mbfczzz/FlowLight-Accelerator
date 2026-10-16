@@ -238,6 +238,7 @@ func (m *Manager) start(rt c.Runtime, restarts int) (*Process, error) {
 	if e = atomicWrite(path, data); e != nil {
 		return nil, e
 	}
+	releaseTestPort(rt.ListenPort)
 	if !portAvailable(rt.ListenPort, rt.UDP) {
 		return nil, fmt.Errorf("port %d is already in use", rt.ListenPort)
 	}

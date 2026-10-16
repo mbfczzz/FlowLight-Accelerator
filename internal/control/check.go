@@ -36,6 +36,8 @@ type LineCheck struct {
 	Phase     string      `json:"phase" gorm:"size:16"`
 	Nodes     []checkNode `json:"nodes" gorm:"serializer:json;type:text"`
 	Links     []checkLink `json:"links" gorm:"serializer:json;type:text"`
+	// Test ports the admin chose, by endpoint; the next check reuses them.
+	Requested map[string]int `json:"requested_ports" gorm:"serializer:json;type:text"`
 	// The path as it was when the check began, and each hop's listener token.
 	Hops       []c.Hop    `json:"-" gorm:"serializer:json;type:text"`
 	Tokens     []string   `json:"-" gorm:"serializer:json;type:text"`
@@ -54,6 +56,8 @@ type checkNode struct {
 	EndpointName string     `json:"endpoint_name"`
 	Kind         string     `json:"kind"`
 	Address      string     `json:"address"`
+	RangeStart   int        `json:"range_start"`
+	RangeEnd     int        `json:"range_end"`
 	Managed      bool       `json:"managed"`
 	UDP          bool       `json:"udp"`
 	NodeID       string     `json:"node_id"`
@@ -145,13 +149,23 @@ func offlineReason(n Node) string {
 	return "节点服务器「" + n.Name + "」不在线（超过 45 秒没有心跳），请检查服务器上的节点程序（systemctl status flowlight-node）"
 }
 
-// checkPorts picks free ports of a hop's range, in random order so a port
-// a session is about to take is unlikely to be first.
-func checkPorts(tx *gorm.DB, h c.Hop) ([]int, error) {
+// checkPorts is the port the admin chose for a hop, or else free ports of
+// its range in random order, so a port a session is about to take is
+// unlikely to be first. problem says why the chosen port cannot be used.
+func checkPorts(tx *gorm.DB, h c.Hop, want int) (ports []int, problem string, e error) {
 	end := max(h.PortEnd, h.Port)
 	var taken []int
-	if e := tx.Model(&Reservation{}).Where("node_id = ? AND port BETWEEN ? AND ?", h.NodeID, h.Port, end).Pluck("port", &taken).Error; e != nil {
-		return nil, e
+	if e = tx.Model(&Reservation{}).Where("node_id = ? AND port BETWEEN ? AND ?", h.NodeID, h.Port, end).Pluck("port", &taken).Error; e != nil {
+		return nil, "", e
+	}
+	if want > 0 {
+		switch {
+		case want < h.Port || want > end:
+			return nil, "检测端口 " + strconv.Itoa(want) + " 不在这个端点的端口范围 " + strconv.Itoa(h.Port) + "–" + strconv.Itoa(end) + " 内", nil
+		case slices.Contains(taken, want):
+			return nil, "检测端口 " + strconv.Itoa(want) + " 正被一个会话使用，请等会话结束，或换一个端口", nil
+		}
+		return []int{want}, "", nil
 	}
 	free := []int{}
 	for p := h.Port; p <= end && p <= 65535; p++ {
@@ -160,7 +174,7 @@ func checkPorts(tx *gorm.DB, h c.Hop) ([]int, error) {
 		}
 	}
 	mrand.Shuffle(len(free), func(i, j int) { free[i], free[j] = free[j], free[i] })
-	return free[:min(len(free), checkPortChoices)], nil
+	return free[:min(len(free), checkPortChoices)], "", nil
 }
 
 func checkToken() string {
@@ -178,8 +192,20 @@ func (s *Server) checkJob(tx *gorm.DB, k *LineCheck, hop int, kind string, task 
 }
 
 // startCheck begins a check of a line, or returns the one under way: two at
-// once would race for the same test ports.
+// once would race for the same test ports. The body may choose test ports
+// by endpoint ({"ports": {"<endpoint id>": 20000}}, an empty map for all
+// automatic); without it, the ports chosen for the line's last check apply.
 func (s *Server) startCheck(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Ports *map[string]int `json:"ports"`
+	}
+	if r.ContentLength != 0 && !decode(w, r, &in) {
+		return
+	}
+	if in.Ports != nil && len(*in.Ports) > 10 {
+		respond(w, nil, errInvalid)
+		return
+	}
 	var out LineCheck
 	var after []func()
 	e := s.Store.Tx(func(tx *gorm.DB) error {
@@ -195,8 +221,17 @@ func (s *Server) startCheck(w http.ResponseWriter, r *http.Request) {
 		if e != nil {
 			return e
 		}
+		requested := map[string]int{}
+		if in.Ports != nil {
+			requested = *in.Ports
+		} else {
+			var last LineCheck
+			if tx.Where("line_id = ?", l.ID).Order("created_at desc").First(&last).Error == nil && last.Requested != nil {
+				requested = last.Requested
+			}
+		}
 		now := time.Now().UTC()
-		k := LineCheck{ID: ID(), LineID: l.ID, VersionID: versionID, Version: number, Phase: "listen", Hops: hops, Tokens: make([]string, len(hops)), ActorID: actor(r).ID, CreatedAt: now, PhaseAt: now}
+		k := LineCheck{ID: ID(), LineID: l.ID, VersionID: versionID, Version: number, Phase: "listen", Requested: map[string]int{}, Hops: hops, Tokens: make([]string, len(hops)), ActorID: actor(r).ID, CreatedAt: now, PhaseAt: now}
 		nodes := map[int]Node{}
 		for i, h := range hops {
 			var n Node
@@ -207,7 +242,7 @@ func (s *Server) startCheck(w http.ResponseWriter, r *http.Request) {
 			if h.PortEnd > h.Port {
 				address += "-" + strconv.Itoa(h.PortEnd)
 			}
-			k.Nodes = append(k.Nodes, checkNode{Role: hopRole(i, len(hops)), EndpointID: h.EndpointID, EndpointName: ep.Name, Kind: h.Kind, Address: address, Managed: h.Capabilities.Managed, UDP: h.Capabilities.UDP, NodeID: h.NodeID, NodeName: n.Name, Online: s.online(n), LastSeen: n.LastSeen, AgentVersion: n.AgentVersion, Listen: "skipped"})
+			k.Nodes = append(k.Nodes, checkNode{Role: hopRole(i, len(hops)), EndpointID: h.EndpointID, EndpointName: ep.Name, Kind: h.Kind, Address: address, RangeStart: h.Port, RangeEnd: max(h.PortEnd, h.Port), Managed: h.Capabilities.Managed, UDP: h.Capabilities.UDP, NodeID: h.NodeID, NodeName: n.Name, Online: s.online(n), LastSeen: n.LastSeen, AgentVersion: n.AgentVersion, Listen: "skipped"})
 		}
 		// UDP is measured only where a check listener answers it.
 		last := len(hops) - 1
@@ -226,13 +261,29 @@ func (s *Server) startCheck(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			node := &k.Nodes[i]
+			want := requested[h.EndpointID]
+			if want < 0 || want > 65535 {
+				return errInvalid
+			}
+			if want > 0 {
+				k.Requested[h.EndpointID] = want
+			}
+			ports, problem, e := checkPorts(tx, h, want)
+			if e != nil {
+				return e
+			}
+			// A port just chosen is checked at once; one carried over from
+			// the last check is reported on its hop instead.
+			if problem != "" && in.Ports != nil {
+				return badRequest("「" + node.EndpointName + "」的" + problem)
+			}
 			if !node.Online {
 				node.Listen, node.ListenError = "failed", offlineReason(nodes[i])
 				continue
 			}
-			ports, e := checkPorts(tx, h)
-			if e != nil {
-				return e
+			if problem != "" {
+				node.Listen, node.ListenError = "failed", problem
+				continue
 			}
 			if len(ports) == 0 {
 				node.Listen, node.ListenError = "failed", "端口范围内的端口都在被会话使用，暂时无法开启检测监听"
@@ -449,8 +500,8 @@ func checkFailure(n Node, message string) string {
 	switch {
 	case strings.Contains(message, "unsupported structured task"):
 		return "节点服务器「" + n.Name + "」的节点程序是旧版本（" + n.AgentVersion + "），不支持连通性检查。请在“节点服务器”里点“接入命令”，在这台服务器上运行不带凭据的同一命令来更新"
-	case strings.Contains(message, "address already in use"):
-		return "检测用的端口都被占用了（" + message + "）"
+	case strings.Contains(message, "address already in use") || strings.Contains(message, "Only one usage of each socket address"):
+		return "检测端口被占用：这台服务器上有其他程序在使用（" + message + "）"
 	case strings.Contains(message, "permission denied"):
 		return "节点程序没有权限监听这个端口：1024 以下的端口需要额外权限（" + message + "）"
 	case message == "":

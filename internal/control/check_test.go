@@ -224,3 +224,68 @@ func TestConnectivityCheckStepsRunOutOfTime(t *testing.T) {
 		t.Fatalf("%d jobs left open", n)
 	}
 }
+
+func TestConnectivityCheckUsesChosenPorts(t *testing.T) {
+	s, token, _ := checkFixture(t)
+	finish := func() {
+		t.Helper()
+		s.Store.DB.Model(&LineCheck{}).Where("phase <> ?", "done").Updates(map[string]any{"phase": "done"})
+		s.Store.DB.Model(&Job{}).Where("check_id <> ?", "").Update("status", "cancelled")
+	}
+	listenPorts := func() map[string][]int {
+		t.Helper()
+		out := map[string][]int{}
+		for _, nodeToken := range []string{"relay-token", "node-test-token"} {
+			for _, j := range claim(t, s, nodeToken) {
+				out[nodeToken] = j.Payload.Check.Ports
+			}
+		}
+		return out
+	}
+
+	// Out of the endpoint's range, or held by a session: refused, saying why.
+	w := request(s, token, "POST", "/api/admin/v1/lines/line-1/check", map[string]any{"ports": map[string]int{"ep-0": 30000}}, "")
+	if w.Code != 400 || !strings.Contains(w.Body.String(), "21000–21003") {
+		t.Fatalf("out of range: %d %s", w.Code, w.Body.String())
+	}
+	s.Store.DB.Create(&Reservation{ID: "held", SessionID: "someone", NodeID: "node-1", Port: 20002})
+	w = request(s, token, "POST", "/api/admin/v1/lines/line-1/check", map[string]any{"ports": map[string]int{"ep-1": 20002}}, "")
+	if w.Code != 400 || !strings.Contains(w.Body.String(), "正被一个会话使用") {
+		t.Fatalf("held port: %d %s", w.Code, w.Body.String())
+	}
+
+	// Exactly the chosen ports are opened.
+	w = request(s, token, "POST", "/api/admin/v1/lines/line-1/check", map[string]any{"ports": map[string]int{"ep-0": 21000, "ep-1": 20000}}, "")
+	var k LineCheck
+	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &k) != nil || k.Requested["ep-0"] != 21000 || k.Nodes[0].RangeStart != 21000 || k.Nodes[0].RangeEnd != 21003 {
+		t.Fatalf("chosen: %d %s", w.Code, w.Body.String())
+	}
+	ports := listenPorts()
+	if len(ports["relay-token"]) != 1 || ports["relay-token"][0] != 21000 || len(ports["node-test-token"]) != 1 || ports["node-test-token"][0] != 20000 {
+		t.Fatalf("listen ports: %v", ports)
+	}
+	finish()
+
+	// Opening the panel again keeps them.
+	w = request(s, token, "POST", "/api/admin/v1/lines/line-1/check", nil, "")
+	if ports = listenPorts(); w.Code != 200 || ports["relay-token"][0] != 21000 || ports["node-test-token"][0] != 20000 {
+		t.Fatalf("reused: %d %v", w.Code, ports)
+	}
+	finish()
+
+	// A kept port a session has since taken is reported on its hop.
+	s.Store.DB.Model(&Reservation{}).Where("id = ?", "held").Update("port", 20000)
+	request(s, token, "POST", "/api/admin/v1/lines/line-1/check", nil, "")
+	k = latest(t, s, token, func(k LineCheck) bool { return true })
+	if k.Nodes[1].Listen != "failed" || !strings.Contains(k.Nodes[1].ListenError, "正被一个会话使用") || k.Nodes[0].Listen != "pending" {
+		t.Fatalf("kept port now held: %+v", k.Nodes)
+	}
+	claim(t, s, "relay-token")
+	finish()
+
+	// An empty choice goes back to automatic.
+	w = request(s, token, "POST", "/api/admin/v1/lines/line-1/check", map[string]any{"ports": map[string]int{}}, "")
+	if ports = listenPorts(); w.Code != 200 || len(ports["relay-token"]) != 4 || len(ports["node-test-token"]) != 5 {
+		t.Fatalf("automatic: %d %v", w.Code, ports)
+	}
+}

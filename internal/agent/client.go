@@ -249,9 +249,10 @@ func (c *Client) heartbeat(ctx context.Context) error {
 	return nil
 }
 
-// AgentVersion is reported in heartbeats; 0.2.0 counts traffic and 0.3.0
-// takes part in line connectivity checks.
-const AgentVersion = "0.3.0"
+// AgentVersion is reported in heartbeats; 0.2.0 counts traffic, 0.3.0
+// takes part in line connectivity checks and 0.3.1 gives a test port up to
+// a session or a new check at once.
+const AgentVersion = "0.3.1"
 
 // reportUsage sends traffic totals. It is a separate request, not part of
 // the heartbeat, so a control service that predates it (and rejects

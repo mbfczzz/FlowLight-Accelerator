@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -34,7 +35,7 @@ func TestCheckListenerAnswersOnlyItsOwnToken(t *testing.T) {
 	defer busy.Close()
 	// The first candidate is taken: the listener moves on to the next.
 	want := freePort(t)
-	port, e := CheckListen("0.0.0.0", []int{busy.Addr().(*net.TCPAddr).Port, want}, token, true, 5*time.Second)
+	port, stop, e := CheckListen("0.0.0.0", []int{busy.Addr().(*net.TCPAddr).Port, want}, token, true, 5*time.Second)
 	if e != nil || port != want {
 		t.Fatalf("listen: port %d, %v", port, e)
 	}
@@ -55,11 +56,19 @@ func TestCheckListenerAnswersOnlyItsOwnToken(t *testing.T) {
 	if !r.TCP.OK || r.UDP != nil {
 		t.Fatalf("plain service: %+v %+v", r.TCP, r.UDP)
 	}
+
+	// Stopped, the port is free again at once, for a session or a new check.
+	stop()
+	again, e := net.Listen("tcp", net.JoinHostPort("0.0.0.0", strconv.Itoa(port)))
+	if e != nil {
+		t.Fatalf("port still held after stop: %v", e)
+	}
+	again.Close()
 }
 
 func TestCheckListenerCloses(t *testing.T) {
 	token := bytes.Repeat([]byte{1}, CheckTokenBytes)
-	port, e := CheckListen("0.0.0.0", []int{freePort(t)}, token, false, 200*time.Millisecond)
+	port, _, e := CheckListen("0.0.0.0", []int{freePort(t)}, token, false, 200*time.Millisecond)
 	if e != nil {
 		t.Fatal(e)
 	}

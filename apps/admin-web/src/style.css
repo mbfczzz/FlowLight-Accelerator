@@ -1708,6 +1708,44 @@ dialog.confirm {
 .check-banner.tone-neutral span {
   color: var(--text-3);
 }
+.check-ports {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.check-ports-head {
+  display: grid;
+  gap: 2px;
+  font-size: 13px;
+}
+.check-ports-head span {
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.check-port {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px minmax(0, 150px);
+  align-items: center;
+  gap: 4px 10px;
+  font-size: 13px;
+}
+.check-port input {
+  padding: 6px 10px;
+}
+.check-port small {
+  font-size: 12px;
+}
+@media (max-width: 560px) {
+  .check-port {
+    grid-template-columns: minmax(0, 1fr) 110px;
+  }
+  .check-port small {
+    grid-column: 2;
+  }
+}
 .check-meta {
   display: flex;
   align-items: center;
