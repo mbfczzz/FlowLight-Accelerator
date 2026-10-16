@@ -322,6 +322,34 @@ func listPage[T any](w http.ResponseWriter, r *http.Request, db *gorm.DB, order 
 	respond(w, v, e)
 }
 
+// annotateReleases marks the row a client is actually offered, one per
+// channel, by the same rule latestRelease uses. Two published rows for one
+// version would otherwise look equally live to the operator.
+func (s *Server) annotateReleases(rows []Release) error {
+	best := map[string]int{}
+	for i, rel := range rows {
+		at, seen := best[rel.Channel]
+		if !rel.Published {
+			continue
+		}
+		switch {
+		case !seen:
+			best[rel.Channel] = i
+		case compareVersions(rel.Version, rows[at].Version) > 0:
+			best[rel.Channel] = i
+		case compareVersions(rel.Version, rows[at].Version) == 0 && rel.CreatedAt.After(rows[at].CreatedAt):
+			best[rel.Channel] = i
+		}
+	}
+	for i := range rows {
+		rows[i].Served = false
+	}
+	for _, at := range best {
+		rows[at].Served = true
+	}
+	return nil
+}
+
 // annotateLines attaches the newest version's status and failure reason.
 func (s *Server) annotateLines(rows []Line) error {
 	if len(rows) == 0 {
@@ -374,7 +402,7 @@ func (s *Server) list(kind string) http.HandlerFunc {
 		case "audits":
 			listPage[Audit](w, r, db, "created_at DESC")
 		case "releases":
-			listPage[Release](w, r, db, "created_at DESC")
+			listPage(w, r, db, "created_at DESC", s.annotateReleases)
 		}
 	}
 }
@@ -393,6 +421,27 @@ var errInvalid = badRequest("提交的内容格式不正确，请刷新页面后
 type invalid struct{ error }
 
 func badRequest(message string) error { return invalid{errors.New(message)} }
+
+// retryable marks a refusal that stops being true on its own within a minute
+// or two, because a session is still being torn down. The client waits and
+// tries again instead of showing the player a dead end, so the code is
+// machine-readable and stable while the message is what a player reads.
+type retryable struct {
+	code    string
+	message string
+}
+
+func (r retryable) Error() string { return r.message }
+
+func retryLater(code, message string) error { return retryable{code: code, message: message} }
+
+func retryCodeOf(e error) (string, bool) {
+	var r retryable
+	if errors.As(e, &r) {
+		return r.code, true
+	}
+	return "", false
+}
 func isInvalid(e error) bool {
 	var i invalid
 	return errors.As(e, &i)
@@ -402,4 +451,10 @@ func isInvalid(e error) bool {
 // the username column.
 func nameOK(s string) bool {
 	return len(strings.TrimSpace(s)) > 0 && utf8.RuneCountInString(s) <= 100
+}
+
+// isRetryable reports whether e is a refusal that clears by itself.
+func isRetryable(e error) bool {
+	_, ok := retryCodeOf(e)
+	return ok
 }

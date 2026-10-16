@@ -244,6 +244,9 @@ func respond(w http.ResponseWriter, out any, e error) {
 			fail(w, 404, "要操作的内容不存在，可能已被删除，请刷新后重试")
 		case isInvalid(e):
 			fail(w, 400, e.Error())
+		case isRetryable(e):
+			code, _ := retryCodeOf(e)
+			write(w, http.StatusConflict, map[string]any{"error": e.Error(), "code": code})
 		default:
 			log.Printf("request failed: %v", e)
 			fail(w, 500, "控制服务内部错误，请稍后重试；如持续出现，请查看控制服务日志")

@@ -83,6 +83,23 @@ function Handle($cmd, $a) {
     }
     'start' {
       if (Test-Path (Join-Path $PSScriptRoot 'fail-start.flag')) { throw '线路容量已满，请选择其他线路' }
+      # Refuse the way the control service refuses while the previous session
+      # is still closing: a machine-readable code with a countdown, so the
+      # client's wait-and-retry path can be driven for real. The count is the
+      # file's contents (default 2), and each refusal decrements it.
+      $refuse = Join-Path $PSScriptRoot 'closing.flag'
+      if (Test-Path $refuse) {
+        $left = 0
+        $text = (Get-Content -LiteralPath $refuse -Raw).Trim()
+        if ($text -match '^\d+$') { $left = [int]$text }
+        if ($left -gt 0) {
+          Set-Content -LiteralPath $refuse -Value ($left - 1) -Encoding ascii
+          # A prefix the reply handler can spot; PowerShell's throw only takes
+          # a message, so the code travels inside it.
+          throw 'retryable:session-closing:上一个加速会话正在结束，请稍候重试'
+        }
+        Remove-Item -LiteralPath $refuse -Force -ErrorAction SilentlyContinue
+      }
       if ($state.session -ne 'IDLE') { throw '已有加速会话在运行' }
       $state.session = 'PREPARING'; $state.since = Get-Date
       $state.game = $a.game_id; $state.region = $a.region_id; $state.line = $a.line_id
@@ -110,7 +127,14 @@ while ($true) {
       $data = Handle $req.command $req.args
       $reply = @{ success = $true; data = $data } | ConvertTo-Json -Depth 6 -Compress
     } catch {
-      $reply = @{ success = $false; data = $null; error = $_.Exception.Message } | ConvertTo-Json -Compress
+      # A retryable refusal travels with its code, like the real service's 409.
+      $message = [string]$_.Exception.Message
+      if ($message -like 'retryable:*') {
+        $parts = $message -split ':', 3
+        $reply = @{ success = $false; data = $null; error = $parts[2]; code = $parts[1] } | ConvertTo-Json -Compress
+      } else {
+        $reply = @{ success = $false; data = $null; error = $message } | ConvertTo-Json -Compress
+      }
     }
     $writer.WriteLine($reply)
     Log ("{0,-7} -> {1}" -f $req.command, $reply.Substring(0, [Math]::Min(90, $reply.Length)))

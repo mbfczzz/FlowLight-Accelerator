@@ -40,6 +40,12 @@ public sealed class MihomoKernel : IDisposable
     // Creating the TUN adapter can take several seconds on first start.
     internal TimeSpan ReadinessBudget { get; init; } = TimeSpan.FromSeconds(20);
 
+    // Port of another proxy on this machine that keeps the traffic which is
+    // not the game's, so switching the accelerator on does not cut the
+    // player's Clash off. Null when the machine has none: everything not the
+    // game's then goes straight out, as before. Set before Start.
+    public int? Upstream { get; set; }
+
     public MihomoKernel(string binary, string expectedHash, string root)
     {
         this.binary = Path.GetFullPath(binary);
@@ -79,7 +85,15 @@ public sealed class MihomoKernel : IDisposable
         File.Delete(journal);
     }
 
-    public static object BuildConfig(Connection conn, int port)
+    // Without an upstream: everything that is not the game's goes straight
+    // out. The service passes the machine's other proxy when it finds one.
+    public static object BuildConfig(Connection conn, int port) => BuildConfig(conn, port, null);
+
+    // upstream is another proxy on this machine that keeps the traffic which
+    // is not the game's, so switching the accelerator on does not cut the
+    // player's Clash off; null when there is none, and everything not the
+    // game's goes straight out as before.
+    public static object BuildConfig(Connection conn, int port, int? upstream)
     {
         if ((conn.Profile.Processes?.Length ?? 0) + (conn.Profile.Paths?.Length ?? 0) == 0)
         {
@@ -115,7 +129,24 @@ public sealed class MihomoKernel : IDisposable
         {
             rules.Add(Rule(value.Contains(':') ? "IP-CIDR6" : "IP-CIDR", value, "FLOWLIGHT"));
         }
-        rules.Add("MATCH,DIRECT");
+        if (upstream is { } port2 && LocalProxy.Owner(port2) is { } owner)
+        {
+            // The other proxy's own connections must not be handed back to
+            // it: its proxy would hand them back again, around and around.
+            // The name comes from the system, so a name the rule grammar
+            // cannot carry leaves the rule out rather than failing the whole
+            // start over a safety net.
+            try
+            {
+                rules.Insert(2, Rule("PROCESS-NAME", owner, "DIRECT"));
+            }
+            catch (ArgumentException)
+            {
+            }
+        }
+        // Everything that is not the game's goes to the other proxy when one
+        // is running, and straight out when there is none.
+        rules.Add(upstream is null ? "MATCH,DIRECT" : "MATCH,UPSTREAM");
 
         var dns = UsableDns(NetworkInterface.GetAllNetworkInterfaces()
             .Where(n => n.OperationalStatus == OperationalStatus.Up &&
@@ -150,6 +181,10 @@ public sealed class MihomoKernel : IDisposable
             { "enable", true },
             { "listen", "127.0.0.1:10553" },
             { "enhanced-mode", "fake-ip" },
+            // A range of its own, away from 198.18.0.0/15 that Clash uses, so
+            // the two proxies never mistake each other's fake addresses for a
+            // real destination.
+            { "fake-ip-range", "198.19.0.1/16" },
             { "nameserver", dns },
             { "default-nameserver", dns },
         };
@@ -163,6 +198,21 @@ public sealed class MihomoKernel : IDisposable
             password = conn.Password,
             udp = conn.Udp,
         };
+        var proxies = new List<object> { proxy };
+        if (upstream is { } clashPort)
+        {
+            // The other proxy's port. It speaks SOCKS5 on its mixed port,
+            // and mihomo hands it the domain it was asked for, so the other
+            // proxy's own domain rules still apply to that traffic.
+            proxies.Add(new
+            {
+                name = "UPSTREAM",
+                type = "socks5",
+                server = "127.0.0.1",
+                port = clashPort,
+                udp = true,
+            });
+        }
         return new Dictionary<string, object>
         {
             { "allow-lan", false },
@@ -173,7 +223,7 @@ public sealed class MihomoKernel : IDisposable
             { "listeners", new[] { probeListener } },
             { "tun", tun },
             { "dns", dnsConfig },
-            { "proxies", new[] { proxy } },
+            { "proxies", proxies },
             { "rules", rules },
         };
     }
@@ -252,7 +302,7 @@ public sealed class MihomoKernel : IDisposable
 
         var config = Path.Combine(root, "session-" + Guid.NewGuid().ToString("N") + ".json");
         configPath = config;
-        await File.WriteAllTextAsync(config, JsonSerializer.Serialize(BuildConfig(conn, SocksPort)), ct);
+        await File.WriteAllTextAsync(config, JsonSerializer.Serialize(BuildConfig(conn, SocksPort, Upstream)), ct);
 
         var job = new OwnedProcessJob();
         ownedJob = job;

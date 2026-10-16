@@ -327,7 +327,7 @@ export function Editor({
             </Section>
             <Section icon={<MapPin size={16} />} title="覆盖范围">
               <Field group label="可用区服" wide name="regions" error={err("regions")}>
-                <TagInput label="可用区服" value={list("regions")} onChange={(v) => update("regions", v)} placeholder="输入代码后按回车" suggestions={commonRegions} display={regionDisplay} normalize={(s) => s.toLowerCase()} />
+                <TagInput label="可用区服" value={list("regions")} onChange={(v) => update("regions", v)} placeholder="也可以输入代码后按回车，例如 kr" suggestions={commonRegions} display={regionDisplay} normalize={(s) => s.toLowerCase()} />
               </Field>
               <Field group label="限定游戏" wide>
                 <PickList label="添加限定游戏" value={list("game_ids")} onChange={(v) => update("game_ids", v)} options={gameOptions} empty="不限，所有游戏都可使用" />

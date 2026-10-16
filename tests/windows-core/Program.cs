@@ -91,6 +91,88 @@ using (var kernelConfig = JsonDocument.Parse(JsonSerializer.Serialize(MihomoKern
         "unverified IPv6 or shared local proxy enabled");
 }
 
+// With another proxy on the machine, the traffic that is not the game's
+// goes to that proxy instead of straight out, so switching the accelerator
+// on does not cut the player's Clash off; without one, nothing changes.
+using (var coexisting = JsonDocument.Parse(JsonSerializer.Serialize(MihomoKernel.BuildConfig(conn, 10900, 7897))))
+{
+    var root = coexisting.RootElement;
+    var rules = root.GetProperty("rules").EnumerateArray().Select(r => r.GetString()!).ToArray();
+    Check(rules.Last() == "MATCH,UPSTREAM", "non-game traffic was not given to the other proxy: " + rules.Last());
+    var upstream = root.GetProperty("proxies").EnumerateArray()
+        .FirstOrDefault(p => p.GetProperty("name").GetString() == "UPSTREAM");
+    Check(
+        upstream.ValueKind == JsonValueKind.Object &&
+        upstream.GetProperty("type").GetString() == "socks5" &&
+        upstream.GetProperty("server").GetString() == "127.0.0.1" &&
+        upstream.GetProperty("port").GetInt32() == 7897 && upstream.GetProperty("udp").GetBoolean(),
+        "the other proxy was not added as a SOCKS5 upstream");
+    Check(
+        root.GetProperty("dns").GetProperty("fake-ip-range").GetString() == "198.19.0.1/16",
+        "our fake-IP range overlaps the other proxy's");
+}
+using (var alone = JsonDocument.Parse(JsonSerializer.Serialize(MihomoKernel.BuildConfig(conn, 10900, null))))
+{
+    var rules = alone.RootElement.GetProperty("rules").EnumerateArray().Select(r => r.GetString()!).ToArray();
+    Check(rules.Last() == "MATCH,DIRECT", "a machine with no other proxy lost its catch-all");
+    Check(
+        !alone.RootElement.GetProperty("proxies").EnumerateArray().Any(p => p.GetProperty("name").GetString() == "UPSTREAM"),
+        "an upstream was added on a machine with no other proxy");
+}
+
+// A local proxy is taken only when it answers a SOCKS5 greeting: a port
+// served by something else is left alone, or the player's traffic would be
+// handed to whatever happened to be listening.
+{
+    var socksPort = FreeTcpPort();
+    using (var listener = new TcpListener(IPAddress.Loopback, socksPort))
+    {
+        listener.Start();
+        var serve = Task.Run(async () =>
+        {
+            for (var i = 0; i < 4; i++)
+            {
+                try
+                {
+                    using var client = await listener.AcceptTcpClientAsync();
+                    var stream = client.GetStream();
+                    var greeting = new byte[2];
+                    await stream.ReadExactlyAsync(greeting);
+                    await stream.ReadExactlyAsync(new byte[greeting[1]]);
+                    await stream.WriteAsync(new byte[] { 5, 0 });
+                }
+                catch (Exception e) when (e is IOException or SocketException or OperationCanceledException or ObjectDisposedException)
+                {
+                    return;
+                }
+            }
+        });
+        var silent = FreeTcpPort();
+        using (var other = new TcpListener(IPAddress.Loopback, silent))
+        {
+            other.Start();
+            var accepted = Task.Run(async () =>
+            {
+                try
+                {
+                    using var client = await other.AcceptTcpClientAsync();
+                    await client.GetStream().ReadExactlyAsync(new byte[16]);
+                }
+                catch (Exception e) when (e is IOException or SocketException or OperationCanceledException or ObjectDisposedException)
+                {
+                }
+            });
+            var found = LocalProxy.Find([silent, socksPort]);
+            Check(found == socksPort, $"a non-proxy port was taken, or the proxy port missed: {found} vs {socksPort}");
+            Check(LocalProxy.Find([silent]) is null, "a port that never greets was taken as a proxy");
+            other.Stop();
+            await Task.WhenAny(accepted, Task.Delay(1000));
+        }
+        listener.Stop();
+        await Task.WhenAny(serve, Task.Delay(1000));
+    }
+}
+
 // Scoped and placeholder IPv6 resolvers make mihomo reject the whole file;
 // another proxy's fake-IP resolver hands the entry to that proxy.
 Check(
@@ -630,7 +712,8 @@ if (OperatingSystem.IsWindows())
 }
 
 Console.WriteLine(
-    "PASS: HTTPS restriction, API message translation, wire contract, rule validation, tunnel-pinned probe inbound, torn kernel journal, " +
+    "PASS: HTTPS restriction, API message translation, wire contract, rule validation, tunnel-pinned probe inbound, " +
+    "another proxy on the machine coexists, local proxy detection, torn kernel journal, " +
     "token rotation, stable idempotency, transient gateway errors, UDP 4-of-5 sampling and loss, UDP nonce " +
     "framing, warm-connection TCP probe, Windows child lifetime, kernel failure diagnostics and cleanup " +
     $"({kernelChecks}), absent-pipe fast fail, foreign pipe server rejected, SCM service lookup, release path " +

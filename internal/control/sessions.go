@@ -102,7 +102,10 @@ func (s *Server) provision(tx *gorm.DB, x *Session, v LineVersion, p c.Profile) 
 				}
 			}
 			if !allocated {
-				return badRequest("线路节点端口已用尽，请更换线路")
+				// Ports are held until their session closes, so this clears
+				// by itself too; a range that is genuinely too small reports
+				// itself again on every retry.
+				return retryLater("ports-busy", "线路节点端口正被上一个会话占用，请稍候重试")
 			}
 		}
 	}
@@ -176,11 +179,24 @@ func (s *Server) beginSession(w http.ResponseWriter, r *http.Request) {
 		if tx.First(&d, "id = ? AND user_id = ?", in.DeviceID, u.ID).Error != nil {
 			return badRequest("设备尚未登记，请重新登录")
 		}
-		var active int64
-		tx.Model(&Session{}).Where("device_id = ? AND state <> ?", d.ID, "CLOSED").Count(&active)
-		if active > 0 {
+		// A device holds one session at a time. Two kinds of leftover are not
+		// a dead end, because they clear by themselves: one that is already
+		// stopping (its nodes are confirming the forwarding is gone), and one
+		// whose lease has run out (the client that held it is gone, and the
+		// reaper stops it within seconds). The client waits and retries
+		// instead of telling the player no.
+		var holding Session
+		if e := tx.Where("device_id = ? AND state <> ?", d.ID, "CLOSED").Order("created_at").First(&holding).Error; e == nil {
+			now := time.Now()
+			switch {
+			case holding.State == "STOPPING":
+				return retryLater("session-closing", "上一个加速会话正在结束，请稍候重试")
+			case now.After(holding.LeaseUntil):
+				return retryLater("session-stale", "上一个加速会话尚未释放，正在自动清理，请稍候重试")
+			}
 			return badRequest("此设备已有一个加速会话在运行")
 		}
+		var active int64
 		tx.Model(&Session{}).Where("user_id = ? AND state <> ? AND purpose = ?", u.ID, "CLOSED", "game").Count(&active)
 		if active >= int64(u.MaxSessions) {
 			return badRequest("账号同时加速的设备数已达上限")
@@ -416,7 +432,11 @@ func reapDue(x Session, now time.Time) bool {
 	case "CLOSED":
 		return false
 	case "STOPPING":
-		return x.StopUntil != nil && now.After(*x.StopUntil)
+		// A STOPPING row written without a deadline never becomes due, so it
+		// would hold its device and ports forever, and a client waiting for
+		// the previous session to finish would wait for nothing. Only an
+		// older row or a full-row update can look like this; close it.
+		return x.StopUntil == nil || now.After(*x.StopUntil)
 	case "PREPARING":
 		return now.After(x.LeaseUntil) || now.After(x.PrepareUntil)
 	}

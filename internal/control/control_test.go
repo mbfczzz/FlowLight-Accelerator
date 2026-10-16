@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -210,6 +211,290 @@ func TestNodeClaimsScopedAndProbeRequired(t *testing.T) {
 		t.Fatalf("failed UDP probe did not stop: %s", x.State)
 	}
 }
+
+// A device holds one session at a time. A session that is actually running
+// is a plain refusal; one that is stopping, or one whose lease already ran
+// out (the client that held it was killed, as an update does), clears by
+// itself, so it is refused as retryable and the same request goes through
+// once it is gone.
+func TestSessionLeavingADeviceIsRetryable(t *testing.T) {
+	s, token, u := setup(t)
+	fixture(t, s, u)
+	in := CreateSession{GameID: "valorant", RegionID: "kr", LineID: "line-1", DeviceID: "test-device"}
+	start := func(key string) *httptest.ResponseRecorder {
+		t.Helper()
+		return request(s, token, "POST", "/api/client/v1/sessions", in, key)
+	}
+	refusal := func(w *httptest.ResponseRecorder, wantCode string) {
+		t.Helper()
+		if w.Code != 409 {
+			t.Fatalf("refusal was not marked retryable: %d %s", w.Code, w.Body.String())
+		}
+		var body struct {
+			Error string `json:"error"`
+			Code  string `json:"code"`
+		}
+		if json.Unmarshal(w.Body.Bytes(), &body) != nil || body.Code != wantCode || body.Error == "" {
+			t.Fatalf("retryable refusal carried the wrong body: %s", w.Body.String())
+		}
+	}
+	// Finishes stopping the session, as its nodes confirming the revoke and
+	// the reaper would.
+	finish := func() {
+		t.Helper()
+		var x Session
+		if e := s.Store.DB.First(&x, "device_id = ? AND state != ?", "test-device", "CLOSED").Error; e != nil {
+			t.Fatal(e)
+		}
+		s.Store.DB.Model(&Job{}).Where("session_id = ? AND kind = ?", x.ID, "revoke").Update("status", "succeeded")
+		s.Store.DB.Model(&Session{}).Where("id = ?", x.ID).Update("stop_until", time.Now().Add(-time.Minute))
+		if e := s.Reap(); e != nil {
+			t.Fatal(e)
+		}
+		var left int64
+		s.Store.DB.Model(&Session{}).Where("device_id = ? AND state != ?", "test-device", "CLOSED").Count(&left)
+		if left != 0 {
+			t.Fatalf("session %s was not closed", x.ID)
+		}
+	}
+
+	w := start("first-attempt")
+	if w.Code != 202 {
+		t.Fatal(w.Body.String())
+	}
+	if got := start("while-running"); got.Code != 400 ||
+		!strings.Contains(got.Body.String(), "此设备已有一个加速会话在运行") {
+		t.Fatalf("a running session was not refused plainly: %d %s", got.Code, got.Body.String())
+	}
+
+	// Stopping: the player asked for it, and the device is free again as
+	// soon as the teardown finishes.
+	var x Session
+	s.Store.DB.First(&x, "device_id = ? AND state != ?", "test-device", "CLOSED")
+	if got := request(s, token, "POST", "/api/client/v1/sessions/"+x.ID+"/stop", nil, ""); got.Code != 200 {
+		t.Fatal(got.Body.String())
+	}
+	refusal(start("while-closing"), "session-closing")
+	finish()
+	if got := start("after-closing"); got.Code != 202 {
+		t.Fatalf("the device stayed blocked after the session closed: %d %s", got.Code, got.Body.String())
+	}
+
+	// Left behind by a client that was killed mid-session.
+	s.Store.DB.Model(&Session{}).Where("device_id = ? AND state != ?", "test-device", "CLOSED").
+		Updates(map[string]any{"state": "ACTIVE", "lease_until": time.Now().Add(-time.Minute)})
+	refusal(start("while-stale"), "session-stale")
+	if e := s.Reap(); e != nil {
+		t.Fatal(e)
+	}
+	finish()
+	if got := start("after-stale"); got.Code != 202 {
+		t.Fatalf("the device stayed blocked after the leftover was cleared: %d %s", got.Code, got.Body.String())
+	}
+}
+
+// A retry after a retryable refusal must create a NEW session, not hand back
+// the one whose idempotency key the first, successful attempt recorded. The
+// client waits out "the previous session is still closing" and comes back
+// with a fresh key; if the service answered with the old, closed session, the
+// client would poll something that is already gone.
+func TestRetryAfterRefusalCreatesANewSession(t *testing.T) {
+	s, token, u := setup(t)
+	fixture(t, s, u)
+	in := CreateSession{GameID: "valorant", RegionID: "kr", LineID: "line-1", DeviceID: "test-device"}
+
+	var first Session
+	json.Unmarshal(request(s, token, "POST", "/api/client/v1/sessions", in, "attempt-1").Body.Bytes(), &first)
+
+	// The player stops it: it is now stopping, so a start is refused as
+	// retryable.
+	if got := request(s, token, "POST", "/api/client/v1/sessions/"+first.ID+"/stop", nil, ""); got.Code != 200 {
+		t.Fatal(got.Body.String())
+	}
+	if got := request(s, token, "POST", "/api/client/v1/sessions", in, "attempt-2"); got.Code != 409 {
+		t.Fatalf("a closing session was not refused as retryable: %d %s", got.Code, got.Body.String())
+	}
+	// Nothing was created, so no key was recorded for that refusal.
+	var rows int64
+	s.Store.DB.Model(&Idempotency{}).Count(&rows)
+	if rows != 1 {
+		t.Fatalf("a refused attempt recorded an idempotency row: %d rows", rows)
+	}
+
+	// Let it finish closing, then retry with a fresh key, as the service does.
+	s.Store.DB.Model(&Job{}).Where("session_id = ? AND kind = ?", first.ID, "revoke").Update("status", "succeeded")
+	s.Store.DB.Model(&Session{}).Where("id = ?", first.ID).Update("stop_until", time.Now().Add(-time.Minute))
+	if e := s.Reap(); e != nil {
+		t.Fatal(e)
+	}
+	w := request(s, token, "POST", "/api/client/v1/sessions", in, "attempt-3")
+	if w.Code != 202 {
+		t.Fatalf("the retry did not create a session: %d %s", w.Code, w.Body.String())
+	}
+	var second Session
+	json.Unmarshal(w.Body.Bytes(), &second)
+	if second.ID == first.ID {
+		t.Fatalf("the retry was handed the old session %s", first.ID)
+	}
+	if second.State == "CLOSED" || second.State == "STOPPING" {
+		t.Fatalf("the retry created a session that is already ending: %s", second.State)
+	}
+
+	// And the SAME key still resolves to the session it made: the retry's own
+	// replay must not create a third one.
+	var again Session
+	json.Unmarshal(request(s, token, "POST", "/api/client/v1/sessions", in, "attempt-3").Body.Bytes(), &again)
+	if again.ID != second.ID {
+		t.Fatalf("replaying the retry's key created another session: %s vs %s", again.ID, second.ID)
+	}
+}
+
+// Two published rows for one version would both look live, and which one a
+// client is offered comes down to creation order. Only one may be published.
+func TestReleaseVersionIsUniquePerChannel(t *testing.T) {
+	s, token, _ := setup(t)
+	body := func(version, channel string, published bool) map[string]any {
+		return map[string]any{
+			"version":   version,
+			"channel":   channel,
+			"url":       "https://example.com/FlowLight.exe",
+			"sha256":    strings.Repeat("a", 64),
+			"published": published,
+		}
+	}
+	post := func(version, channel string, published bool) *httptest.ResponseRecorder {
+		t.Helper()
+		return request(s, token, "POST", "/api/admin/v1/releases", body(version, channel, published), "")
+	}
+	if got := post("1.2.3", "stable", true); got.Code != 200 {
+		t.Fatalf("first release refused: %d %s", got.Code, got.Body.String())
+	}
+	// A second published row for the same version is a refusal that says why.
+	dup := post("1.2.3", "stable", true)
+	if dup.Code != 400 || !strings.Contains(dup.Body.String(), "只能发布一条") {
+		t.Fatalf("a duplicate published version was accepted: %d %s", dup.Code, dup.Body.String())
+	}
+	// The same version on the other channel is a different thing: a beta is
+	// what beta-channel clients get.
+	if got := post("1.2.3", "beta", true); got.Code != 200 {
+		t.Fatalf("the same version on another channel was refused: %d %s", got.Code, got.Body.String())
+	}
+	// An unpublished duplicate is fine; it becomes a problem only when it is
+	// published, which is the check above.
+	if got := post("1.2.3", "stable", false); got.Code != 200 {
+		t.Fatalf("an unpublished duplicate was refused: %d %s", got.Code, got.Body.String())
+	}
+
+	// The list marks the row a client is actually offered, one per channel.
+	var rows []Release
+	if w := request(s, token, "GET", "/api/admin/v1/releases", nil, ""); json.Unmarshal(w.Body.Bytes(), &rows) != nil {
+		t.Fatal(w.Body.String())
+	}
+	served := map[string]int{}
+	unpublished := 0
+	for _, r := range rows {
+		if r.Served {
+			served[r.Channel]++
+		}
+		if r.Served && !r.Published {
+			t.Errorf("an unpublished release was marked as served: %s", r.Version)
+		}
+		if !r.Published {
+			unpublished++
+		}
+	}
+	if served["stable"] != 1 || served["beta"] != 1 {
+		t.Fatalf("the list marks the wrong number of served rows: %+v", served)
+	}
+	if unpublished != 1 {
+		t.Fatalf("expected exactly one unpublished row, got %d", unpublished)
+	}
+}
+
+// A STOPPING row with no deadline is never reaped, so it would hold its
+// device and ports forever, and a client retrying "the previous session is
+// still closing" would wait for something that never ends.
+func TestStoppingWithoutADeadlineIsClosed(t *testing.T) {
+	s, token, u := setup(t)
+	fixture(t, s, u)
+	in := CreateSession{GameID: "valorant", RegionID: "kr", LineID: "line-1", DeviceID: "test-device"}
+	if w := request(s, token, "POST", "/api/client/v1/sessions", in, "deadline-key-1"); w.Code != 202 {
+		t.Fatal(w.Body.String())
+	}
+	var x Session
+	if e := s.Store.DB.First(&x, "device_id = ? AND state <> ?", "test-device", "CLOSED").Error; e != nil {
+		t.Fatal(e)
+	}
+	if e := s.Store.DB.Model(&Session{}).Where("id = ?", x.ID).
+		Updates(map[string]any{"state": "STOPPING", "stop_until": nil}).Error; e != nil {
+		t.Fatal(e)
+	}
+	s.Store.DB.First(&x, "id = ?", x.ID)
+	if x.StopUntil != nil {
+		t.Skip("this driver did not store NULL")
+	}
+
+	if e := s.Reap(); e != nil {
+		t.Fatal(e)
+	}
+	s.Store.DB.First(&x, "id = ?", x.ID)
+	if x.State != "CLOSED" {
+		t.Fatalf("a stopping row without a deadline stayed %s", x.State)
+	}
+	var ports int64
+	s.Store.DB.Model(&Reservation{}).Where("session_id = ?", x.ID).Count(&ports)
+	if ports != 0 {
+		t.Fatalf("its ports were not released: %d", ports)
+	}
+	if got := request(s, token, "POST", "/api/client/v1/sessions", in, "deadline-key-2"); got.Code != 202 {
+		t.Fatalf("the device stayed blocked: %d %s", got.Code, got.Body.String())
+	}
+}
+
+// How long a stopped session blocks its device, which the Windows service's
+// ClosingWait has to outlast. Changing the lease, the grace or the reaper's
+// cadence moves this number, so the wait on the client side is derived from
+// it rather than guessed.
+func TestStoppedSessionBlocksForAtMostTheClientWait(t *testing.T) {
+	s, token, u := setup(t)
+	fixture(t, s, u)
+	in := CreateSession{GameID: "valorant", RegionID: "kr", LineID: "line-1", DeviceID: "test-device"}
+
+	// The longest case: stopped while still preparing, so its lease is the
+	// preparation timeout rather than the shorter running-lease figure.
+	if w := request(s, token, "POST", "/api/client/v1/sessions", in, "window-key-1"); w.Code != 202 {
+		t.Fatal(w.Body.String())
+	}
+	var x Session
+	if e := s.Store.DB.First(&x, "device_id = ? AND state <> ?", "test-device", "CLOSED").Error; e != nil {
+		t.Fatal(e)
+	}
+	startedAt := time.Now()
+	if got := request(s, token, "POST", "/api/client/v1/sessions/"+x.ID+"/stop", nil, ""); got.Code != 200 {
+		t.Fatal(got.Body.String())
+	}
+	s.Store.DB.First(&x, "id = ?", x.ID)
+	if x.StopUntil == nil {
+		t.Fatal("a stopped session got no deadline")
+	}
+	// The reaper only closes it after the deadline, and runs every 5s.
+	worst := x.StopUntil.Sub(startedAt) + 5*time.Second
+	if worst > 240*time.Second {
+		t.Fatalf("a stopped session can hold its device for %v, longer than the service waits (240s)", worst)
+	}
+	t.Logf("a stopped session holds its device at most %v (client waits 240s)", worst.Round(time.Second))
+
+	// And the device really is free once the deadline passes.
+	s.Store.DB.Model(&Session{}).Where("id = ?", x.ID).Update("stop_until", time.Now().Add(-time.Second))
+	s.Store.DB.Model(&Job{}).Where("session_id = ? AND kind = ?", x.ID, "revoke").Update("status", "succeeded")
+	if e := s.Reap(); e != nil {
+		t.Fatal(e)
+	}
+	if got := request(s, token, "POST", "/api/client/v1/sessions", in, "window-key-2"); got.Code != 202 {
+		t.Fatalf("the device was still blocked after the deadline: %d %s", got.Code, got.Body.String())
+	}
+}
+
 func TestRefreshReplayRevokesFamily(t *testing.T) {
 	s, _, u := setup(t)
 	var auth map[string]any

@@ -184,7 +184,14 @@ export function renderCell(
       if (col === "version") return <b className="figure">{v}</b>;
       if (col === "channel") return <Pill value={v} plain />;
       if (col === "published")
-        return v ? <Pill tone="tone-good" label="已发布" /> : <Pill tone="tone-neutral" label="未发布" />;
+        if (!v) return <Pill tone="tone-neutral" label="未发布" />;
+        // Several rows may carry the same version; only the newest published
+        // one per channel is what clients actually get.
+        return row.served ? (
+          <Pill tone="tone-good" label="已发布 · 生效" />
+        ) : (
+          <Pill tone="tone-warn" label="已发布 · 未生效" />
+        );
       break;
     case "audits":
       if (col === "actor") {

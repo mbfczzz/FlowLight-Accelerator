@@ -35,6 +35,14 @@ func checkName(s, field string) error {
 	return nil
 }
 
+// channelName names a release channel the way the console shows it.
+func channelName(channel string) string {
+	if channel == "beta" {
+		return "测试版"
+	}
+	return "稳定版"
+}
+
 func checkHost(s, field string) error {
 	if !validHost(s) {
 		return badRequest(field + "不能为空，且不能包含空格、斜杠、引号或逗号")
@@ -326,6 +334,25 @@ func (s *Server) save(kind string) http.HandlerFunc {
 				}
 				if _, e := hex.DecodeString(in.SHA256); e != nil || len(in.SHA256) != 64 {
 					return badRequest("安装包 SHA256 应为 64 位十六进制字符")
+				}
+				if in.Channel != "stable" && in.Channel != "beta" {
+					return badRequest("发布渠道只能是稳定版或测试版")
+				}
+				// A version may exist once per channel. Two rows with the same
+				// version and channel both look published, and which one a
+				// client is offered comes down to which was created later,
+				// which is not something an operator can see or control.
+				if in.Published {
+					var clash int64
+					if e := tx.Model(&Release{}).
+						Where("version = ? AND channel = ? AND published = ? AND id <> ?", in.Version, in.Channel, true, id).
+						Count(&clash).Error; e != nil {
+						return e
+					}
+					if clash > 0 {
+						return badRequest("已有一个已发布的 " + in.Version + "（" + channelName(in.Channel) +
+							"）。同版本只能发布一条：请编辑现有那条，或先取消它的“发布此版本”，或改用别的版本号")
+					}
 				}
 				in.ID = id
 				// Editing an old release must not make it look newer.

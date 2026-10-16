@@ -119,6 +119,18 @@ public sealed class ApiClient : IDisposable
             var message = doc.RootElement.TryGetProperty("error", out var error)
                 ? error.GetString()
                 : null;
+            // A refusal the control service marked retryable clears by
+            // itself within a minute or two — a session that is still
+            // closing, or the port it still holds. Waiting is better than
+            // telling the player no.
+            var code = res.StatusCode == HttpStatusCode.Conflict &&
+                doc.RootElement.TryGetProperty("code", out var tag) && tag.ValueKind == JsonValueKind.String
+                ? tag.GetString()
+                : null;
+            if (code is { Length: > 0 } retryCode)
+            {
+                throw new RetryableRefusalException(Localize(message), retryCode);
+            }
             throw new InvalidOperationException(Localize(message));
         }
         return doc.RootElement.Clone();

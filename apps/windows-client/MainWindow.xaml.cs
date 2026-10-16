@@ -699,6 +699,20 @@ public partial class MainWindow : Window
                 updating = null;
                 return;
             }
+            // The installer stops the service and replaces its files, so a
+            // session left running is dropped without its nodes being told;
+            // the control service then holds the device and the port until
+            // the lease runs out. Stopping first, as quitting does, avoids
+            // that. A session that will not stop keeps the client open with
+            // the reason instead of installing over it.
+            var stillRunning = await StopForExit();
+            if (stillRunning is not null)
+            {
+                ShowNotice("未能停止加速，更新已取消。" + stillRunning, ErrorHold, NoticeKind.Error);
+                updating = null;
+                ShowUpdate();
+                return;
+            }
             if (!Updater.Launch(path, release.Sha256))
             {
                 ShowNotice("已取消安装。更新需要管理员权限，可以稍后在头像菜单里继续更新。", ErrorHold, NoticeKind.Warning);

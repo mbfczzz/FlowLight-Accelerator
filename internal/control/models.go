@@ -232,6 +232,10 @@ type Release struct {
 	Required  bool      `json:"required"`
 	Published bool      `json:"published"`
 	CreatedAt time.Time `json:"created_at"`
+	// Whether this is the row a client is actually offered, filled in for the
+	// admin list so several published rows for one version cannot look
+	// equally live.
+	Served bool `json:"served" gorm:"-"`
 }
 type Gate struct {
 	ID       int `gorm:"primaryKey"`

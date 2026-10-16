@@ -138,6 +138,26 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
     // and logout wait for the session to wind down.
     static readonly TimeSpan ReadTimeout = TimeSpan.FromSeconds(5);
     static readonly TimeSpan DispatchTimeout = TimeSpan.FromSeconds(30);
+    // How long a start waits for a previous session to finish closing, and
+    // how often it asks again while it does.
+    //
+    // The ceiling comes from the control service, which holds a stopped
+    // session until its lease would have expired plus the reclaim grace, and
+    // only then closes it from the reaper:
+    //
+    //   120 s  the longest lease a session can hold (PrepareTimeout, for one
+    //          stopped while still preparing; a running session's is 90 s)
+    //  + 15 s  ReclaimGrace (config.go: ReclaimGrace)
+    //  +  5 s  the reaper's tick
+    //  = 140 s
+    //
+    // 240 s leaves a minute of room on top of that for the round trips and
+    // the polling interval, so the wait ends after the service has freed the
+    // device rather than a moment before. The usual case is a few seconds:
+    // the session closes as soon as its nodes confirm the revocation, and
+    // only an unreachable node runs the clock this far.
+    static readonly TimeSpan ClosingWait = TimeSpan.FromSeconds(240);
+    static readonly TimeSpan ClosingPoll = TimeSpan.FromSeconds(3);
     const int MaxRequestChars = 65536;
 
     readonly Dictionary<string, Identity> users = [];
@@ -151,6 +171,9 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
     string? failedOwner;
     CancellationTokenSource? running;
     Task? sessionTask;
+    // Another proxy on this machine that keeps the traffic which is not the
+    // game's, decided when a session starts and used when its kernel starts.
+    int? upstream;
     CancellationToken serviceToken;
     readonly object viewLock = new();
     volatile SessionView view = SessionView.Idle;
@@ -269,8 +292,11 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
                 catch (Exception e)
                 {
                     var timedOut = dispatchDeadline.IsCancellationRequested && !stoppingToken.IsCancellationRequested;
+                    // A refusal that clears by itself carries its code, so
+                    // the window can wait and retry.
+                    var code = (e as RetryableRefusalException)?.Code;
                     reply = JsonSerializer.Serialize(
-                        new { success = false, data = (object?)null, error = ReplyError(e, timedOut) },
+                        new { success = false, data = (object?)null, error = ReplyError(e, timedOut), code },
                         Wire.Json);
                 }
                 await writer.WriteLineAsync(reply);
@@ -499,9 +525,16 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
                     device_id = identity.DeviceID,
                     egress_binding_id = (string?)null,
                 };
-                // Before a session is created on the control service: with
-                // another proxy's TUN in the way the tunnel cannot work.
-                if (NetworkConflict.Detect() is { } conflict)
+                // Another proxy's TUN carries the whole machine. When that
+                // proxy can be handed traffic — its SOCKS port answers —
+                // the accelerator runs alongside it and sends it everything
+                // that is not the game's; when it cannot, the kernel would
+                // take the network away from it, so the start is refused.
+                var conflict = NetworkConflict.Detect();
+                // The player's own account, not the service's SYSTEM one:
+                // that is where their proxy settings live.
+                upstream = conflict is null ? null : LocalProxy.Find(sid);
+                if (conflict is not null && upstream is null)
                 {
                     throw new InvalidOperationException(conflict);
                 }
@@ -636,21 +669,54 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
 
     async Task StartSession(Identity identity, string ownerSid, object input, CancellationToken ct)
     {
-        var requestID = Guid.NewGuid().ToString("N");
         string? sessionID = null;
         try
         {
             JsonElement submitted = default;
-            for (var attempt = 0; ; attempt++)
+            // A start can be refused because the last session is still being
+            // torn down: its ports are held until its nodes confirm the
+            // forwarding is gone. That clears in seconds, so wait for it
+            // rather than failing the start and making the player press the
+            // button again and guess when.
+            //
+            // The two kinds of retry need different keys, which is why this
+            // is not one loop:
+            //
+            //  * A retryable refusal means the control service created
+            //    nothing, so the wait ends in a genuinely new request and it
+            //    gets a NEW key. Keeping the old one would be wrong — a key
+            //    whose earlier attempt succeeded still resolves to that
+            //    session, so the retry would be handed the old, already
+            //    closed session back as if it were the new one.
+            //  * A transport failure means the request may well have landed,
+            //    with only the answer lost, so the same request is sent again
+            //    under the SAME key and the control service returns the one
+            //    session it made instead of a second one.
+            var closingBy = DateTime.UtcNow + ClosingWait;
+            while (true)
             {
+                var requestKey = Guid.NewGuid().ToString("N");
                 try
                 {
-                    submitted = await identity.Api.Send("sessions", HttpMethod.Post, input, requestID, ct);
+                    for (var attempt = 0; ; attempt++)
+                    {
+                        try
+                        {
+                            submitted = await identity.Api.Send("sessions", HttpMethod.Post, input, requestKey, ct);
+                            break;
+                        }
+                        catch (Exception ex) when (attempt < 2 && Transient(ex, ct))
+                        {
+                            await Task.Delay(1000, ct);
+                        }
+                    }
                     break;
                 }
-                catch (Exception ex) when (attempt < 2 && Transient(ex, ct))
+                catch (RetryableRefusalException ex) when (DateTime.UtcNow < closingBy)
                 {
-                    await Task.Delay(1000, ct);
+                    var reason = ex.Message.TrimEnd('。');
+                    Update(v => v with { State = "PREPARING", Error = reason + "，正在等待上一个会话结束后自动重试…" });
+                    await Task.Delay(ClosingPoll, ct);
                 }
             }
 
@@ -693,7 +759,8 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
                 throw new TimeoutException("节点准备超时");
             }
 
-            await kernel!.Start(conn, ct);
+            kernel!.Upstream = upstream;
+            await kernel.Start(conn, ct);
             var first = await TunnelProbe.Run(conn, kernel.SocksPort, ct);
             // When the tunnel first passed its probe; clients show elapsed
             // time from here, so it survives a client restart.
