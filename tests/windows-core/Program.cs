@@ -89,13 +89,37 @@ using (var kernelConfig = JsonDocument.Parse(JsonSerializer.Serialize(MihomoKern
         "unverified IPv6 or shared local proxy enabled");
 }
 
-// Scoped and placeholder IPv6 resolvers make mihomo reject the whole file.
+// Scoped and placeholder IPv6 resolvers make mihomo reject the whole file;
+// another proxy's fake-IP resolver hands the entry to that proxy.
 Check(
     MihomoKernel.UsableDns(
-            new[] { "172.16.2.1", "fe80::1%12", "fec0:0:0:ffff::1", "2001:4860:4860::8888", "127.0.0.1", "172.16.2.1", "0.0.0.0" }
+            new[] { "198.18.0.2", "172.16.2.1", "fe80::1%12", "fec0:0:0:ffff::1", "2001:4860:4860::8888", "127.0.0.1", "172.16.2.1", "0.0.0.0", "198.19.255.1" }
                 .Select(IPAddress.Parse))
         .SequenceEqual(new[] { "172.16.2.1", "2001:4860:4860::8888" }),
     "unusable system DNS passed to the kernel");
+
+// Another proxy's TUN carrying the internet stops a start, by name.
+static NetworkConflict.Adapter Adapter(string name, string description, bool route, params string[] addresses) =>
+    new(name, description, route, addresses.Select(IPAddress.Parse).ToList());
+var wifi = Adapter("WLAN", "Realtek RTL8852BE WiFi 6 802.11ax PCIe Adapter", false, "172.16.2.89", "172.16.2.1");
+var clash = NetworkConflict.Find([wifi, Adapter("Meta", "Meta Tunnel", true, "198.18.0.1", "198.18.0.2")]);
+Check(
+    clash is not null && clash.Contains("Clash") && clash.Contains("「Meta」") && !clash.Contains('\n'),
+    "Clash TUN not named: " + clash);
+Check(
+    NetworkConflict.Find([wifi, Adapter("singbox_tun", "sing-box Tunnel", true, "172.19.0.1")]) is { } singBox &&
+    singBox.Contains("sing-box"),
+    "sing-box TUN not found");
+Check(
+    NetworkConflict.Find([Adapter("Tun0", "Some Tunnel", true, "198.18.0.1")]) is { } unknown &&
+    unknown.Contains("代理软件"),
+    "fake-IP TUN of unknown software not found");
+Check(NetworkConflict.Find([Adapter("WLAN", "Realtek", true, "172.16.2.89", "172.16.2.1")]) is null, "plain Wi-Fi flagged");
+Check(NetworkConflict.Find([Adapter("FlowLightTun", "Meta Tunnel", true, "198.18.0.1")]) is null, "our own TUN flagged");
+Check(NetworkConflict.Find([Adapter("公司 VPN", "WireGuard Tunnel", true, "10.8.0.2")]) is null, "a full-tunnel VPN flagged");
+Check(
+    NetworkConflict.Find([wifi with { CarriesInternet = true }, Adapter("Meta", "Meta Tunnel", false, "198.18.0.1")]) is null,
+    "a proxy TUN that carries nothing flagged");
 
 var tornRoot = Directory.CreateTempSubdirectory("flowlight-kernel-").FullName;
 File.WriteAllText(Path.Combine(tornRoot, "owned-kernel.json"), "{\"pid\":");

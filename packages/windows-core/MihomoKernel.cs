@@ -182,10 +182,13 @@ public sealed class MihomoKernel : IDisposable
     // IPv6 resolver, which home routers commonly advertise, is written with
     // its interface (fe80::1%12) and mihomo rejects the whole configuration
     // over it; fec0:0:0:ffff::1-3 are Windows placeholders, never servers.
+    // Another proxy's fake-IP resolver (NetworkConflict) would send the
+    // line's entry to that proxy.
     internal static string[] UsableDns(IEnumerable<IPAddress> addresses) => addresses
         .Where(a => a.AddressFamily switch
         {
-            AddressFamily.InterNetwork => !IPAddress.IsLoopback(a) && !a.Equals(IPAddress.Any),
+            AddressFamily.InterNetwork => !IPAddress.IsLoopback(a) && !a.Equals(IPAddress.Any) &&
+                                          !NetworkConflict.IsFakeIp(a),
             AddressFamily.InterNetworkV6 => !IPAddress.IsLoopback(a) && !a.Equals(IPAddress.IPv6Any) &&
                                             !a.IsIPv6LinkLocal && !a.IsIPv6SiteLocal && !a.IsIPv6Multicast &&
                                             a.ScopeId == 0,

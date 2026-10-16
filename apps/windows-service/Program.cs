@@ -466,6 +466,12 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
                     device_id = identity.DeviceID,
                     egress_binding_id = (string?)null,
                 };
+                // Before a session is created on the control service: with
+                // another proxy's TUN in the way the tunnel cannot work.
+                if (NetworkConflict.Detect() is { } conflict)
+                {
+                    throw new InvalidOperationException(conflict);
+                }
                 await gate.WaitAsync(ct);
                 try
                 {
@@ -684,7 +690,8 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
                         // Report what the failed probe measured (UDP loss, a
                         // TCP sample) rather than the last good result.
                         var measured = (ex as TunnelProbeException)?.Result;
-                        Update(v => v with { State = "DEGRADED", Error = "隧道探测失败", Probe = measured ?? v.Probe });
+                        var reason = NetworkConflict.Detect() ?? "隧道探测失败";
+                        Update(v => v with { State = "DEGRADED", Error = reason, Probe = measured ?? v.Probe });
                         if (++failedProbes >= 3)
                         {
                             throw new IOException("隧道探测连续失败", ex);
@@ -728,6 +735,12 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
             // A request timeout is an OperationCanceledException too, but it is
             // a failure, not a stop, and must be reported as one.
             var message = e is OperationCanceledException ? "控制服务未在规定时间内响应" : PlayerMessage(e);
+            // A proxy that took over the network after the start explains a
+            // tunnel that stopped getting through better than the probe can.
+            if (message.StartsWith("隧道", StringComparison.Ordinal) && NetworkConflict.Detect() is { } conflict)
+            {
+                message = conflict;
+            }
             Update(v => v with { State = "FAILED", Error = message });
         }
         finally
