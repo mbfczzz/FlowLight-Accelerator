@@ -173,12 +173,17 @@ en.ErrorPowerShell=Windows PowerShell could not be run to configure the network 
 en.ErrorOther=Configuring the network service failed. Run Setup again; if it still fails, send the setup log to support.
 
 [Files]
+; Files extracted to {tmp} before the install come first: with solid
+; compression, extracting one decompresses everything listed above it, and
+; behind the payload each picture took about ten seconds, so the wizard
+; appeared a minute late.
+; Wizard art, extracted at startup.
+Source: "art\*.png"; Flags: dontcopy noencryption
+; Also run from {tmp} to stop the service before an upgrade.
+Source: "configure-service.ps1"; DestDir: "{app}\service"; Flags: ignoreversion
 Source: "{#Payload}\client\*"; DestDir: "{app}\client"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#Payload}\service\*"; DestDir: "{app}\service"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#Payload}\core\mihomo.exe"; DestDir: "{app}\core"; Flags: ignoreversion
-Source: "configure-service.ps1"; DestDir: "{app}\service"; Flags: ignoreversion
-; Wizard art, extracted to {tmp} at startup.
-Source: "art\*.png"; Flags: dontcopy noencryption
 
 #ifndef Preview
 [Icons]
@@ -262,6 +267,15 @@ end;
 function ArtButtons(): Boolean;
 begin
   Result := ActiveLanguage() = 'zh';
+end;
+
+{ Whether a page's own Next button gives way to an art button. Never in a
+  silent install (the client's updates): Setup clicks through the pages
+  with the Next button only while it is visible, and gives up on a page
+  where it is hidden. }
+function ArtReplacesNext(): Boolean;
+begin
+  Result := ArtButtons() and not WizardSilent();
 end;
 
 { 100, 150 or 200: the art scale closest above the display scale. }
@@ -552,7 +566,7 @@ begin
   WizardForm.RunList.Width := ScaleX(320);
   WizardForm.RunList.Height := ScaleY(24);
 
-  if ArtButtons() and (ServiceError = '') then
+  if ArtReplacesNext() and (ServiceError = '') then
   begin
     FinishButton.Visible := True;
     WizardForm.NextButton.Visible := False;
@@ -677,7 +691,7 @@ begin
   if CurPageID = wpWelcome then
   begin
     WizardForm.NextButton.Caption := ActionCaption();
-    WizardForm.NextButton.Visible := not ArtButtons();
+    WizardForm.NextButton.Visible := not ArtReplacesNext();
   end
   else if CurPageID = ControlPage.ID then
   begin
