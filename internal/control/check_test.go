@@ -3,6 +3,7 @@ package control
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -145,6 +146,42 @@ func TestConnectivityCheckMeasuresEveryLink(t *testing.T) {
 	if len(*dialled) != 1 || (*dialled)[0].Host != "relay.example" || (*dialled)[0].Port != relayPort || (*dialled)[0].Token != relayToken || !(*dialled)[0].UDP {
 		t.Fatalf("control dial: %+v", *dialled)
 	}
+
+	// Done, each node is told to close its own test listener; an agent from
+	// before 0.3.2 does not know the task, and its listener times out.
+	if k.Nodes[0].Release != "pending" || k.Nodes[1].Release != "pending" {
+		t.Fatalf("listeners not being released: %+v", k.Nodes)
+	}
+	relay, exit = claim(t, s, "relay-token"), claim(t, s, "node-test-token")
+	if len(relay) != 1 || relay[0].Kind != "check-release" || relay[0].Payload.Check.Ports[0] != relayPort || relay[0].Payload.Check.Token != relayToken ||
+		len(exit) != 1 || exit[0].Kind != "check-release" || exit[0].Payload.Check.Ports[0] != exitPort || exit[0].Payload.Check.Token != exitToken {
+		t.Fatalf("release jobs: %+v %+v", relay, exit)
+	}
+	answer(t, s, "relay-token", relay[0], true, "", nil)
+	answer(t, s, "node-test-token", exit[0], false, "unsupported structured task", nil)
+	k = latest(t, s, token, func(k LineCheck) bool { return true })
+	if k.Nodes[0].Release != "done" || k.Nodes[1].Release != "expired" {
+		t.Fatalf("released: %+v", k.Nodes)
+	}
+}
+
+func TestConnectivityCheckReleaseIsNotWaitedForever(t *testing.T) {
+	s, token, _ := checkFixture(t)
+	request(s, token, "POST", "/api/admin/v1/lines/line-1/check", nil, "")
+	relay, exit := claim(t, s, "relay-token"), claim(t, s, "node-test-token")
+	answer(t, s, "relay-token", relay[0], true, "", &c.CheckReport{Port: relay[0].Payload.Check.Ports[0]})
+	answer(t, s, "node-test-token", exit[0], true, "", &c.CheckReport{Port: exit[0].Payload.Check.Ports[0]})
+	s.Store.DB.Model(&LineCheck{}).Where("line_id = ?", "line-1").Update("phase_at", time.Now().UTC().Add(-time.Minute))
+	k := latest(t, s, token, func(k LineCheck) bool { return k.Phase == "done" })
+	if k.Nodes[0].Release != "pending" {
+		t.Fatalf("not releasing: %+v", k.Nodes)
+	}
+	// Nobody confirms.
+	s.Store.DB.Model(&LineCheck{}).Where("id = ?", k.ID).Update("finished_at", time.Now().UTC().Add(-time.Minute))
+	k = latest(t, s, token, func(k LineCheck) bool { return k.Nodes[0].Release != "pending" })
+	if k.Nodes[0].Release != "expired" || k.Nodes[1].Release != "expired" {
+		t.Fatalf("release never gave up: %+v", k.Nodes)
+	}
 }
 
 func TestConnectivityCheckNamesOldAgentsAndOfflineNodes(t *testing.T) {
@@ -160,9 +197,13 @@ func TestConnectivityCheckNamesOldAgentsAndOfflineNodes(t *testing.T) {
 	if !strings.Contains(k.Nodes[1].ListenError, "旧版本（0.2.0）") || !strings.Contains(link(k, "link-0").Note, "没有开启检测端口") || !strings.Contains(link(k, "internet").Note, "旧版本") || link(k, "public").Status != "ok" {
 		t.Fatalf("old agent: %+v %+v", k.Nodes, k.Links)
 	}
-	// The relay was never asked to dial a listener that is not there.
-	if jobs := claim(t, s, "relay-token"); len(jobs) != 0 {
+	// The relay was never asked to dial a listener that is not there, only
+	// to close its own; the exit opened none.
+	if jobs := claim(t, s, "relay-token"); len(jobs) != 1 || jobs[0].Kind != "check-release" {
 		t.Fatalf("relay asked to dial: %+v", jobs)
+	}
+	if jobs := claim(t, s, "node-test-token"); len(jobs) != 0 {
+		t.Fatalf("exit asked to close a listener it never opened: %+v", jobs)
 	}
 
 	s.Store.DB.Model(&Node{}).Where("id = ?", "node-2").Update("last_seen", time.Now().UTC().Add(-time.Hour))
@@ -186,9 +227,10 @@ func TestConnectivityCheckStepsRunOutOfTime(t *testing.T) {
 			t.Fatal(e)
 		}
 	}
+	// Measuring jobs left open; closing the listeners comes after.
 	open := func(id string) int64 {
 		var n int64
-		s.Store.DB.Model(&Job{}).Where("check_id = ? AND status IN ?", id, []string{"pending", "running"}).Count(&n)
+		s.Store.DB.Model(&Job{}).Where("check_id = ? AND kind <> ? AND status IN ?", id, "check-release", []string{"pending", "running"}).Count(&n)
 		return n
 	}
 
@@ -209,11 +251,22 @@ func TestConnectivityCheckStepsRunOutOfTime(t *testing.T) {
 		t.Fatalf("%d jobs left open", n)
 	}
 
-	// Both listen, then neither measures.
+	// Both listen, then neither measures. The relay's queue also holds the
+	// last check's release.
 	request(s, token, "POST", "/api/admin/v1/lines/line-1/check", nil, "")
-	relay, exit := claim(t, s, "relay-token"), claim(t, s, "node-test-token")
-	answer(t, s, "relay-token", relay[0], true, "", &c.CheckReport{Port: relay[0].Payload.Check.Ports[0]})
-	answer(t, s, "node-test-token", exit[0], true, "", &c.CheckReport{Port: exit[0].Payload.Check.Ports[0]})
+	listen := func(jobs []c.Job) c.Job {
+		t.Helper()
+		for _, j := range jobs {
+			if j.Kind == "check-listen" {
+				return j
+			}
+		}
+		t.Fatalf("no listen job: %+v", jobs)
+		return c.Job{}
+	}
+	relayListen, exitListen := listen(claim(t, s, "relay-token")), listen(claim(t, s, "node-test-token"))
+	answer(t, s, "relay-token", relayListen, true, "", &c.CheckReport{Port: relayListen.Payload.Check.Ports[0]})
+	answer(t, s, "node-test-token", exitListen, true, "", &c.CheckReport{Port: exitListen.Payload.Check.Ports[0]})
 	k = latest(t, s, token, func(k LineCheck) bool { return k.Phase == "dial" && link(k, "public").Status != "pending" })
 	age()
 	k = latest(t, s, token, func(k LineCheck) bool { return k.Phase == "done" })
@@ -283,9 +336,11 @@ func TestConnectivityCheckUsesChosenPorts(t *testing.T) {
 	claim(t, s, "relay-token")
 	finish()
 
-	// An empty choice goes back to automatic.
+	// An empty choice goes back to automatic: the free ports from the
+	// lowest, as sessions take them; 20000 is held by a session.
 	w = request(s, token, "POST", "/api/admin/v1/lines/line-1/check", map[string]any{"ports": map[string]int{}}, "")
-	if ports = listenPorts(); w.Code != 200 || len(ports["relay-token"]) != 4 || len(ports["node-test-token"]) != 5 {
+	ports = listenPorts()
+	if w.Code != 200 || !slices.Equal(ports["relay-token"], []int{21000, 21001, 21002, 21003}) || !slices.Equal(ports["node-test-token"], []int{20001, 20002, 20003, 20004, 20005}) {
 		t.Fatalf("automatic: %d %v", w.Code, ports)
 	}
 }

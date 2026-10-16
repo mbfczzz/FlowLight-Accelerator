@@ -108,6 +108,7 @@ export const stateNames: Record<string, string> = {
   revoke: "回收资源",
   "check-listen": "连通性检查：开启检测端口",
   "check-dial": "连通性检查：测量",
+  "check-release": "连通性检查：关闭检测端口",
   game: "玩家加速",
   validation: "发布验证",
   stable: "稳定版",

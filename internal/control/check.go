@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"log"
-	mrand "math/rand/v2"
 	"net"
 	"net/http"
 	"slices"
@@ -71,6 +70,10 @@ type checkNode struct {
 	// Silent: the node never took up its listener task, so it is not
 	// asked to measure either.
 	Silent bool `json:"silent,omitempty"`
+	// Release is the test listener's closing once the check is done:
+	// pending, done, or expired when the node did not confirm (the listener
+	// then closes on its own when its time is up).
+	Release string `json:"release,omitempty"`
 }
 
 // checkLink is one step of the path. From -1 is the control service; To
@@ -92,9 +95,12 @@ const (
 	// Agents ask for work every 2 s; a listener not up by then is not coming.
 	checkListenWait = 15 * time.Second
 	checkDialWait   = 45 * time.Second
-	// Listeners outlive both steps, then close on their own.
+	// Listeners are closed when the check is done, and close on their own
+	// after this in case the node never hears of it.
 	checkListenSeconds = 90
-	checkPortChoices   = 8
+	// How long a node has to confirm it closed its listener.
+	checkReleaseWait = 20 * time.Second
+	checkPortChoices = 8
 	// A node that comes back later has nothing left to measure.
 	checkJobLife = time.Minute
 )
@@ -149,9 +155,11 @@ func offlineReason(n Node) string {
 	return "节点服务器「" + n.Name + "」不在线（超过 45 秒没有心跳），请检查服务器上的节点程序（systemctl status flowlight-node）"
 }
 
-// checkPorts is the port the admin chose for a hop, or else free ports of
-// its range in random order, so a port a session is about to take is
-// unlikely to be first. problem says why the chosen port cannot be used.
+// checkPorts is the port the admin chose for a hop, or else its range's
+// free ports from the lowest, the order sessions take them in, so the port
+// tested first is the one the next player gets. A session that needs a port
+// a test listener holds takes it over (internal/agent/check.go). problem
+// says why the chosen port cannot be used.
 func checkPorts(tx *gorm.DB, h c.Hop, want int) (ports []int, problem string, e error) {
 	end := max(h.PortEnd, h.Port)
 	var taken []int
@@ -173,7 +181,6 @@ func checkPorts(tx *gorm.DB, h c.Hop, want int) (ports []int, problem string, e 
 			free = append(free, p)
 		}
 	}
-	mrand.Shuffle(len(free), func(i, j int) { free[i], free[j] = free[j], free[i] })
 	return free[:min(len(free), checkPortChoices)], "", nil
 }
 
@@ -379,6 +386,32 @@ func (s *Server) advanceCheck(tx *gorm.DB, k *LineCheck) ([]func(), error) {
 			return nil, e
 		}
 		k.Phase, k.FinishedAt = "done", timePointer(now)
+		// The measurements are in: close the test listeners now rather than
+		// leave their ports held until they time out.
+		for i := range k.Nodes {
+			node := &k.Nodes[i]
+			if node.Listen != "ok" {
+				continue
+			}
+			if e := s.checkJob(tx, k, i, "check-release", c.CheckTask{Hop: i, Ports: []int{node.Port}, Token: k.Tokens[i]}); e != nil {
+				return nil, e
+			}
+			node.Release = "pending"
+		}
+	case "done":
+		if k.FinishedAt == nil || now.Sub(*k.FinishedAt) < checkReleaseWait {
+			return nil, nil
+		}
+		changed := false
+		for i := range k.Nodes {
+			if k.Nodes[i].Release == "pending" {
+				k.Nodes[i].Release, changed = "expired", true
+			}
+		}
+		if !changed {
+			return nil, nil
+		}
+		return nil, tx.Save(k).Error
 	default:
 		return nil, nil
 	}
@@ -526,6 +559,13 @@ func (s *Server) checkJobDone(tx *gorm.DB, j Job, n Node, ok bool, message strin
 	task := *p.Check
 	reason := checkFailure(n, message)
 	switch {
+	case j.Kind == "check-release" && task.Hop >= 0 && task.Hop < len(k.Nodes) && k.Nodes[task.Hop].Release == "pending":
+		// An agent from before 0.3.2 does not know the task: its listener
+		// closes when its time is up.
+		k.Nodes[task.Hop].Release = "expired"
+		if ok {
+			k.Nodes[task.Hop].Release = "done"
+		}
 	case j.Kind == "check-listen" && k.Phase == "listen" && task.Hop >= 0 && task.Hop < len(k.Nodes):
 		node := &k.Nodes[task.Hop]
 		if node.Listen != "pending" {

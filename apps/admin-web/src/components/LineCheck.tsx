@@ -31,6 +31,7 @@ type CheckNode = {
   listen: "pending" | "ok" | "failed" | "skipped";
   listen_error?: string;
   port?: number;
+  release?: "pending" | "done" | "expired";
 };
 
 type CheckLink = {
@@ -147,11 +148,13 @@ export function LineCheckPanel({ line, canRun, onClose }: { line: Row; canRun: b
   }, [check?.id]);
 
   const running = !!check && check.phase !== "done";
+  // After the result, until each node says its test port is closed.
+  const releasing = !!check && check.nodes.some((n) => n.release === "pending");
   useEffect(() => {
-    if (!running) return;
+    if (!running && !releasing) return;
     const t = setTimeout(() => void run(false), POLL_MS);
     return () => clearTimeout(t);
-  }, [check, running]);
+  }, [check, running, releasing]);
 
   const hops = check?.nodes || [];
   const linkTo = (to: number) => check?.links.find((l) => l.to === to);
@@ -232,7 +235,7 @@ export function LineCheckPanel({ line, canRun, onClose }: { line: Row; canRun: b
             <div className="check-ports-head">
               <b>检测端口</b>
               <span className="muted">
-                留空时在端点的端口范围里随机选；前置转发或防火墙只放行了部分端口时，在这里指定要测的端口。
+                留空时用范围里最小的空闲端口，也就是下一个玩家会分到的端口；前置转发或防火墙只放行了部分端口时，可以在这里指定。
               </span>
             </div>
             {choosable.map((n) => {
@@ -315,8 +318,14 @@ export function LineCheckPanel({ line, canRun, onClose }: { line: Row; canRun: b
                       {n.listen === "ok" &&
                         "检测端口 " +
                           n.port +
-                          " 已开启" +
-                          (check.requested_ports?.[n.endpoint_id] ? "（指定）" : "（自动选择）")}
+                          (check.requested_ports?.[n.endpoint_id] ? "（指定）" : "（自动选择）") +
+                          (n.release === "done"
+                            ? " · 检查结束，已关闭"
+                            : n.release === "pending"
+                              ? " · 检查结束，正在关闭…"
+                              : n.release === "expired"
+                                ? " · 节点没有确认关闭，开启约 90 秒后会自动关闭"
+                                : " · 已开启")}
                       {n.listen === "pending" && "正在开启检测端口…"}
                       {n.listen === "skipped" && "不由平台运行：直接连接它自己的服务，只检测 TCP"}
                       {n.listen === "failed" && <span className="check-bad">检测端口没有开启：{n.listen_error}</span>}

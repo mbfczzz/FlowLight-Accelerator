@@ -85,6 +85,9 @@ func (s *Server) provision(tx *gorm.DB, x *Session, v LineVersion, p c.Profile) 
 			for _, p := range taken {
 				used[p] = true
 			}
+			// The lowest free port, so a front forwarder or firewall that
+			// lets only the start of the range through serves the first
+			// sessions.
 			allocated := false
 			for port := h.Port; port <= h.PortEnd; port++ {
 				if !used[port] {

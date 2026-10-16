@@ -185,8 +185,22 @@ func TestTestPortsGiveWay(t *testing.T) {
 	if portAvailable(port, true) {
 		t.Fatal("test listener not open")
 	}
-	releaseTestPort(port)
+	releaseTestPort(port, "")
 	if !portAvailable(port, true) {
 		t.Fatal("test listener still holds the port a session needs")
+	}
+
+	// A finished check closes its own listener, never a newer check's.
+	if _, e := checkListen(task); e != nil {
+		t.Fatal(e)
+	}
+	if e := checkRelease(c.CheckTask{Ports: []int{port}, Token: "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"}); e != nil || portAvailable(port, true) {
+		t.Fatalf("another check's release closed this listener: %v", e)
+	}
+	if e := checkRelease(c.CheckTask{Ports: []int{port}, Token: task.Token}); e != nil || !portAvailable(port, true) {
+		t.Fatalf("the check's own release left its port held: %v", e)
+	}
+	if e := checkRelease(c.CheckTask{Ports: []int{port}, Token: task.Token}); e != nil {
+		t.Fatalf("releasing a closed listener: %v", e)
 	}
 }

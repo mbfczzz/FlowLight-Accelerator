@@ -250,9 +250,9 @@ func (c *Client) heartbeat(ctx context.Context) error {
 }
 
 // AgentVersion is reported in heartbeats; 0.2.0 counts traffic, 0.3.0
-// takes part in line connectivity checks and 0.3.1 gives a test port up to
-// a session or a new check at once.
-const AgentVersion = "0.3.1"
+// takes part in line connectivity checks, 0.3.1 gives a test port up to a
+// session or a new check at once and 0.3.2 closes it when its check is done.
+const AgentVersion = "0.3.2"
 
 // reportUsage sends traffic totals. It is a separate request, not part of
 // the heartbeat, so a control service that predates it (and rejects
@@ -320,14 +320,17 @@ func (c *Client) execute(ctx context.Context, j contract.Job) (bool, string, con
 			return false, "connection missing", probe, nil
 		}
 		probe, e = c.Manager.Probe(ctx, *j.Payload.Connection)
-	case "check-listen", "check-dial":
+	case "check-listen", "check-dial", "check-release":
 		if j.Payload.Check == nil {
 			return false, "check missing", probe, nil
 		}
-		if j.Kind == "check-listen" {
+		switch j.Kind {
+		case "check-listen":
 			report, e = checkListen(*j.Payload.Check)
-		} else {
+		case "check-dial":
 			report, e = checkDial(ctx, *j.Payload.Check)
+		default:
+			e = checkRelease(*j.Payload.Check)
 		}
 	default:
 		e = errors.New("unsupported structured task")
