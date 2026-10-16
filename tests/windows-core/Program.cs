@@ -89,6 +89,14 @@ using (var kernelConfig = JsonDocument.Parse(JsonSerializer.Serialize(MihomoKern
         "unverified IPv6 or shared local proxy enabled");
 }
 
+// Scoped and placeholder IPv6 resolvers make mihomo reject the whole file.
+Check(
+    MihomoKernel.UsableDns(
+            new[] { "172.16.2.1", "fe80::1%12", "fec0:0:0:ffff::1", "2001:4860:4860::8888", "127.0.0.1", "172.16.2.1", "0.0.0.0" }
+                .Select(IPAddress.Parse))
+        .SequenceEqual(new[] { "172.16.2.1", "2001:4860:4860::8888" }),
+    "unusable system DNS passed to the kernel");
+
 var tornRoot = Directory.CreateTempSubdirectory("flowlight-kernel-").FullName;
 File.WriteAllText(Path.Combine(tornRoot, "owned-kernel.json"), "{\"pid\":");
 using (new MihomoKernel(Path.Combine(tornRoot, "mihomo.exe"), new string('0', 64), tornRoot))
@@ -398,6 +406,21 @@ if (OperatingSystem.IsWindows() && FakeKernel.Binary() is { } fakeBinary)
         exited.Message.Contains("[redacted]") && !exited.Message.Contains(conn.Password),
         "tunnel key leaked into diagnostics");
     Check(!KernelLog(exitedRoot).Contains(conn.Password), "tunnel key leaked into kernel.log");
+    Check(
+        exited.Message.Contains("[server]") && !exited.Message.Contains(conn.Host) && !KernelLog(exitedRoot).Contains(conn.Host),
+        "server address shown in diagnostics");
+
+    // The player sees one line: it must say why mihomo refused.
+    string FirstLine(Exception e) => e.Message.Split('\n')[0].TrimEnd('\r');
+    var (badDns, _) = await FailedStart("reject-dns", hash);
+    Check(FirstLine(badDns) == "网络内核配置校验失败：系统 DNS 设置无法识别", "DNS refusal not explained: " + FirstLine(badDns));
+    Check(badDns.Message.Contains("DNS NameServer[0] format error"), "mihomo's own words missing from diagnostics");
+    var (badProxy, _) = await FailedStart("reject-proxy", hash);
+    Check(
+        FirstLine(badProxy) == "网络内核配置校验失败：线路参数无效，请联系管理员检查这条线路",
+        "proxy refusal not explained: " + FirstLine(badProxy));
+    Check(!badProxy.Message.Contains(conn.Host), "server address shown in a refusal");
+    Check(FirstLine(rejected) == "网络内核配置校验失败", "a refusal without a reason grew one");
 
     // Validation and the kernel each print their pid; the last one is the
     // kernel that never opened its listener.
@@ -564,6 +587,17 @@ static class FakeKernel
             if (mode == "reject")
             {
                 Console.Error.WriteLine("fake-kernel: configuration rejected");
+                Environment.Exit(1);
+            }
+            // What mihomo itself prints for an unusable resolver or proxy.
+            if (mode == "reject-dns")
+            {
+                Console.WriteLine(@"time=""2026-10-16T10:13:23+09:00"" level=error msg=""DNS NameServer[0] format error: parse \""udp://[fe80::1%!](MISSING)\"": invalid URL escape \""%!\""(MISSING)""");
+                Environment.Exit(1);
+            }
+            if (mode == "reject-proxy")
+            {
+                Console.WriteLine(@"time=""2026-10-16T10:13:23+09:00"" level=error msg=""proxy 0: ss node.example:20000 cipher: 2022-blake3-aes-128-gcm initialize error: bad key length, required 16, got 32""");
                 Environment.Exit(1);
             }
             Environment.Exit(0);

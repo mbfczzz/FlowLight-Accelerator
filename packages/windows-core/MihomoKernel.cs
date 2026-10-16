@@ -6,6 +6,7 @@ using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace FlowLight.Core;
 
@@ -24,7 +25,7 @@ public sealed class MihomoKernel : IDisposable
     readonly StringBuilder outputTail = new();
     Process? process;
     string? configPath;
-    string? secret;
+    (string Value, string Mask)[] masks = [];
     FileStream? log;
     Task kernelPumps = Task.CompletedTask;
     bool disposed;
@@ -116,14 +117,10 @@ public sealed class MihomoKernel : IDisposable
         }
         rules.Add("MATCH,DIRECT");
 
-        var dns = NetworkInterface.GetAllNetworkInterfaces()
+        var dns = UsableDns(NetworkInterface.GetAllNetworkInterfaces()
             .Where(n => n.OperationalStatus == OperationalStatus.Up &&
                         !n.Name.Contains("FlowLight", StringComparison.OrdinalIgnoreCase))
-            .SelectMany(n => n.GetIPProperties().DnsAddresses)
-            .Where(a => !IPAddress.IsLoopback(a))
-            .Select(a => a.ToString())
-            .Distinct()
-            .ToArray();
+            .SelectMany(n => n.GetIPProperties().DnsAddresses));
         if (dns.Length == 0)
         {
             throw new InvalidOperationException("未找到可用的系统 DNS");
@@ -181,6 +178,23 @@ public sealed class MihomoKernel : IDisposable
         };
     }
 
+    // The system resolvers mihomo can be given. A link-local or site-local
+    // IPv6 resolver, which home routers commonly advertise, is written with
+    // its interface (fe80::1%12) and mihomo rejects the whole configuration
+    // over it; fec0:0:0:ffff::1-3 are Windows placeholders, never servers.
+    internal static string[] UsableDns(IEnumerable<IPAddress> addresses) => addresses
+        .Where(a => a.AddressFamily switch
+        {
+            AddressFamily.InterNetwork => !IPAddress.IsLoopback(a) && !a.Equals(IPAddress.Any),
+            AddressFamily.InterNetworkV6 => !IPAddress.IsLoopback(a) && !a.Equals(IPAddress.IPv6Any) &&
+                                            !a.IsIPv6LinkLocal && !a.IsIPv6SiteLocal && !a.IsIPv6Multicast &&
+                                            a.ScopeId == 0,
+            _ => false,
+        })
+        .Select(a => a.ToString())
+        .Distinct()
+        .ToArray();
+
     static string Rule(string kind, string value, string target)
     {
         if (string.IsNullOrWhiteSpace(value) || value.IndexOfAny([',', '\r', '\n', '\0']) >= 0)
@@ -203,7 +217,7 @@ public sealed class MihomoKernel : IDisposable
 
         // Release whatever a previous, self-terminated kernel left behind.
         Stop();
-        BeginOutput(conn.Password);
+        BeginOutput(conn);
 
         // A failed start must not leave a kernel, its journal or its
         // plaintext configuration behind, whatever the caller does next.
@@ -270,7 +284,9 @@ public sealed class MihomoKernel : IDisposable
             if (kernel.HasExited)
             {
                 await Drain(pumps);
-                throw new InvalidOperationException("网络内核已退出，请检查服务权限" + OutputDiagnostics());
+                var reason = KernelReason();
+                throw new InvalidOperationException(
+                    (reason is null ? "网络内核已退出，请检查服务权限" : "网络内核已退出：" + reason) + OutputDiagnostics());
             }
             using var attempt = CancellationTokenSource.CreateLinkedTokenSource(ct);
             attempt.CancelAfter(TimeSpan.FromMilliseconds(250));
@@ -335,7 +351,9 @@ public sealed class MihomoKernel : IDisposable
         }
         if (check.ExitCode != 0)
         {
-            throw new InvalidOperationException("网络内核配置校验失败" + OutputDiagnostics());
+            var reason = KernelReason();
+            throw new InvalidOperationException(
+                "网络内核配置校验失败" + (reason is null ? "" : "：" + reason) + OutputDiagnostics());
         }
     }
 
@@ -395,13 +413,16 @@ public sealed class MihomoKernel : IDisposable
         }
     }
 
-    void BeginOutput(string password)
+    void BeginOutput(Connection conn)
     {
         lock (outputGate)
         {
             // The tunnel key must not reach kernel.log or an error message
-            // shown to the user; a very short value would mangle the text.
-            secret = password is { Length: >= 4 } ? password : null;
+            // shown to the user, and players are not shown server addresses;
+            // a very short value would mangle the text.
+            masks = new (string, string)[] { (conn.Password, "[redacted]"), (conn.Host, "[server]") }
+                .Where(m => m.Item1 is { Length: >= 4 })
+                .ToArray();
             outputTail.Clear();
             AppendLog($"{Environment.NewLine}==== kernel start {DateTime.UtcNow:O} ===={Environment.NewLine}");
         }
@@ -411,9 +432,9 @@ public sealed class MihomoKernel : IDisposable
     {
         lock (outputGate)
         {
-            if (secret is not null)
+            foreach (var (value, mask) in masks)
             {
-                text = text.Replace(secret, "[redacted]", StringComparison.Ordinal);
+                text = text.Replace(value, mask, StringComparison.Ordinal);
             }
             outputTail.Append(text);
             if (outputTail.Length > OutputTailChars)
@@ -498,6 +519,33 @@ public sealed class MihomoKernel : IDisposable
                 return outputTail.ToString().Trim();
             }
         }
+    }
+
+    static readonly Regex KernelError = new(@"level=(?:error|fatal) msg=""((?:[^""\\]|\\.)*)""");
+
+    // Why mihomo refused, from the last error it logged, so the one line a
+    // player sees says it; the full output follows in the diagnostics.
+    string? KernelReason()
+    {
+        var found = KernelError.Matches(RecentOutput).LastOrDefault();
+        if (found is null)
+        {
+            return null;
+        }
+        var message = Regex.Replace(found.Groups[1].Value, @"\\(.)", "$1");
+        if (message.Contains("NameServer", StringComparison.Ordinal))
+        {
+            return "系统 DNS 设置无法识别";
+        }
+        if (message.StartsWith("proxy ", StringComparison.Ordinal))
+        {
+            return "线路参数无效，请联系管理员检查这条线路";
+        }
+        if (message.StartsWith("rules[", StringComparison.Ordinal))
+        {
+            return "游戏规则无效，请联系管理员检查这个游戏的规则";
+        }
+        return message.Length <= 120 ? message : message[..120] + "…";
     }
 
     string OutputDiagnostics()
