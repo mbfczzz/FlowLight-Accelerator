@@ -128,6 +128,62 @@ jobs:
           curl -fsSI http://127.0.0.1:8088/ | grep -qi '^content-security-policy:'
           curl -fsSI http://127.0.0.1:8088/some/route | grep -qi '^content-security-policy:'
           docker rm -f admin-check
+  portal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Portal image serves the page under a strict CSP
+        run: |
+          docker build -q -f deploy/portal.Dockerfile -t flowlight-portal-check . >/dev/null
+          docker run --rm flowlight-portal-check nginx -t
+          # The download settings come from the environment at start-up, so a
+          # new client version is a restart, not a rebuild.
+          docker run -d --name portal-check -p 8087:80 \
+            -e PORTAL_VERSION=9.9.9 \
+            -e PORTAL_FILENAME=FlowLight-Accelerator-Setup-9.9.9.exe \
+            -e PORTAL_SHA256=0000000000000000000000000000000000000000000000000000000000000000 \
+            -e PORTAL_DOWNLOAD_URL=https://dl.example.com/FlowLight-Accelerator-Setup-9.9.9.exe \
+            -e PORTAL_RELEASES_URL=https://dl.example.com/ \
+            flowlight-portal-check
+          for i in $(seq 1 20); do curl -fs -o /dev/null http://127.0.0.1:8087/ && break; sleep 1; done
+          # The page, its one stylesheet, and the CSP that allows exactly those.
+          page=$(curl -fsS http://127.0.0.1:8087/)
+          grep -q '<h1>加速，<em>看得见</em></h1>' <<<"$page"
+          curl -fsS http://127.0.0.1:8087/portal.css | grep -q -- '--amber'
+          curl -fsSI http://127.0.0.1:8087/ | grep -qi '^content-security-policy:'
+          curl -fsSI http://127.0.0.1:8087/portal.css | grep -qi '^content-security-policy:'
+          # No inline style attribute survives, so style-src 'self' is enough.
+          if grep -q 'style="' <<<"$page"; then
+            echo "the page still carries an inline style attribute"; exit 1
+          fi
+          # Every placeholder was substituted with what the deployment gave.
+          if grep -q '\${PORTAL_' <<<"$page"; then
+            echo "an unsubstituted placeholder shipped"; grep -o '\${PORTAL_[A-Z_]*}' <<<"$page" | sort -u; exit 1
+          fi
+          grep -q '9.9.9' <<<"$page"
+          grep -q 'https://dl.example.com/FlowLight-Accelerator-Setup-9.9.9.exe' <<<"$page"
+          grep -q '0000000000000000000000000000000000000000000000000000000000000000' <<<"$page"
+          # A node pointed here by mistake gets a sentence, not this page.
+          out=$(curl -fsS http://127.0.0.1:8087/dist/node/install.sh | bash 2>&1 || true)
+          echo "$out"
+          grep -q '门户网站的地址' <<<"$out"
+          docker rm -f portal-check
+
+      - name: Portal falls back to the public releases page when unconfigured
+        run: |
+          docker run -d --name portal-bare -p 8086:80 flowlight-portal-check
+          for i in $(seq 1 20); do curl -fs -o /dev/null http://127.0.0.1:8086/ && break; sleep 1; done
+          page=$(curl -fsS http://127.0.0.1:8086/)
+          grep -q 'github.com/mbfczzz/FlowLight-Accelerator/releases' <<<"$page"
+          # Nothing configured means no empty checksum row on screen.
+          if grep -q 'dl-sha' <<<"$page"; then
+            echo "an empty checksum row shipped"; exit 1
+          fi
+          if grep -q '\${PORTAL_' <<<"$page"; then
+            echo "an unsubstituted placeholder shipped"; exit 1
+          fi
+          docker rm -f portal-bare
+
   windows:
     runs-on: windows-latest
     steps:

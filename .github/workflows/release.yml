@@ -99,6 +99,8 @@ jobs:
             dockerfile: deploy/control.Dockerfile
           - name: flowlight-admin
             dockerfile: deploy/admin.Dockerfile
+          - name: flowlight-portal
+            dockerfile: deploy/portal.Dockerfile
           - name: flowlight-probe
             dockerfile: deploy/probe.Dockerfile
     steps:

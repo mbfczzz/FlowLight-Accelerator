@@ -8,8 +8,13 @@
 #   2. 用 issue-certs.sh 签发证书：证书位于 /root/acc/cert/<域名>/，已授权给容器内的 uid 10001，
 #      续期后自动刷新并重启 control-api 与 probe。
 #   3. 防火墙放行 8443/tcp（控制服务）、9443/tcp 与 9081/udp（探测端点）。
-#   4. 把现有反向代理的后台域名转发到 http://127.0.0.1:8088。
+#   4. 把现有反向代理的后台域名转发到 http://127.0.0.1:8088，门户域名转发到 127.0.0.1:8087。
 #   5. 填写下面标注“填写”的值，然后 docker compose up -d。
+#
+# 门户网站（portal-web）只监听 127.0.0.1:8087，把门户域名转发到它即可（玩家下载入口）。
+# 它是纯静态页，不需要数据库，也不接触控制服务。发新版客户端时，把安装包放到自己的
+# 服务器或对象存储/CDN 上，改上面 portal-web 的 PORTAL_* 变量并重启这个容器即可，
+# 不用重新构建镜像；PORTAL_DOWNLOAD_URL 留空则回退到 GitHub Releases（国外较慢）。
 #
 # 镜像在 GitHub Packages 默认私有：要么在包设置里改为 public，要么先
 #   docker login ghcr.io -u mbfczzz   （密码用带 read:packages 权限的 PAT）
@@ -77,6 +82,30 @@ services:
       REAL_IP_FROM: "127.0.0.1"
     depends_on:
       - control-api
+
+  portal-web:
+    image: ghcr.io/mbfczzz/flowlight-portal:latest
+    container_name: flowlight-portal
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      # 只监听本机，由现有反向代理把门户域名转发到这里
+      PORTAL_LISTEN: "127.0.0.1:8087"
+      # 外层反向代理的地址；与本机同机时保持 127.0.0.1
+      REAL_IP_FROM: "127.0.0.1"
+
+      # ---- 下载区：改这里，重启容器即可，不用重新构建镜像 ----
+      # 当前版本号，显示在下载卡片上；留空则不显示版本
+      PORTAL_VERSION: "0.1.12"
+      # 安装包文件名，显示出来供玩家核对
+      PORTAL_FILENAME: "FlowLight-Accelerator-Setup-0.1.12.exe"
+      # 安装包的 SHA256，客户端更新也用同一串；留空则整行隐藏
+      PORTAL_SHA256: "填写安装包的 SHA256"
+      # 安装包直链：放自己的服务器或对象存储/CDN，国内下载更快。
+      # 留空则回退到 GitHub Releases（国外较慢）。
+      PORTAL_DOWNLOAD_URL: "https://填写下载域名/FlowLight-Accelerator-Setup-0.1.12.exe"
+      # “全部版本”按钮指向的页面
+      PORTAL_RELEASES_URL: "https://填写下载域名/"
 
   probe:
     image: ghcr.io/mbfczzz/flowlight-probe:latest

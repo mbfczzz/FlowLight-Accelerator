@@ -1,0 +1,43 @@
+server {
+ listen ${PORTAL_LISTEN};
+ server_tokens off;
+ root /usr/share/nginx/html;
+ # The reverse proxy in front of this container (same host by default) names
+ # the real client, in case anything here ever needs it.
+ set_real_ip_from ${REAL_IP_FROM};
+ real_ip_header X-Forwarded-For;
+ real_ip_recursive on;
+
+ # The page is plain HTML with one stylesheet and one inline SVG: nothing is
+ # fetched from anywhere, so the policy can be this tight with no exceptions.
+ add_header X-Content-Type-Options nosniff always;
+ add_header Referrer-Policy strict-origin-when-cross-origin always;
+ add_header Content-Security-Policy "default-src 'none'; style-src 'self'; script-src 'none'; img-src 'self' data:; font-src 'self'; connect-src 'none'; form-action 'none'; frame-ancestors 'none'; base-uri 'none'" always;
+ add_header X-Frame-Options DENY always;
+
+ # The stylesheet is content-addressed by hand; give it a short cache so a
+ # redeploy is picked up quickly.
+ location = /portal.css {
+  add_header Cache-Control "public, max-age=300";
+  add_header X-Content-Type-Options nosniff always;
+  add_header Referrer-Policy strict-origin-when-cross-origin always;
+  add_header Content-Security-Policy "default-src 'none'; style-src 'self'; script-src 'none'; img-src 'self' data:; font-src 'self'; connect-src 'none'; form-action 'none'; frame-ancestors 'none'; base-uri 'none'" always;
+  add_header X-Frame-Options DENY always;
+ }
+
+ # A node that was pointed here instead of at the control service gets a
+ # sentence rather than this page fed to bash.
+ location /dist/ {
+  default_type text/plain;
+  return 200 "echo '失败：这是门户网站的地址，节点不能通过它安装。请在后台“接入命令”里使用控制服务地址（节点直接连接的 https 地址，通常带 :8443）。' >&2; exit 1";
+ }
+
+ location / {
+  add_header Cache-Control "no-cache";
+  add_header X-Content-Type-Options nosniff always;
+  add_header Referrer-Policy strict-origin-when-cross-origin always;
+  add_header Content-Security-Policy "default-src 'none'; style-src 'self'; script-src 'none'; img-src 'self' data:; font-src 'self'; connect-src 'none'; form-action 'none'; frame-ancestors 'none'; base-uri 'none'" always;
+  add_header X-Frame-Options DENY always;
+  try_files $uri /index.html;
+ }
+}

@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <meta
+      name="description"
+      content="流光加速器 FlowLight Accelerator：选好游戏和区服，一键连上更快的线路，延迟、丢包、线路负载全程可见。Windows 客户端。"
+    />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 36'%3E%3Crect width='36' height='36' rx='8' fill='%231b1a21'/%3E%3Cg fill='%23e6ae45'%3E%3Cpath d='M8.2 10.4h13.4l-1.7 3.1H10.2z'/%3E%3Cpath d='M12.2 16.4h15.6l-1.7 3.1H13.9z'/%3E%3Cpath d='M8.2 22.4h10.6l-1.7 3.1H10.2z'/%3E%3C/g%3E%3C/svg%3E"
+    />
+    <title>流光加速器</title>
+    <link rel="stylesheet" href="portal.css" />
+  </head>
+  <body>
+    <!-- ------------------------------- header ------------------------------- -->
+    <header class="top">
+      <div class="shell top-in">
+        <a class="brand" href="#top" aria-label="流光加速器">
+          <svg width="34" height="34" viewBox="0 0 36 36" aria-hidden="true">
+            <defs>
+              <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#2a2733" />
+                <stop offset="1" stop-color="#121116" />
+              </linearGradient>
+              <linearGradient id="streak" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="#f7cb72" />
+                <stop offset="1" stop-color="#e6ae45" />
+              </linearGradient>
+            </defs>
+            <rect width="36" height="36" rx="8" fill="url(#tile)" />
+            <g fill="url(#streak)">
+              <path d="M8.2 10.4h13.4l-1.7 3.1H10.2z" />
+              <path d="M12.2 16.4h15.6l-1.7 3.1H13.9z" />
+              <path d="M8.2 22.4h10.6l-1.7 3.1H10.2z" />
+            </g>
+          </svg>
+          <b>流光加速器</b>
+        </a>
+        <nav class="nav">
+          <a href="#see">看得见</a>
+          <a href="#how">工作方式</a>
+          <a href="#coexist">与代理共存</a>
+          <a href="#download">下载</a>
+          <a href="#faq">常见问题</a>
+        </nav>
+        <div class="top-cta">
+          <a class="btn btn-primary btn-sm" href="#download">下载客户端</a>
+        </div>
+      </div>
+    </header>
+
+    <!-- -------------------------------- hero -------------------------------- -->
+    <main id="top">
+      <section class="band hero">
+        <div class="hero-art" aria-hidden="true">
+          <svg viewBox="0 0 994 720" preserveAspectRatio="xMidYMid slice">
+            <defs>
+              <linearGradient id="bg" x1="0" y1="0" x2="0.7" y2="1">
+                <stop offset="0" stop-color="#1c1a22" />
+                <stop offset="1" stop-color="#0a090d" />
+              </linearGradient>
+              <linearGradient id="beam" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0" stop-color="#f7cb72" stop-opacity="0" />
+                <stop offset="0.62" stop-color="#f7cb72" stop-opacity="0.9" />
+                <stop offset="1" stop-color="#f7cb72" stop-opacity="0" />
+              </linearGradient>
+              <linearGradient id="beam2" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0" stop-color="#5b4a8a" stop-opacity="0" />
+                <stop offset="0.7" stop-color="#8d78c9" stop-opacity="0.75" />
+                <stop offset="1" stop-color="#5b4a8a" stop-opacity="0" />
+              </linearGradient>
+              <radialGradient id="glowA" cx="0.5" cy="0.5" r="0.5">
+                <stop offset="0" stop-color="#e6ae45" stop-opacity="0.3" />
+                <stop offset="1" stop-color="#e6ae45" stop-opacity="0" />
+              </radialGradient>
+              <radialGradient id="glowV" cx="0.5" cy="0.5" r="0.5">
+                <stop offset="0" stop-color="#5b4a8a" stop-opacity="0.36" />
+                <stop offset="1" stop-color="#5b4a8a" stop-opacity="0" />
+              </radialGradient>
+            </defs>
+            <rect width="994" height="720" fill="url(#bg)" />
+            <ellipse cx="806" cy="168" rx="430" ry="340" fill="url(#glowA)" />
+            <ellipse cx="1006" cy="742" rx="400" ry="300" fill="url(#glowV)" />
+            <g transform="rotate(-22 497 360)" opacity="0.5">
+              <g class="drift-slow">
+                <rect x="404" y="132" width="330" height="3" rx="1.5" fill="url(#beam)" />
+                <rect x="470" y="228" width="470" height="5" rx="2.5" fill="url(#beam)" opacity="0.8" />
+                <rect x="300" y="316" width="250" height="2.4" rx="1.2" fill="url(#beam)" opacity="0.6" />
+                <rect x="520" y="404" width="400" height="3.6" rx="1.8" fill="url(#beam)" opacity="0.7" />
+              </g>
+              <g class="drift-fast" opacity="0.85">
+                <rect x="380" y="188" width="290" height="2.4" rx="1.2" fill="url(#beam2)" />
+                <rect x="560" y="286" width="360" height="3.4" rx="1.7" fill="url(#beam2)" opacity="0.75" />
+                <rect x="330" y="470" width="300" height="2.4" rx="1.2" fill="url(#beam2)" opacity="0.6" />
+              </g>
+            </g>
+          </svg>
+        </div>
+
+        <div class="shell hero-in">
+          <div>
+            <div class="eyebrow lat">Flowlight Accelerator · Windows</div>
+            <h1>加速，<em>看得见</em></h1>
+            <p class="lead">
+              选好游戏和区服，一键连上更快的线路。延迟、抖动、丢包、线路负载实时显示，走的是哪条线、落到哪台服务器，都摆在你面前。
+            </p>
+            <div class="hero-cta">
+              <a class="btn btn-primary" href="#download">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 3.5v11M7 10l5 5 5-5M4.5 20h15" />
+                </svg>
+                下载 Windows 客户端
+              </a>
+              <a class="btn btn-ghost" href="#how">看看它是怎么走的</a>
+            </div>
+            <p class="hero-note">
+              Windows 10 1809 及以上 · 64 位 · 安装需要管理员权限，用于注册网络服务 · 账号由运营方开通
+            </p>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <div class="panel-game">
+                <b class="lat">VALORANT</b>
+                <span class="chip">KR 韩服</span>
+              </div>
+              <span class="pill"><i class="dot"></i>加速中 00:12:36</span>
+            </div>
+            <div class="tiles">
+              <div class="tile">
+                <label>延迟</label>
+                <div class="val v-amber">42<i>ms</i></div>
+              </div>
+              <div class="tile">
+                <label>抖动</label>
+                <div class="val">3<i>ms</i></div>
+              </div>
+              <div class="tile">
+                <label>丢包</label>
+                <div class="val v-good">0<i>%</i></div>
+              </div>
+              <div class="tile">
+                <label>已加速</label>
+                <div class="val">12<i>分</i></div>
+              </div>
+            </div>
+            <div class="chart">
+              <div class="chart-top">
+                <b>延迟走势</b>
+                <span>当前隧道检测，约每 30 秒一次</span>
+              </div>
+              <svg viewBox="0 0 560 130" role="img" aria-label="延迟走势示意">
+                <g stroke="#2c2a36" stroke-width="1">
+                  <line x1="0" y1="16" x2="560" y2="16" />
+                  <line x1="0" y1="46" x2="560" y2="46" />
+                  <line x1="0" y1="76" x2="560" y2="76" />
+                  <line x1="0" y1="106" x2="560" y2="106" />
+                </g>
+                <path
+                  d="M0 84 L56 76 L112 88 L168 70 L224 62 L280 68 L336 54 L392 60 L448 46 L504 52 L560 44 L560 118 L0 118 Z"
+                  fill="#e6ae45"
+                  fill-opacity="0.14"
+                />
+                <path
+                  d="M0 84 L56 76 L112 88 L168 70 L224 62 L280 68 L336 54 L392 60 L448 46 L504 52 L560 44"
+                  fill="none"
+                  stroke="#e6ae45"
+                  stroke-width="2"
+                  stroke-linejoin="round"
+                />
+                <circle cx="560" cy="44" r="6" fill="#e6ae45" fill-opacity="0.28" />
+                <circle cx="560" cy="44" r="3" fill="#f7cb72" />
+              </svg>
+            </div>
+            <div class="panel-foot">
+              <span>线路 <b>KR 首尔 BGP</b></span>
+              <span>区服 <b>韩服</b></span>
+              <span>出口 <b class="lat">203.0.113.9</b></span>
+            </div>
+            <div class="sample">界面示意，数值为示例</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ------------------------------ 看得见 ------------------------------ -->
+      <section class="band sec" id="see">
+        <div class="shell">
+          <div class="sec-head">
+            <div class="eyebrow lat">Telemetry</div>
+            <h2>不猜，直接看</h2>
+            <p>
+              加速器最常见的问题是「连上了但更慢」。流光把每一次检测都摆在界面上：延迟、抖动、丢包、线路负载、出口地址，还有本局开始以来每一次检测的走势。
+            </p>
+          </div>
+          <div class="grid-3">
+            <div class="card">
+              <span class="badge" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 12h4l3-7 4 14 3-7h4" />
+                </svg>
+              </span>
+              <h3>延迟、抖动、丢包同时给</h3>
+              <p>
+                每约 30 秒检测一次，取中位数。丢包只在真的测得 UDP 时才显示，没测到就是一条横线，不拿 0% 糊弄你。
+              </p>
+            </div>
+            <div class="card">
+              <span class="badge" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 18V9M10 18V5M16 18v-6M22 18v-3" />
+                </svg>
+              </span>
+              <h3>线路负载看得出来</h3>
+              <p>
+                每条线路显示历史检测延迟和当前负载，快满了会标出来。哪条现在能用、哪条不能用，列表里一眼就分辨得出。
+              </p>
+            </div>
+            <div class="card">
+              <span class="badge" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 3l2.6 5.6 6 .8-4.4 4.2 1.1 6L12 16.8 6.7 19.6l1.1-6L3.4 9.4l6-.8z" />
+                </svg>
+              </span>
+              <h3>连不上时说清是哪一段</h3>
+              <p>
+                起不来的时候，界面直接写明卡在哪一段：入口拒绝连接、域名解析不了、本机没有路由，还是连上后被中途断开。诊断信息可以一键复制。
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ------------------------------ 工作方式 ----------------------------- -->
+      <section class="band sec" id="how">
+        <div class="shell">
+          <div class="sec-head">
+            <div class="eyebrow lat">How it works</div>
+            <h2>一键之后，流量走了哪条路</h2>
+            <p>
+              和我们平时用的代理不一样：加速器只把游戏进程的流量接过来，其余照旧。每一局单独分配入口端口和落地密钥，结束后即刻回收。
+            </p>
+          </div>
+          <div class="path">
+            <div class="hop">
+              <div class="k lat">01 · This PC</div>
+              <b>你的电脑</b>
+              <p>只接管游戏进程的流量，内核按进程规则分流，其余应用不受影响。</p>
+            </div>
+            <div class="hop">
+              <div class="k lat">02 · Ingress</div>
+              <b>加速入口</b>
+              <p>本局独享的端口与密钥，前置转发直接进到你的入口，不与他人共用。</p>
+            </div>
+            <div class="hop">
+              <div class="k lat">03 · Relay</div>
+              <b>中转 / 落地</b>
+              <p>国内入口接上海外中转，再落到你选的区服所在地。</p>
+            </div>
+            <div class="hop">
+              <div class="k lat">04 · Game</div>
+              <b>游戏服务器</b>
+              <p>落地直接出口，区域就近接入，绕开绕路的公网路径。</p>
+            </div>
+          </div>
+          <div class="callout">
+            <span class="badge" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 7.5V12l3 2" />
+              </svg>
+            </span>
+            <p>
+              <b>界面上的延迟，是到「落地」的往返。</b>
+              落地节点在整条线路上开一个延迟回显，客户端沿隧道测它，所以这个数字正好是游戏要走的距离，不含落地再往外的那一跳。换成别的加速器，同一局很可能会高出一截。
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---------------------------- 与代理共存 ----------------------------- -->
+      <section class="band sec" id="coexist">
+        <div class="shell split">
+          <div>
+            <div class="eyebrow lat">Coexistence</div>
+            <h2 class="coexist-h">开着 Clash 也能加速</h2>
+            <p class="coexist-lead">
+              很多加速器一开，本机其它代理就废了。流光会先看看你机器上是不是还有代理在跑：找得到，就让非游戏流量照旧走它；找不到又确实会抢路，会直接告诉你，而不是装上去才发现浏览器打不开。
+            </p>
+            <div class="checks">
+              <div class="check">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 12.5l5 5 10-11" /></svg>
+                <span>非游戏流量交给原来的代理，浏览器、聊天、下载都照旧</span>
+              </div>
+              <div class="check">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 12.5l5 5 10-11" /></svg>
+                <span>交给它的时候保留域名，它自己的分流规则照样生效</span>
+              </div>
+              <div class="check">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 12.5l5 5 10-11" /></svg>
+                <span>停止加速后一切恢复原样，原来的代理继续接管网络</span>
+              </div>
+            </div>
+          </div>
+          <div class="flow-demo">
+            <div class="flow-row">
+              <span class="tag tag-line lat">LINE</span>
+              <span class="what"><b>游戏进程</b> · VALORANT-Win64-Shipping.exe → 流光线路</span>
+            </div>
+            <div class="flow-row">
+              <span class="tag tag-up lat">UPSTREAM</span>
+              <span class="what"><b>其它应用</b> · 浏览器、聊天 → 你原来的代理</span>
+            </div>
+            <div class="flow-row">
+              <span class="tag tag-dir lat">DIRECT</span>
+              <span class="what"><b>代理自身</b> · 避免它的流量被交回给它</span>
+            </div>
+            <p class="flow-note">分流示意。实际的判断在每次开始加速时按你机器上的情况决定。</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ------------------------------ 下载 --------------------------------- -->
+      <section class="band sec" id="download">
+        <div class="shell">
+          <div class="sec-head">
+            <div class="eyebrow lat">Download</div>
+            <h2>装好，登录，开始</h2>
+            <p>
+              安装程序会一并装好本地网络服务，之后更新在客户端里点一下就行，账号和设置都会保留。
+            </p>
+          </div>
+          <div class="dl">
+            <div class="dl-main">
+              <h3>Windows 客户端</h3>
+              <p class="dl-lead">
+                下载安装包，双击运行即可。
+                <span data-optional="version">当前版本 <b class="lat">${PORTAL_VERSION}</b>。</span>
+              </p>
+              <div class="dl-cta">
+                <a class="btn btn-primary" href="${PORTAL_DOWNLOAD_URL}">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 3.5v11M7 10l5 5 5-5M4.5 20h15" />
+                  </svg>
+                  下载 Windows 客户端
+                </a>
+                <a class="btn btn-ghost" href="${PORTAL_RELEASES_URL}">全部版本</a>
+              </div>
+              <div class="dl-meta">
+                <div><span class="k">文件名</span><span class="lat dl-name">${PORTAL_FILENAME}</span></div>
+                <div data-optional="sha"><span class="k">SHA256</span><span class="lat dl-sha">${PORTAL_SHA256}</span></div>
+                <div><span class="k">系统</span><span>Windows 10 1809（内部版本 17763）及以上，64 位</span></div>
+                <div><span class="k">权限</span><span>安装需要管理员权限，用于注册并启动网络服务</span></div>
+                <div><span class="k">账号</span><span>由运营方开通，客户端内不提供自助注册</span></div>
+                <div><span class="k">更新</span><span>客户端内检查并安装，自动沿用原来的服务器地址</span></div>
+              </div>
+              <p class="dl-verify">
+                校验值用于确认下载完整：在文件所在目录执行
+                <code>certutil -hashfile &lt;文件名&gt; SHA256</code>，与上面一致即可。
+              </p>
+            </div>
+            <div class="reqs">
+              <h4>安装前请确认</h4>
+              <dl>
+                <dt>系统</dt>
+                <dd>Windows 10 1809 及以上，64 位</dd>
+                <dt>网络</dt>
+                <dd>能正常访问外网；公司网络若限制 UDP，线路可能只能用 TCP</dd>
+                <dt>安全软件</dt>
+                <dd>安装时若拦截，请允许注册并启动 FlowLight 网络服务</dd>
+                <dt>其它代理</dt>
+                <dd>开着 TUN 也能用；若无法共存，开始加速时会明确提示</dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ------------------------------ 常见问题 ------------------------------ -->
+      <section class="band sec" id="faq">
+        <div class="shell">
+          <div class="sec-head">
+            <div class="eyebrow lat">FAQ</div>
+            <h2>常见问题</h2>
+          </div>
+          <div class="faq">
+            <details open>
+              <summary>会和其它代理、加速器冲突吗？</summary>
+              <p>
+                开着 Clash（含 Clash Verge、FlClash 这类）的 TUN 模式也能加速：加速器会把非游戏流量交给它，它自己的规则继续生效。只有当它确实会被抢路、又找不到可以交接的端口时，才会拒绝开始并说明原因。
+              </p>
+            </details>
+            <details>
+              <summary>界面上的延迟是什么？为什么和游戏里的对不上？</summary>
+              <p>
+                那是你本机经整条线路到「落地」的往返时间，取中位数，每约 30 秒测一次。游戏里还包含游戏服务器自己的处理和排队，所以通常会比你在这看到的略高一些。
+              </p>
+            </details>
+            <details>
+              <summary>为什么安装要管理员权限？</summary>
+              <p>
+                加速靠一个本地网络服务和一个虚拟网卡完成，服务需要注册为 Windows 服务，网卡需要改路由。安装程序会一并装好，之后日常使用不需要再提权。
+              </p>
+            </details>
+            <details>
+              <summary>账号从哪里来？</summary>
+              <p>
+                由运营方开通，客户端不提供自助注册。能用的游戏、区服和线路同样由运营方配置，没有开通的内容不会显示成可用。
+              </p>
+            </details>
+            <details>
+              <summary>怎么更新？更新会丢配置吗？</summary>
+              <p>
+                客户端会自己检查更新，也可以在菜单里手动检查。更新前会先停止正在进行的加速，安装包校验通过后才安装，服务器地址、账号和偏好设置都会保留。
+              </p>
+            </details>
+            <details>
+              <summary>加速时游戏外的程序会不会被带走？</summary>
+              <p>
+                不会。内核按进程规则分流，只有配置好的游戏进程走加速线路，其余按你的机器情况直连或交回原来的代理。
+              </p>
+            </details>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- ------------------------------- footer ------------------------------- -->
+    <footer class="band">
+      <div class="shell foot-in">
+        <svg width="26" height="26" viewBox="0 0 36 36" aria-hidden="true">
+          <rect width="36" height="36" rx="8" fill="url(#tile)" />
+          <g fill="url(#streak)">
+            <path d="M8.2 10.4h13.4l-1.7 3.1H10.2z" />
+            <path d="M12.2 16.4h15.6l-1.7 3.1H13.9z" />
+            <path d="M8.2 22.4h10.6l-1.7 3.1H10.2z" />
+          </g>
+        </svg>
+        <span>流光加速器 · FlowLight Accelerator</span>
+        <div class="links">
+          <a href="${PORTAL_RELEASES_URL}">全部版本</a>
+          <a href="#download">下载</a>
+          <a href="#faq">常见问题</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>
