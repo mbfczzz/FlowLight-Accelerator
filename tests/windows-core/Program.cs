@@ -98,6 +98,25 @@ Check(
         .SequenceEqual(new[] { "172.16.2.1", "2001:4860:4860::8888" }),
     "unusable system DNS passed to the kernel");
 
+// A tunnel that does not get through says which part of the way failed,
+// from mihomo's own line (as v1.19 prints it), with addresses masked.
+const string refusedLine = "time=\"2026-10-16T16:19:44+09:00\" level=warning msg=\"[TCP] dial FLOWLIGHT 127.0.0.1:53262 --> probe.example.com:80 error: entry.example:20001 connect error: dial tcp 139.196.229.86:20001: connectex: No connection could be made because the target machine actively refused it.\"";
+const string unresolvedLine = "time=\"2026-10-16T16:20:00+09:00\" level=warning msg=\"[TCP] dial FLOWLIGHT 127.0.0.1:64280 --> probe.example.com:80 error: entry.example:20000 connect error: dns resolve failed: couldn't find ip\"";
+Check(MihomoKernel.TunnelReason(refusedLine)?.StartsWith("线路入口拒绝了连接") == true, "refused entry not explained");
+Check(MihomoKernel.TunnelReason(unresolvedLine)?.StartsWith("解析不了线路入口的域名") == true, "unresolved entry not explained");
+Check(
+    MihomoKernel.TunnelReason(refusedLine + "\n" + unresolvedLine)?.StartsWith("解析不了") == true,
+    "the latest failure is not the one reported");
+Check(
+    MihomoKernel.TunnelReason("level=warning msg=\"[TCP] dial FLOWLIGHT 127.0.0.1:1 --> x:80 error: read: EOF\"")?.Contains("中途断开") == true,
+    "a dropped tunnel not explained");
+Check(MihomoKernel.TunnelReason("level=info msg=\"Start initial configuration in progress\"") is null, "a reason made up without a failure");
+var masked = MihomoKernel.MaskAddresses(refusedLine + " dial udp [2001:db8::7]:20001", [("entry.example", "[server]"), ("probe.example.com", "[probe]")]);
+Check(
+    masked.Contains("[probe]:80 error: [server]:20001 connect error: dial tcp [server]:20001") &&
+    masked.Contains("dial udp [server]:20001") && !masked.Contains("139.196") && !masked.Contains("2001:db8"),
+    "server addresses left in diagnostics: " + masked);
+
 // Another proxy's TUN carrying the internet stops a start, by name.
 static NetworkConflict.Adapter Adapter(string name, string description, bool route, params string[] addresses) =>
     new(name, description, route, addresses.Select(IPAddress.Parse).ToList());

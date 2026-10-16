@@ -214,6 +214,8 @@ var
   DesktopCheck: TNewCheckBox;
   InfoText, FinishTitle, FinishBody, PercentText, InstallTitle: TNewStaticText;
   ProgressTrack, ProgressFill: TPanel;
+  { Where the Cancel button sits on the pages that show it. }
+  CancelLeft: Integer;
 
 { ---------- helpers ---------- }
 
@@ -652,9 +654,23 @@ begin
   else
     WizardSetBackImage(PageImages, True, True, 255);
 
-  { The start page is one screen with its own call to action; the title
-    bar's close button cancels. }
-  WizardForm.CancelButton.Visible := (CurPageID <> wpFinished) and ((CurPageID <> wpWelcome) or not ArtButtons());
+  { The start page is one screen with its own call to action, so its
+    Cancel button is moved out of sight there. It is not hidden: the title
+    bar's close button, Alt+F4 and Esc all act through it, and a hidden
+    Cancel button makes the wizard ignore them. }
+  if CancelLeft = 0 then
+    CancelLeft := WizardForm.CancelButton.Left;
+  WizardForm.CancelButton.Visible := CurPageID <> wpFinished;
+  if (CurPageID = wpWelcome) and ArtButtons() then
+  begin
+    WizardForm.CancelButton.Left := -WizardForm.CancelButton.Width - ScaleX(40);
+    WizardForm.CancelButton.TabStop := False;
+  end
+  else
+  begin
+    WizardForm.CancelButton.Left := CancelLeft;
+    WizardForm.CancelButton.TabStop := True;
+  end;
   { Inner pages carry their own titles; the header band stays empty there. }
   WizardForm.PageNameLabel.Visible := CurPageID <> wpInstalling;
   WizardForm.PageDescriptionLabel.Visible := CurPageID <> wpInstalling;

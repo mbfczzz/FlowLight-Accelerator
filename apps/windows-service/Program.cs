@@ -300,6 +300,39 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
         _ => PlayerMessage(e),
     };
 
+    // Why the tunnel did not get through. With our kernel stopped, the route
+    // shows whether another proxy's TUN has the network; otherwise the
+    // kernel's own lines say which part of the way to the line's entry
+    // failed. The first line is what the player sees; the rest goes into the
+    // copied diagnostics, server addresses masked.
+    string TunnelFailure(string message, Exception e)
+    {
+        var current = kernel;
+        current?.Stop();
+        if (NetworkConflict.Detect() is { } conflict)
+        {
+            return conflict;
+        }
+        if (current is null)
+        {
+            return message;
+        }
+        var cut = message.IndexOf('：');
+        var first = current.TunnelReason() is { } reason
+            ? (cut > 0 ? message[..cut] : message) + "：" + reason
+            : message;
+        var detail = string.Join("；", Causes(e).Select(current.Mask));
+        return first + Environment.NewLine + "探测错误：" + detail + current.OutputDiagnostics();
+    }
+
+    static IEnumerable<string> Causes(Exception e)
+    {
+        for (Exception? x = e; x != null; x = x.InnerException)
+        {
+            yield return x.Message.ReplaceLineEndings(" ");
+        }
+    }
+
     // A transport failure's own message names the host it tried; players
     // get a plain sentence instead (the service log keeps the original).
     static string PlayerMessage(Exception e) => e switch
@@ -735,11 +768,9 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
             // A request timeout is an OperationCanceledException too, but it is
             // a failure, not a stop, and must be reported as one.
             var message = e is OperationCanceledException ? "控制服务未在规定时间内响应" : PlayerMessage(e);
-            // A proxy that took over the network after the start explains a
-            // tunnel that stopped getting through better than the probe can.
-            if (message.StartsWith("隧道", StringComparison.Ordinal) && NetworkConflict.Detect() is { } conflict)
+            if (message.StartsWith("隧道", StringComparison.Ordinal))
             {
-                message = conflict;
+                message = TunnelFailure(message, e);
             }
             Update(v => v with { State = "FAILED", Error = message });
         }

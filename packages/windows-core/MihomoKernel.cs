@@ -423,7 +423,13 @@ public sealed class MihomoKernel : IDisposable
             // The tunnel key must not reach kernel.log or an error message
             // shown to the user, and players are not shown server addresses;
             // a very short value would mangle the text.
-            masks = new (string, string)[] { (conn.Password, "[redacted]"), (conn.Host, "[server]") }
+            masks = new (string, string)[]
+                {
+                    (conn.Password, "[redacted]"),
+                    (conn.Host, "[server]"),
+                    (Uri.TryCreate(conn.ProbeUrl, UriKind.Absolute, out var probe) ? probe.Host : "", "[probe]"),
+                    (conn.ProbeUdp.Split(':')[0], "[probe]"),
+                }
                 .Where(m => m.Item1 is { Length: >= 4 })
                 .ToArray();
             outputTail.Clear();
@@ -431,14 +437,34 @@ public sealed class MihomoKernel : IDisposable
         }
     }
 
+    // The address mihomo actually dialled, which for a domain entry is the
+    // address it resolved to: "dial tcp 203.0.113.7:20000".
+    static readonly Regex DialledAddress = new(@"(dial (?:tcp|udp)[46]? )(\[[0-9A-Fa-f:.%]+\]|[0-9A-Fa-f:.]+)(:\d+)");
+
+    internal static string MaskAddresses(string text, IEnumerable<(string Value, string Mask)> masks)
+    {
+        foreach (var (value, mask) in masks)
+        {
+            text = text.Replace(value, mask, StringComparison.Ordinal);
+        }
+        return DialledAddress.Replace(text, "$1[server]$3");
+    }
+
+    // Text about this session with its key and server addresses masked, as
+    // kernel output is.
+    public string Mask(string text)
+    {
+        lock (outputGate)
+        {
+            return MaskAddresses(text, masks);
+        }
+    }
+
     void RecordOutput(string text)
     {
         lock (outputGate)
         {
-            foreach (var (value, mask) in masks)
-            {
-                text = text.Replace(value, mask, StringComparison.Ordinal);
-            }
+            text = MaskAddresses(text, masks);
             outputTail.Append(text);
             if (outputTail.Length > OutputTailChars)
             {
@@ -551,7 +577,47 @@ public sealed class MihomoKernel : IDisposable
         return message.Length <= 120 ? message : message[..120] + "…";
     }
 
-    string OutputDiagnostics()
+    // mihomo's line for a connection through the line it could not make:
+    // [TCP] dial FLOWLIGHT <source> --> <target> error: <why>.
+    static readonly Regex DialError = new(@"msg=""\[(?:TCP|UDP)\] dial [^""]*? error: ((?:[^""\\]|\\.)*)""");
+
+    // Which part of the way to the line's entry failed, from the last such
+    // line, or null when the kernel reported none (the entry was reached).
+    internal static string? TunnelReason(string output)
+    {
+        var found = DialError.Matches(output).LastOrDefault();
+        if (found is null)
+        {
+            return null;
+        }
+        var why = Regex.Replace(found.Groups[1].Value, @"\\(.)", "$1");
+        bool Has(params string[] words) => words.Any(w => why.Contains(w, StringComparison.OrdinalIgnoreCase));
+        if (Has("actively refused", "connection refused"))
+        {
+            return "线路入口拒绝了连接：分配给你的端口没有被前置转发或防火墙放行，请联系管理员";
+        }
+        if (Has("dns resolve failed", "no such host", "couldn't find ip"))
+        {
+            return "解析不了线路入口的域名，请检查本机网络或 DNS";
+        }
+        if (Has("unreachable", "no route"))
+        {
+            return "本机没有到线路入口的网络路由";
+        }
+        if (Has("i/o timeout", "did not properly respond", "timed out", "timeout"))
+        {
+            return "线路入口没有回应：本机网络到入口不通，或被防火墙拦截";
+        }
+        if (Has("EOF", "reset", "forcibly closed", "broken pipe"))
+        {
+            return "连上了线路入口，但连接被中途断开：中转到落地不通，或线路配置不一致，请联系管理员";
+        }
+        return null;
+    }
+
+    public string? TunnelReason() => TunnelReason(RecentOutput);
+
+    public string OutputDiagnostics()
     {
         var tail = RecentOutput;
         if (tail.Length == 0)
