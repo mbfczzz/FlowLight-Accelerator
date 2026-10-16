@@ -204,18 +204,21 @@ export function Editor({
       label={label}
       wide
       note={
-        val("capabilities.ipv6") && val("capabilities.managed")
-          ? "平台托管的服务目前只支持 IPv4，勾着 IPv6 会让使用它的线路无法发布，请取消。"
-          : undefined
+        !val("capabilities.managed")
+          ? undefined
+          : val("capabilities.ipv6")
+            ? "平台托管的服务目前只支持 IPv4，勾着 IPv6 会让使用它的线路无法发布，请取消。"
+            : "IPv6 暂不可选：平台托管的服务目前只监听 IPv4。关闭下面的“" + (kind === "nodes" ? "支持托管服务" : "由平台管理") + "”后可以勾选。"
       }
     >
       <Toggles
         label={label}
-        // Managed services listen on IPv4 only: IPv6 is offered there only
-        // to switch it off.
-        options={capabilityOptions.filter(([k]) => k !== "ipv6" || val("capabilities.ipv6") || !val("capabilities.managed"))}
+        options={capabilityOptions}
         isOn={(k) => !!val("capabilities." + k)}
         onToggle={(k) => update("capabilities." + k, !val("capabilities." + k))}
+        // Managed services listen on IPv4 only. The option stays in view,
+        // greyed out with the reason, instead of disappearing.
+        locked={(k) => (k === "ipv6" && val("capabilities.managed") ? "平台托管的服务目前只支持 IPv4" : undefined)}
       />
     </Field>
   );

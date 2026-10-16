@@ -115,19 +115,33 @@ export function Toggles({
   isOn,
   onToggle,
   label,
+  locked,
 }: {
   options: [string, string][];
   isOn: (key: string) => boolean;
   onToggle: (key: string) => void;
   label: string;
+  /** Why an option cannot be switched on right now; it stays visible. */
+  locked?: (key: string) => string | undefined;
 }) {
   return (
     <div className="toggles" role="group" aria-label={label}>
-      {options.map(([k, n]) => (
-        <button type="button" key={k} aria-pressed={isOn(k)} onClick={() => onToggle(k)}>
-          {n}
-        </button>
-      ))}
+      {options.map(([k, n]) => {
+        // An option that is on can always be switched off.
+        const reason = isOn(k) ? undefined : locked?.(k);
+        return (
+          <button
+            type="button"
+            key={k}
+            aria-pressed={isOn(k)}
+            disabled={!!reason}
+            title={reason}
+            onClick={() => onToggle(k)}
+          >
+            {n}
+          </button>
+        );
+      })}
     </div>
   );
 }
