@@ -39,15 +39,55 @@ public static class TunnelProbe
     {
         try
         {
-            var result = await ProbeTcp(conn, port, ct);
+            using var handler = new SocketsHttpHandler
+            {
+                Proxy = new WebProxy($"socks5://127.0.0.1:{port}"),
+                UseProxy = true,
+                AllowAutoRedirect = false,
+                MaxConnectionsPerServer = 1,
+            };
+            using var http = new HttpClient(handler) { Timeout = RequestTimeout };
+
+            // The first request opens the path (SOCKS, TCP, TLS) and names
+            // the exit. Everything after it runs at once, each leg on its own
+            // connection: the timed requests on the one just opened, the echo
+            // and the UDP samples on theirs. Each leg is a few tiny frames,
+            // so they do not slow one another, and the probe takes as long as
+            // its slowest leg rather than all three one after another.
+            var result = new ProbeResult { ExitIp = await Fetch(http, conn, ct) };
+            var samples = Samples(http, conn, ct);
+            var echo = string.IsNullOrEmpty(conn.ExitEcho)
+                ? Task.FromResult<List<double>?>(null)
+                : ProbeEcho(port, conn.ExitEcho, EchoReplyTimeout, ct);
+            var udp = conn.Udp ? ProbeUdp(port, conn.ProbeUdp, udpReplyTimeout, ct) : Task.FromResult(0);
+            // Awaited together, so a leg's failure surfaces only once every
+            // leg has ended; the timed requests come first, since a path
+            // that does not carry them is the failure worth naming.
+            await Task.WhenAll(samples, echo, udp);
+
+            var times = samples.Result;
+            result.Tcp = true;
+            result.RttMs = times[times.Count / 2];
+            result.JitterMs = times[^1] - times[0];
+            result.Samples = times.Count;
+            result.Loss = 0;
+            // The round trip a game sees ends at the exit; the probe service
+            // may be far beyond it. Without an echo to reach (an older node
+            // program, or one that had to move it), the probe service's
+            // round trip stands.
+            if (echo.Result is { } toExit)
+            {
+                result.RttMs = toExit[toExit.Count / 2];
+                result.JitterMs = toExit[^1] - toExit[0];
+                result.Samples = toExit.Count;
+            }
             if (conn.Udp)
             {
-                var replies = await ProbeUdp(port, conn.ProbeUdp, udpReplyTimeout, ct);
-                ApplyUdp(result, replies);
+                ApplyUdp(result, udp.Result);
                 if (!result.Udp)
                 {
                     throw new TunnelProbeException(
-                        $"隧道 UDP 探测失败：{replies}/{UdpSamples} 个包有回包",
+                        $"隧道 UDP 探测失败：{udp.Result}/{UdpSamples} 个包有回包",
                         result);
                 }
             }
@@ -72,64 +112,40 @@ public static class TunnelProbe
         result.Loss = (double)(UdpSamples - replies) / UdpSamples;
     }
 
-    // The first request pays for the SOCKS, TCP and TLS handshakes and is
-    // discarded. The timed samples reuse that pooled connection, so they
-    // measure the tunnel round trip rather than connection setup.
-    static async Task<ProbeResult> ProbeTcp(Connection conn, int port, CancellationToken ct)
+    // One request to the probe service through the tunnel: the exit address
+    // it reports, checked against the one the line expects. The first call
+    // pays for the SOCKS, TCP and TLS handshakes; later ones reuse that
+    // pooled connection and measure the tunnel's round trip alone.
+    static async Task<string> Fetch(HttpClient http, Connection conn, CancellationToken ct)
     {
-        using var handler = new SocketsHttpHandler
+        using var response = await http.GetAsync(conn.ProbeUrl, ct);
+        response.EnsureSuccessStatusCode();
+        var body = await response.Content.ReadAsStringAsync(ct);
+        using var json = JsonDocument.Parse(body);
+        var ip = json.RootElement.GetProperty("ip").GetString() ?? "";
+        if (!IPAddress.TryParse(ip, out _))
         {
-            Proxy = new WebProxy($"socks5://127.0.0.1:{port}"),
-            UseProxy = true,
-            AllowAutoRedirect = false,
-            MaxConnectionsPerServer = 1,
-        };
-        using var http = new HttpClient(handler) { Timeout = RequestTimeout };
-        var result = new ProbeResult();
+            throw new InvalidOperationException("探测未返回出口地址");
+        }
+        if (!string.IsNullOrWhiteSpace(conn.ExpectedExit) && conn.ExpectedExit != ip)
+        {
+            throw new InvalidOperationException("出口地址与预期不符");
+        }
+        return ip;
+    }
+
+    // RttSamples timed requests on the warm connection, sorted.
+    static async Task<List<double>> Samples(HttpClient http, Connection conn, CancellationToken ct)
+    {
         var times = new List<double>(RttSamples);
-        for (var i = 0; i < WarmupRequests + RttSamples; i++)
+        for (var i = 0; i < RttSamples; i++)
         {
             var watch = Stopwatch.StartNew();
-            using var response = await http.GetAsync(conn.ProbeUrl, ct);
-            response.EnsureSuccessStatusCode();
-            var body = await response.Content.ReadAsStringAsync(ct);
-            var elapsed = watch.Elapsed.TotalMilliseconds;
-
-            using var json = JsonDocument.Parse(body);
-            var ip = json.RootElement.GetProperty("ip").GetString() ?? "";
-            if (!IPAddress.TryParse(ip, out _))
-            {
-                throw new InvalidOperationException("探测未返回出口地址");
-            }
-            if (!string.IsNullOrWhiteSpace(conn.ExpectedExit) && conn.ExpectedExit != ip)
-            {
-                throw new InvalidOperationException("出口地址与预期不符");
-            }
-            result.ExitIp = ip;
-            if (i >= WarmupRequests)
-            {
-                times.Add(elapsed);
-            }
+            await Fetch(http, conn, ct);
+            times.Add(watch.Elapsed.TotalMilliseconds);
         }
-
         times.Sort();
-        result.Tcp = true;
-        result.RttMs = times[times.Count / 2];
-        result.JitterMs = times[^1] - times[0];
-        result.Samples = times.Count;
-        result.Loss = 0;
-
-        // The round trip a game sees ends at the exit; the probe service may
-        // be far beyond it. Without an echo to reach (an older node program,
-        // or one that had to move it), the probe service's round trip stands.
-        if (!string.IsNullOrEmpty(conn.ExitEcho) &&
-            await ProbeEcho(port, conn.ExitEcho, EchoReplyTimeout, ct) is { } echo)
-        {
-            result.RttMs = echo[echo.Count / 2];
-            result.JitterMs = echo[^1] - echo[0];
-            result.Samples = echo.Count;
-        }
-        return result;
+        return times;
     }
 
     // Bounces frames off the exit's latency echo over one SOCKS5 connection:

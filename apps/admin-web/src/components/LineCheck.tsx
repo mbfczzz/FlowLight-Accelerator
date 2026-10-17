@@ -56,8 +56,11 @@ type Check = {
   created_at: string;
 };
 
-/** Agents ask for work every 2 s, so polling faster shows nothing new. */
-const POLL_MS = 1500;
+/**
+ * A check's steps land as its nodes report them; the control service hands
+ * nodes their work the moment it exists, so a second between looks keeps up.
+ */
+const POLL_MS = 1000;
 
 const kindNames: Record<string, string> = { realm: "Realm 中转", ss2022: "SS2022 落地" };
 

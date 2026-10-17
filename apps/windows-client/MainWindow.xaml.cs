@@ -165,7 +165,12 @@ public partial class MainWindow : Window
     enum View { Library, Game }
 
     readonly Preferences prefs = Preferences.Load();
-    readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromSeconds(2) };
+    // How often the service is asked for its state: every two seconds as a
+    // rule, and several times a second while a session is on its way in or
+    // out, so 已连接 and the latency appear as soon as the tunnel does.
+    static readonly TimeSpan SlowPoll = TimeSpan.FromSeconds(2);
+    static readonly TimeSpan FastPoll = TimeSpan.FromMilliseconds(400);
+    readonly DispatcherTimer timer = new() { Interval = SlowPoll };
     readonly DispatcherTimer clock = new() { Interval = TimeSpan.FromSeconds(1) };
     readonly DispatcherTimer toastTimer = new();
 
@@ -414,6 +419,11 @@ public partial class MainWindow : Window
         serviceConnected = true;
         hadService = true;
         state = Text(result, "state") ?? "IDLE";
+        var cadence = state is "PREPARING" or "CONNECTING" or "STOPPING" ? FastPoll : SlowPoll;
+        if (timer.Interval != cadence)
+        {
+            timer.Interval = cadence;
+        }
         loggedIn = Flag(result, "logged_in");
         if (!loggedIn)
         {

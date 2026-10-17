@@ -29,9 +29,13 @@ type Config struct {
 	PrepareTimeout time.Duration
 	NodeTimeout    time.Duration
 	ReclaimGrace   time.Duration
-	ProbeURL       string
-	ProbeUDP       string
-	CAPath         string
+	// JobWait is how long a node's request for work is held while nothing
+	// is queued for it, so a job reaches the node when it is created rather
+	// than at the node's next poll. Zero answers at once.
+	JobWait  time.Duration
+	ProbeURL string
+	ProbeUDP string
+	CAPath   string
 	// TrustedProxies are reverse proxies whose X-Real-IP header names the
 	// real client, used for login throttling.
 	TrustedProxies []netip.Prefix

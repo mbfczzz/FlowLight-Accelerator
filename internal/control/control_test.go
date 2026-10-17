@@ -578,6 +578,38 @@ func TestLinePathCannotRepeatAnEndpoint(t *testing.T) {
 	}
 }
 
+// A node's request for work is held while nothing is queued and answered
+// the moment a job is created for it, so a start does not spend up to a
+// whole node poll waiting to be heard. With JobWait unset (as every other
+// test runs) the request is answered at once, as before.
+func TestJobClaimWaitsForWork(t *testing.T) {
+	s, token, u := setup(t)
+	fixture(t, s, u)
+	s.Config.JobWait = 3 * time.Second
+
+	began := time.Now()
+	w := request(s, "node-test-token", "GET", "/api/node/v1/jobs", nil, "")
+	if held := time.Since(began); w.Code != 200 || strings.TrimSpace(w.Body.String()) != "[]" || held < 2500*time.Millisecond {
+		t.Fatalf("an idle request was not held for the wait: %v %d %s", held, w.Code, w.Body.String())
+	}
+
+	// The session is created while the node is already waiting.
+	go func() {
+		time.Sleep(700 * time.Millisecond)
+		request(s, token, "POST", "/api/client/v1/sessions", CreateSession{GameID: "valorant", RegionID: "kr", LineID: "line-1", DeviceID: "test-device"}, "wait-test-request")
+	}()
+	began = time.Now()
+	w = request(s, "node-test-token", "GET", "/api/node/v1/jobs", nil, "")
+	took := time.Since(began)
+	var jobs []c.Job
+	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &jobs) != nil || len(jobs) != 1 || jobs[0].Kind != "prepare" {
+		t.Fatalf("the waiting node was not handed the job: %d %s", w.Code, w.Body.String())
+	}
+	if took < 600*time.Millisecond || took > 2*time.Second {
+		t.Fatalf("the waiting node heard of the job after %v; expected within a poll of its creation at 0.7 s", took)
+	}
+}
+
 func TestRefreshReplayRevokesFamily(t *testing.T) {
 	s, _, u := setup(t)
 	var auth map[string]any

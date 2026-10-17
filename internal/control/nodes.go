@@ -194,8 +194,46 @@ func (s *Server) recordEcho(tx *gorm.DB, x *Session, j Job, port int) error {
 // enough to finish inside the claim.
 const claimBatch = 5
 
+// How often a held request for work looks again. A job is created inside a
+// transaction that cannot tell the waiting request about it, so the request
+// looks for itself; this is the most a node waits beyond the commit.
+const jobPoll = 250 * time.Millisecond
+
+// Hands a node its pending jobs. While it has none the request is held, up
+// to JobWait, so a session's prepare job reaches the node the moment it is
+// created rather than at the node's next 2 s poll: that poll was the single
+// largest wait between a player pressing 开始加速 and the tunnel opening.
+// Nodes need no change for this; their client allows 15 s for an answer.
 func (s *Server) claimJobs(w http.ResponseWriter, r *http.Request) {
 	n := r.Context().Value(nodeKey).(Node)
+	until := time.Now().Add(s.Config.JobWait)
+	for {
+		out, e := s.claim(n)
+		if e != nil || len(out) > 0 || !time.Now().Before(until) {
+			respond(w, out, e)
+			return
+		}
+		for {
+			select {
+			case <-r.Context().Done():
+				return
+			case <-time.After(jobPoll):
+			}
+			// Only a plain read while waiting; the claim itself is a write.
+			if s.queued(n) || !time.Now().Before(until) {
+				break
+			}
+		}
+	}
+}
+
+func (s *Server) queued(n Node) bool {
+	var pending int64
+	s.Store.DB.Model(&Job{}).Where("node_id = ? AND (status = ? OR (status = ? AND claim_until < ?))", n.ID, "pending", "running", time.Now().UTC()).Count(&pending)
+	return pending > 0
+}
+
+func (s *Server) claim(n Node) ([]c.Job, error) {
 	out := []c.Job{}
 	e := s.Store.Tx(func(tx *gorm.DB) error {
 		var jobs []Job
@@ -245,7 +283,7 @@ func (s *Server) claimJobs(w http.ResponseWriter, r *http.Request) {
 		}
 		return nil
 	})
-	respond(w, out, e)
+	return out, e
 }
 func (s *Server) jobResult(w http.ResponseWriter, r *http.Request) {
 	var in struct {

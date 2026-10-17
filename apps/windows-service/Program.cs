@@ -138,6 +138,10 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
     // and logout wait for the session to wind down.
     static readonly TimeSpan ReadTimeout = TimeSpan.FromSeconds(5);
     static readonly TimeSpan DispatchTimeout = TimeSpan.FromSeconds(30);
+    // A local request that takes this long is written to the event log with
+    // its command: the window shows "本地服务无响应" for it, and without the
+    // name there is nothing to say which path stalled.
+    static readonly TimeSpan SlowRequest = TimeSpan.FromSeconds(2);
     // How long a start waits for a previous session to finish closing, and
     // how often it asks again while it does.
     //
@@ -281,6 +285,7 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
                 using var dispatchDeadline = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
                 dispatchDeadline.CancelAfter(DispatchTimeout);
                 string reply;
+                var clock = System.Diagnostics.Stopwatch.StartNew();
                 try
                 {
                     var result = await Dispatch(sid, line, dispatchDeadline.Token);
@@ -292,6 +297,11 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
                     reply = JsonSerializer.Serialize(
                         new { success = false, data = (object?)null, error = ReplyError(e, timedOut) },
                         Wire.Json);
+                }
+                if (clock.Elapsed > SlowRequest)
+                {
+                    // The command alone: the line itself can carry a password.
+                    log.LogWarning("Local request {Command} took {Seconds:0.0} s to answer", CommandOf(line), clock.Elapsed.TotalSeconds);
                 }
                 await writer.WriteLineAsync(reply);
             }
@@ -395,7 +405,12 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
 
         if (command == "status")
         {
+            var waited = System.Diagnostics.Stopwatch.StartNew();
             await gate.WaitAsync(ct);
+            if (waited.Elapsed > SlowRequest)
+            {
+                log.LogWarning("status waited {Seconds:0.0} s for the session gate", waited.Elapsed.TotalSeconds);
+            }
             try
             {
                 // A failed session has no owner any more, but its view still
@@ -608,6 +623,20 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
         }
     }
 
+    // The command named in a request line, for the log; never its arguments.
+    static string CommandOf(string line)
+    {
+        try
+        {
+            using var doc = ParseRequest(line);
+            return Arg(doc.RootElement, "command") ?? "?";
+        }
+        catch (Exception)
+        {
+            return "?";
+        }
+    }
+
     // Reads the owner under the gate. If `sid` may act on the session (it owns
     // it, or there is none), cancels it and returns the task to wait for.
     async Task<(bool Owned, Task? Running)> Claim(string sid, CancellationToken ct)
@@ -756,7 +785,10 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
                     conn = res.GetProperty("connection").Deserialize<Connection>(Wire.Json);
                     break;
                 }
-                await Task.Delay(1500, ct);
+                // The node reports in within a few seconds of the request;
+                // half a second between looks keeps the start from waiting
+                // on this loop once it has.
+                await Task.Delay(500, ct);
             }
             if (conn == null)
             {
