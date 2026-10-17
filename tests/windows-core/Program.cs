@@ -619,7 +619,59 @@ if (OperatingSystem.IsWindows() && FakeKernel.Binary() is { } fakeBinary)
     Check(log.Length <= MihomoKernel.LogFileLimitBytes, "kernel.log is not bounded");
     Check(File.Exists(log.FullName + ".1"), "kernel.log was not rotated");
 
-    foreach (var root in new[] { mismatchRoot, rejectedRoot, exitedRoot, hungRoot, floodRoot })
+    // Ready means the TUN is up and mihomo has bound its own connections, not
+    // merely that the listener answers: a probe sent between the two goes out
+    // unbound, and another proxy's TUN takes it.
+    var tunRoot = Directory.CreateTempSubdirectory("flowlight-kernel-").FullName;
+    Environment.SetEnvironmentVariable(FakeKernel.ModeVariable, "listen");
+    try
+    {
+        using var kernel = new MihomoKernel(fakeBinary, hash, tunRoot) { TunUp = () => true, TunSettle = TimeSpan.Zero };
+        await kernel.Start(conn, timeout.Token);
+        Check(kernel.Running, "kernel not running after a successful start");
+        Check(kernel.RecentOutput.Contains(MihomoKernel.BoundMarker), "start returned before the kernel bound its connections");
+        kernel.Stop();
+        Check(!kernel.Running, "kernel left running after stop");
+    }
+    finally
+    {
+        Environment.SetEnvironmentVariable(FakeKernel.ModeVariable, null);
+    }
+
+    async Task<Exception> TunFailure(string mode, Func<bool> tunUp)
+    {
+        Environment.SetEnvironmentVariable(FakeKernel.ModeVariable, mode);
+        try
+        {
+            using var kernel = new MihomoKernel(fakeBinary, hash, tunRoot)
+            {
+                TunUp = tunUp,
+                TunBudget = TimeSpan.FromSeconds(2),
+                TunSettle = TimeSpan.Zero,
+            };
+            try
+            {
+                await kernel.Start(conn, timeout.Token);
+            }
+            catch (TimeoutException e)
+            {
+                Check(!kernel.Running, $"{mode}: kernel still running after the TUN never came up");
+                Check(Directory.GetFiles(tunRoot, "session-*.json").Length == 0, $"{mode}: plaintext session config left behind");
+                return e;
+            }
+            throw new Exception($"{mode}: start succeeded without a usable TUN");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(FakeKernel.ModeVariable, null);
+        }
+    }
+    var unbound = await TunFailure("listen-unbound", () => true);
+    Check(unbound.Message.StartsWith("网络内核没有找到可用的网络出口"), "an unbound kernel not reported: " + unbound.Message.Split('\n')[0]);
+    var noAdapter = await TunFailure("listen", () => false);
+    Check(noAdapter.Message.StartsWith("网络内核的虚拟网卡没有启动"), "a missing adapter not reported: " + noAdapter.Message.Split('\n')[0]);
+
+    foreach (var root in new[] { mismatchRoot, rejectedRoot, exitedRoot, hungRoot, floodRoot, tunRoot })
     {
         Directory.Delete(root, true);
     }
@@ -783,6 +835,25 @@ static class FakeKernel
                 break;
             case "hang":
                 Thread.Sleep(Timeout.Infinite);
+                break;
+            // As mihomo does: the listener opens first, and the adapter its
+            // own connections are bound to is chosen a moment later, with
+            // the TUN. "listen-unbound" never gets that far.
+            case "listen":
+            case "listen-unbound":
+                using (var config = JsonDocument.Parse(File.ReadAllText(args[^1])))
+                {
+                    var port = config.RootElement.GetProperty("listeners")[0].GetProperty("port").GetInt32();
+                    var socks = new TcpListener(IPAddress.Loopback, port);
+                    socks.Start();
+                    if (mode == "listen")
+                    {
+                        Thread.Sleep(800);
+                        Console.WriteLine(@"time=""2026-10-17T11:10:23+09:00"" level=warning msg=""[TUN] default interface changed by monitor, => WLAN""");
+                        Console.Out.Flush();
+                    }
+                    Thread.Sleep(Timeout.Infinite);
+                }
                 break;
             case "flood":
                 var line = new string('x', 99);

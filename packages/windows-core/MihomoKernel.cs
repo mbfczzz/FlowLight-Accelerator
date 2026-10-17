@@ -13,6 +13,11 @@ namespace FlowLight.Core;
 public sealed class MihomoKernel : IDisposable
 {
     public const string ProbeInbound = "flowlight-probe";
+    // The TUN adapter's name; NetworkConflict knows it as ours by the prefix.
+    internal const string TunDevice = "FlowLightTun";
+    // What mihomo logs once it has chosen the physical adapter its own
+    // connections are bound to ("... by monitor, => WLAN").
+    internal const string BoundMarker = "default interface changed by monitor";
     internal const string LogFileName = "kernel.log";
     internal const int OutputTailChars = 8 * 1024;
     internal const long LogFileLimitBytes = 256 * 1024;
@@ -23,6 +28,8 @@ public sealed class MihomoKernel : IDisposable
     readonly string root;
     readonly object outputGate = new();
     readonly StringBuilder outputTail = new();
+    // Set once this start's kernel has logged BoundMarker.
+    volatile bool outboundBound;
     Process? process;
     string? configPath;
     (string Value, string Mask)[] masks = [];
@@ -39,6 +46,13 @@ public sealed class MihomoKernel : IDisposable
 
     // Creating the TUN adapter can take several seconds on first start.
     internal TimeSpan ReadinessBudget { get; init; } = TimeSpan.FromSeconds(20);
+
+    // How long Start waits, once the listener is open, for the TUN adapter to
+    // come up and mihomo to bind its own connections; then how long it lets
+    // the adapter's routes settle. TunUp is replaceable for the checks.
+    internal TimeSpan TunBudget { get; init; } = TimeSpan.FromSeconds(15);
+    internal TimeSpan TunSettle { get; init; } = TimeSpan.FromMilliseconds(500);
+    internal Func<bool> TunUp { get; init; } = () => AdapterUp(TunDevice);
 
     // Another proxy on this machine that keeps the traffic which is not the
     // game's, so switching the accelerator on does not cut the player's
@@ -162,7 +176,7 @@ public sealed class MihomoKernel : IDisposable
         var tun = new Dictionary<string, object>
         {
             { "enable", true },
-            { "device", "FlowLightTun" },
+            { "device", TunDevice },
             { "stack", "mixed" },
             { "auto-route", true },
             { "auto-detect-interface", true },
@@ -176,12 +190,11 @@ public sealed class MihomoKernel : IDisposable
             { "enhanced-mode", "fake-ip" },
             // The upper half of the benchmarking block 198.18.0.0/15, which
             // is never routed on the internet. Clash and its relatives answer
-            // from the lower half (198.18.0.1/16) by default, and mihomo puts
-            // its TUN on the first address of this range, so the two kernels
-            // neither hand out each other's fake addresses nor share an
-            // interface address (both would sit on 198.18.0.1). sing-box's
-            // default range is the whole /15, but it hands addresses out from
-            // the bottom and only reaches 198.19 after 65,000 names.
+            // from the lower half (198.18.0.1/16) by default, so an address
+            // one kernel hands out is never mistaken by the other for one of
+            // its own. sing-box's default range is the whole /15, but it
+            // hands addresses out from the bottom and only reaches 198.19
+            // after 65,000 names.
             { "fake-ip-range", "198.19.0.1/16" },
             { "nameserver", dns },
             { "default-nameserver", dns },
@@ -339,25 +352,79 @@ public sealed class MihomoKernel : IDisposable
         {
             if (kernel.HasExited)
             {
-                await Drain(pumps);
-                var reason = KernelReason();
-                throw new InvalidOperationException(
-                    (reason is null ? "网络内核已退出，请检查服务权限" : "网络内核已退出：" + reason) + OutputDiagnostics());
+                throw await Exited(pumps);
             }
             using var attempt = CancellationTokenSource.CreateLinkedTokenSource(ct);
             attempt.CancelAfter(TimeSpan.FromMilliseconds(250));
             try
             {
-                using var test = new TcpClient();
-                await test.ConnectAsync(IPAddress.Loopback, SocksPort, attempt.Token);
-                return;
+                using (var test = new TcpClient())
+                {
+                    await test.ConnectAsync(IPAddress.Loopback, SocksPort, attempt.Token);
+                }
             }
             catch (Exception e) when (e is SocketException || (e is OperationCanceledException && !ct.IsCancellationRequested))
             {
                 await Task.Delay(100, ct);
+                continue;
             }
+            await WaitForTun(kernel, pumps, ct);
+            return;
         }
         throw new TimeoutException("网络内核监听未就绪" + OutputDiagnostics());
+    }
+
+    // mihomo opens its listeners before its TUN. Until the TUN is up it has
+    // not chosen the physical adapter, so its own connections (to the line's
+    // entry among them) follow the routing table, where another proxy's TUN,
+    // or ours as its routes appear, takes them; a probe sent then fails, or
+    // measures a path the game will not use. So the start is only ready once
+    // mihomo has bound its connections and the adapter is up, and its routes
+    // have had a moment to land.
+    async Task WaitForTun(Process kernel, Task pumps, CancellationToken ct)
+    {
+        var by = DateTime.UtcNow + TunBudget;
+        while (true)
+        {
+            if (kernel.HasExited)
+            {
+                throw await Exited(pumps);
+            }
+            var bound = outboundBound;
+            if (bound && TunUp())
+            {
+                await Task.Delay(TunSettle, ct);
+                return;
+            }
+            if (DateTime.UtcNow >= by)
+            {
+                throw new TimeoutException(
+                    (bound ? "网络内核的虚拟网卡没有启动" : "网络内核没有找到可用的网络出口，请检查网络连接") + OutputDiagnostics());
+            }
+            await Task.Delay(100, ct);
+        }
+    }
+
+    // Why the kernel is gone, once its last output has been read.
+    async Task<Exception> Exited(Task pumps)
+    {
+        await Drain(pumps);
+        var reason = KernelReason();
+        return new InvalidOperationException(
+            (reason is null ? "网络内核已退出，请检查服务权限" : "网络内核已退出：" + reason) + OutputDiagnostics());
+    }
+
+    static bool AdapterUp(string name)
+    {
+        try
+        {
+            return NetworkInterface.GetAllNetworkInterfaces()
+                .Any(n => n.Name == name && n.OperationalStatus == OperationalStatus.Up);
+        }
+        catch (NetworkInformationException)
+        {
+            return false;
+        }
     }
 
     async Task VerifyBinary(CancellationToken ct)
@@ -486,6 +553,7 @@ public sealed class MihomoKernel : IDisposable
                 .Where(m => m.Item1 is { Length: >= 4 })
                 .ToArray();
             outputTail.Clear();
+            outboundBound = false;
             AppendLog($"{Environment.NewLine}==== kernel start {DateTime.UtcNow:O} ===={Environment.NewLine}");
         }
     }
@@ -517,6 +585,10 @@ public sealed class MihomoKernel : IDisposable
     {
         lock (outputGate)
         {
+            if (text.Contains(BoundMarker, StringComparison.Ordinal))
+            {
+                outboundBound = true;
+            }
             text = MaskAddresses(text, masks);
             outputTail.Append(text);
             if (outputTail.Length > OutputTailChars)

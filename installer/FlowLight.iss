@@ -193,8 +193,9 @@ Name: "{autodesktop}\{#AppNameZh}"; Filename: "{app}\{#ClientExe}"; Check: WantD
 
 [Run]
 Filename: "{app}\{#ClientExe}"; Description: "{cm:LaunchClient}"; Flags: nowait postinstall skipifsilent runasoriginaluser; Check: ServiceReady
-; An update started from the client runs silently with /LAUNCH=1 and reopens it.
-Filename: "{app}\{#ClientExe}"; Flags: nowait runasoriginaluser; Check: LaunchAfterUpdate
+; An update started from the client reopens it from CurStepChanged instead:
+; entries here without postinstall run before that step, and the service
+; setup there would close the client they had just opened.
 
 #ifndef Preview
 [UninstallRun]
@@ -747,11 +748,20 @@ begin
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
+var
+  Code: Integer;
 begin
   if CurStep = ssPostInstall then
   begin
     WizardForm.StatusLabel.Caption := CustomMessage('StatusService');
     ShowProgress(100);
     ConfigureService();
+    { An update started from the client runs silently with /LAUNCH=1 and
+      reopens it here, once the service is running again, as the player who
+      started the update rather than elevated. It opens even when the service
+      failed, so the player sees the client say so. }
+    if LaunchAfterUpdate() then
+      if not ExecAsOriginalUser(ExpandConstant('{app}\{#ClientExe}'), '', '', SW_SHOWNORMAL, ewNoWait, Code) then
+        Log('could not reopen the client: ' + SysErrorMessage(Code));
   end;
 end;

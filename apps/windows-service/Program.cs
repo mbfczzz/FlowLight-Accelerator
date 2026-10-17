@@ -531,18 +531,23 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
                     {
                         throw new InvalidOperationException("已有加速会话在运行");
                     }
-                    // Another proxy's TUN carries the whole machine. When that
-                    // proxy can be handed traffic — its SOCKS port answers —
-                    // the accelerator runs alongside it and sends it
-                    // everything that is not the game's; when it cannot, the
-                    // kernel would take the network away from it, so the start
-                    // is refused. The player's own account, not the service's
-                    // SYSTEM one: that is where their proxy settings live.
-                    var conflict = NetworkConflict.Detect();
-                    upstream = conflict is null ? null : LocalProxy.Find(sid);
-                    if (conflict is not null && upstream is null)
+                    // Another proxy on this machine keeps everything that is
+                    // not the game's: the kernel hands it to the proxy's
+                    // SOCKS port. The player's own account, not the
+                    // service's SYSTEM one: that is where their proxy
+                    // settings live.
+                    upstream = LocalProxy.Find(sid);
+                    // But not while that proxy's own TUN is on. Two TUNs
+                    // both claim the default route at the same metric, so
+                    // which one gets the game is up to Windows, and the
+                    // game's lookups may be answered with the other proxy's
+                    // fake addresses, which only it can map back. Its TUN
+                    // goes off, and its port carries the rest instead.
+                    if (NetworkConflict.Detect() is { } conflict)
                     {
-                        throw new InvalidOperationException(conflict);
+                        throw new InvalidOperationException(upstream is null
+                            ? conflict
+                            : conflict + "。关闭 TUN 后，加速期间游戏以外的流量会照常交给它（本机端口 " + upstream.Port + "）");
                     }
                     owner = sid;
                     failedOwner = null;

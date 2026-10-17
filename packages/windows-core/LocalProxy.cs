@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using Microsoft.Win32;
@@ -40,7 +41,10 @@ public static class LocalProxy
         {
             return null;
         }
-        var port = Configured(sid) is { } configured && SpeaksSocks5(configured) ? configured : Find(Ports);
+        var listening = Listening();
+        var port = Configured(sid) is { } configured && listening.Contains(configured) && SpeaksSocks5(configured)
+            ? configured
+            : Find(Ports.Where(listening.Contains));
         if (port is not { } found || Owner(found) is not { } owner || !MihomoKernel.Writable(owner))
         {
             return null;
@@ -60,6 +64,24 @@ public static class LocalProxy
             }
         }
         return null;
+    }
+
+    // The loopback ports something listens on. Only those are tried: Windows
+    // retries a refused loopback connect for about two seconds, so trying a
+    // closed port costs that much, and every start runs this search.
+    static HashSet<int> Listening()
+    {
+        try
+        {
+            return IPGlobalProperties.GetIPGlobalProperties().GetActiveTcpListeners()
+                .Where(e => IPAddress.IsLoopback(e.Address) || e.Address.Equals(IPAddress.Any) || e.Address.Equals(IPAddress.IPv6Any))
+                .Select(e => e.Port)
+                .ToHashSet();
+        }
+        catch (NetworkInformationException)
+        {
+            return [];
+        }
     }
 
     // The port in the given account's proxy settings (the service's own

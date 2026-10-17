@@ -38,7 +38,7 @@ function Assert-Administrator {
  if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { throw 'Run as administrator' }
 }
 $script:Stage = 1
-function Stop-FlowLightService {
+function Stop-FlowLightService([switch]$KeepClient) {
  $script:Stage = 11
  $service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
  if ($service -and $service.Status -ne 'Stopped') {
@@ -48,8 +48,11 @@ function Stop-FlowLightService {
  }
  # The client (often in the tray) and a kernel the service left behind
  # hold files the installer replaces. Only processes from this folder.
+ # Once the files are in place (-Install) the client is left alone: by then
+ # it is the new one, opened for the player, not one holding old files.
  $root = [IO.Path]::GetFullPath($InstallRoot).TrimEnd('\') + '\'
- foreach ($p in Get-CimInstance Win32_Process -Filter "Name = 'FlowLight.Client.exe' OR Name = 'mihomo.exe'") {
+ $names = if ($KeepClient) { "Name = 'mihomo.exe'" } else { "Name = 'FlowLight.Client.exe' OR Name = 'mihomo.exe'" }
+ foreach ($p in Get-CimInstance Win32_Process -Filter $names) {
   if ($p.ExecutablePath -and $p.ExecutablePath.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) {
    Write-Log ('Closing ' + $p.ExecutablePath)
    Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue
@@ -119,7 +122,7 @@ try {
  $hash = (Get-FileHash -LiteralPath $coreTarget -Algorithm SHA256).Hash
  if ($hash -ne $CoreSha256) { throw 'Kernel checksum mismatch' }
 
- Stop-FlowLightService
+ Stop-FlowLightService -KeepClient
  $script:Stage = 12
  Initialize-DataRoot
  $script:Stage = 1
