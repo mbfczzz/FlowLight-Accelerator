@@ -16,3 +16,5 @@ RUN chmod 755 /usr/local/bin/portal-entrypoint.sh
 ENV PORTAL_LISTEN=80 REAL_IP_FROM=127.0.0.1
 EXPOSE 80
 ENTRYPOINT ["/usr/local/bin/portal-entrypoint.sh"]
+# Setting ENTRYPOINT drops the base image's CMD, so it is given again.
+CMD ["nginx", "-g", "daemon off;"]

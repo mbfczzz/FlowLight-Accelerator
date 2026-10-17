@@ -86,12 +86,15 @@ export const sectionTitle = (section: string) =>
 export type Permissions = {
   canEdit: boolean;
   canPublish: boolean;
+  /** Running the machines: enrolling nodes and stopping sessions. */
+  canOperate: boolean;
 };
 
 export function permissionsFor(user: Row): Permissions {
   return {
     canEdit: ["admin", "operator", "publisher"].includes(user.role),
     canPublish: ["admin", "publisher"].includes(user.role),
+    canOperate: ["admin", "operator"].includes(user.role),
   };
 }
 

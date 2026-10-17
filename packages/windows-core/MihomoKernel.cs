@@ -40,11 +40,11 @@ public sealed class MihomoKernel : IDisposable
     // Creating the TUN adapter can take several seconds on first start.
     internal TimeSpan ReadinessBudget { get; init; } = TimeSpan.FromSeconds(20);
 
-    // Port of another proxy on this machine that keeps the traffic which is
-    // not the game's, so switching the accelerator on does not cut the
-    // player's Clash off. Null when the machine has none: everything not the
-    // game's then goes straight out, as before. Set before Start.
-    public int? Upstream { get; set; }
+    // Another proxy on this machine that keeps the traffic which is not the
+    // game's, so switching the accelerator on does not cut the player's
+    // Clash off. Null when the machine has none: everything not the game's
+    // then goes straight out, as before. Set before Start.
+    public UpstreamProxy? Upstream { get; set; }
 
     public MihomoKernel(string binary, string expectedHash, string root)
     {
@@ -93,7 +93,7 @@ public sealed class MihomoKernel : IDisposable
     // is not the game's, so switching the accelerator on does not cut the
     // player's Clash off; null when there is none, and everything not the
     // game's goes straight out as before.
-    public static object BuildConfig(Connection conn, int port, int? upstream)
+    public static object BuildConfig(Connection conn, int port, UpstreamProxy? upstream)
     {
         if ((conn.Profile.Processes?.Length ?? 0) + (conn.Profile.Paths?.Length ?? 0) == 0)
         {
@@ -129,20 +129,13 @@ public sealed class MihomoKernel : IDisposable
         {
             rules.Add(Rule(value.Contains(':') ? "IP-CIDR6" : "IP-CIDR", value, "FLOWLIGHT"));
         }
-        if (upstream is { } port2 && LocalProxy.Owner(port2) is { } owner)
+        if (upstream is not null)
         {
             // The other proxy's own connections must not be handed back to
             // it: its proxy would hand them back again, around and around.
-            // The name comes from the system, so a name the rule grammar
-            // cannot carry leaves the rule out rather than failing the whole
-            // start over a safety net.
-            try
-            {
-                rules.Insert(2, Rule("PROCESS-NAME", owner, "DIRECT"));
-            }
-            catch (ArgumentException)
-            {
-            }
+            // LocalProxy only offers a proxy whose name this rule can carry,
+            // so the catch-all below never goes out without it.
+            rules.Insert(2, Rule("PROCESS-NAME", upstream.Process, "DIRECT"));
         }
         // Everything that is not the game's goes to the other proxy when one
         // is running, and straight out when there is none.
@@ -181,9 +174,14 @@ public sealed class MihomoKernel : IDisposable
             { "enable", true },
             { "listen", "127.0.0.1:10553" },
             { "enhanced-mode", "fake-ip" },
-            // A range of its own, away from 198.18.0.0/15 that Clash uses, so
-            // the two proxies never mistake each other's fake addresses for a
-            // real destination.
+            // The upper half of the benchmarking block 198.18.0.0/15, which
+            // is never routed on the internet. Clash and its relatives answer
+            // from the lower half (198.18.0.1/16) by default, and mihomo puts
+            // its TUN on the first address of this range, so the two kernels
+            // neither hand out each other's fake addresses nor share an
+            // interface address (both would sit on 198.18.0.1). sing-box's
+            // default range is the whole /15, but it hands addresses out from
+            // the bottom and only reaches 198.19 after 65,000 names.
             { "fake-ip-range", "198.19.0.1/16" },
             { "nameserver", dns },
             { "default-nameserver", dns },
@@ -209,7 +207,7 @@ public sealed class MihomoKernel : IDisposable
                 name = "UPSTREAM",
                 type = "socks5",
                 server = "127.0.0.1",
-                port = clashPort,
+                port = clashPort.Port,
                 udp = true,
             });
         }
@@ -250,12 +248,17 @@ public sealed class MihomoKernel : IDisposable
 
     static string Rule(string kind, string value, string target)
     {
-        if (string.IsNullOrWhiteSpace(value) || value.IndexOfAny([',', '\r', '\n', '\0']) >= 0)
+        if (!Writable(value))
         {
             throw new ArgumentException("游戏规则不合法");
         }
         return $"{kind},{value},{target}";
     }
+
+    // Whether a value fits in one rule line: a comma would start another
+    // field, a line break another rule.
+    internal static bool Writable(string value) =>
+        !string.IsNullOrWhiteSpace(value) && value.IndexOfAny([',', '\r', '\n', '\0']) < 0;
 
     public async Task Start(Connection conn, CancellationToken ct)
     {

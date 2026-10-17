@@ -43,7 +43,7 @@ export function RowActions({
   onCheck: (row: Row) => void;
   onConfirm: (spec: Confirmable) => void;
 }) {
-  const { canEdit, canPublish } = permissions;
+  const { canPublish, canOperate } = permissions;
   const inFlight = pending[rowLock(section, row.id)];
   // Lines and games are what players see, so removing them takes the
   // right to publish them, as on the control API.
@@ -93,10 +93,10 @@ export function RowActions({
         </button>
       )}
       {section === "nodes" &&
-        canEdit &&
+        canOperate &&
         guarded(regenerateEnrollment(row), "接入命令", <Terminal size={14} />, row.agent_version ? undefined : "emphasis")}
       {section === "sessions" &&
-        canEdit &&
+        canOperate &&
         row.state !== "CLOSED" &&
         guarded(stopSession(row), "停止", <OctagonX size={14} />, "destructive")}
       {editable && (

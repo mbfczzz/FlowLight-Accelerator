@@ -63,4 +63,9 @@ if [ ! -s "$out" ]; then
 fi
 
 echo "portal: page rendered for $PORTAL_VERSION (download from $PORTAL_DOWNLOAD_URL)"
-exec nginx -g 'daemon off;'
+# The nginx image's own entrypoint renders the server configuration from
+# /etc/nginx/templates (the listen address, the CSP, the /dist/ hint), then
+# runs the command: nginx in the foreground by default, or what was asked
+# for, such as nginx -t. Starting nginx here directly would skip that step
+# and serve the stock configuration on port 80 instead.
+exec /docker-entrypoint.sh "$@"

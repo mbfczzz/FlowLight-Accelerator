@@ -171,9 +171,6 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
     string? failedOwner;
     CancellationTokenSource? running;
     Task? sessionTask;
-    // Another proxy on this machine that keeps the traffic which is not the
-    // game's, decided when a session starts and used when its kernel starts.
-    int? upstream;
     CancellationToken serviceToken;
     readonly object viewLock = new();
     volatile SessionView view = SessionView.Idle;
@@ -292,11 +289,8 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
                 catch (Exception e)
                 {
                     var timedOut = dispatchDeadline.IsCancellationRequested && !stoppingToken.IsCancellationRequested;
-                    // A refusal that clears by itself carries its code, so
-                    // the window can wait and retry.
-                    var code = (e as RetryableRefusalException)?.Code;
                     reply = JsonSerializer.Serialize(
-                        new { success = false, data = (object?)null, error = ReplyError(e, timedOut), code },
+                        new { success = false, data = (object?)null, error = ReplyError(e, timedOut) },
                         Wire.Json);
                 }
                 await writer.WriteLineAsync(reply);
@@ -525,25 +519,30 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
                     device_id = identity.DeviceID,
                     egress_binding_id = (string?)null,
                 };
-                // Another proxy's TUN carries the whole machine. When that
-                // proxy can be handed traffic — its SOCKS port answers —
-                // the accelerator runs alongside it and sends it everything
-                // that is not the game's; when it cannot, the kernel would
-                // take the network away from it, so the start is refused.
-                var conflict = NetworkConflict.Detect();
-                // The player's own account, not the service's SYSTEM one:
-                // that is where their proxy settings live.
-                upstream = conflict is null ? null : LocalProxy.Find(sid);
-                if (conflict is not null && upstream is null)
-                {
-                    throw new InvalidOperationException(conflict);
-                }
                 await gate.WaitAsync(ct);
+                UpstreamProxy? upstream;
                 try
                 {
+                    // Claim the session before probing: the probe below costs
+                    // up to ten port checks with timeouts, and a start that
+                    // will be refused anyway must not pay it, nor leave a
+                    // value behind for whoever holds the session to pick up.
                     if (owner != null)
                     {
                         throw new InvalidOperationException("已有加速会话在运行");
+                    }
+                    // Another proxy's TUN carries the whole machine. When that
+                    // proxy can be handed traffic — its SOCKS port answers —
+                    // the accelerator runs alongside it and sends it
+                    // everything that is not the game's; when it cannot, the
+                    // kernel would take the network away from it, so the start
+                    // is refused. The player's own account, not the service's
+                    // SYSTEM one: that is where their proxy settings live.
+                    var conflict = NetworkConflict.Detect();
+                    upstream = conflict is null ? null : LocalProxy.Find(sid);
+                    if (conflict is not null && upstream is null)
+                    {
+                        throw new InvalidOperationException(conflict);
                     }
                     owner = sid;
                     failedOwner = null;
@@ -555,7 +554,7 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
                         LineID = lineID,
                     });
                     running = CancellationTokenSource.CreateLinkedTokenSource(serviceToken);
-                    sessionTask = StartSession(identity, sid, input, running.Token);
+                    sessionTask = StartSession(identity, sid, input, upstream, running.Token);
                     return new { state = "PREPARING" };
                 }
                 finally
@@ -667,7 +666,7 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
         throw new MalformedRequestException($"Malformed request: {name} must be a string");
     }
 
-    async Task StartSession(Identity identity, string ownerSid, object input, CancellationToken ct)
+    async Task StartSession(Identity identity, string ownerSid, object input, UpstreamProxy? upstream, CancellationToken ct)
     {
         string? sessionID = null;
         try

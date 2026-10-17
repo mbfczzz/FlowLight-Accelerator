@@ -130,12 +130,20 @@ jobs:
           docker rm -f admin-check
   portal:
     runs-on: ubuntu-latest
+    # A container that ignores its command runs nginx in the foreground and
+    # never returns; that once held this job for six hours.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - name: Portal image serves the page under a strict CSP
         run: |
           docker build -q -f deploy/portal.Dockerfile -t flowlight-portal-check . >/dev/null
-          docker run --rm flowlight-portal-check nginx -t
+          # The command given must be the one run, and the configuration it
+          # checks must be ours, rendered from the template, not the stock one.
+          timeout 60 docker run --rm flowlight-portal-check nginx -t
+          conf=$(timeout 60 docker run --rm -e PORTAL_LISTEN=127.0.0.1:8099 flowlight-portal-check nginx -T 2>/dev/null)
+          grep -q 'listen 127.0.0.1:8099;' <<<"$conf" || { echo "PORTAL_LISTEN was not applied"; exit 1; }
+          grep -q "frame-ancestors 'none'" <<<"$conf" || { echo "the portal's server block is missing"; exit 1; }
           # The download settings come from the environment at start-up, so a
           # new client version is a restart, not a rebuild.
           docker run -d --name portal-check -p 8087:80 \

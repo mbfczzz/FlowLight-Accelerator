@@ -99,6 +99,7 @@ export function validate(kind: string, body: Row, initial: Row): Problem | null 
       ["capacity", range(body.capacity, 1, 10000, "并发容量须在 1–10000 之间")],
       ["priority", range(body.priority, -1000000, 1000000, "优先级须为整数")],
       ["endpoint_ids", hops.some((h) => !h) ? "线路路径里有未选择的服务端点" : ""],
+      ["endpoint_ids", new Set(hops).size !== hops.length ? "线路路径里有重复的服务端点，每个端点只能用一次" : ""],
       ["endpoint_ids", hops.length > 5 ? "一条线路最多 5 个服务端点" : ""],
     );
   }

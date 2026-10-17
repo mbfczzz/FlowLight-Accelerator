@@ -162,6 +162,13 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.limiter.Reset(account)
+	// The console is for staff. A player who signs in there gets no tokens:
+	// the console would turn them away anyway, and tokens it never uses
+	// would stay valid for their whole lifetime.
+	if u.Role == "player" && strings.HasPrefix(r.URL.Path, "/api/admin/") {
+		fail(w, 403, "此账号没有管理后台权限")
+		return
+	}
 	var out map[string]any
 	e := s.Store.Tx(func(tx *gorm.DB) error { var e error; out, e = s.issue(tx, u, ""); return e })
 	respond(w, out, e)

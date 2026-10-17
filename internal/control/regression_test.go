@@ -440,4 +440,16 @@ func TestPasswordLengthDependsOnRole(t *testing.T) {
 	if w := request(s, "", "POST", "/api/client/v1/auth/login", map[string]string{"username": "player1", "password": "pw123456"}, ""); w.Code != 200 {
 		t.Fatalf("player cannot sign in with an 8-character password: %d %s", w.Code, w.Body.String())
 	}
+	// The console turns a player away before any token is issued.
+	var before int64
+	s.Store.DB.Model(&Token{}).Where("user_id = ?", created.ID).Count(&before)
+	if w := request(s, "", "POST", "/api/admin/v1/auth/login", map[string]string{"username": "player1", "password": "pw123456"}, ""); w.Code != 403 ||
+		!strings.Contains(w.Body.String(), "没有管理后台权限") || strings.Contains(w.Body.String(), "access_token") {
+		t.Fatalf("a player signed in to the console: %d %s", w.Code, w.Body.String())
+	}
+	var after int64
+	s.Store.DB.Model(&Token{}).Where("user_id = ?", created.ID).Count(&after)
+	if after != before {
+		t.Fatalf("a refused console sign-in still issued %d tokens", after-before)
+	}
 }

@@ -314,13 +314,23 @@ export function Ago({ at }: { at: unknown }) {
   return <span title={exact}>{text}</span>;
 }
 
+/**
+ * How long the control service waits for a heartbeat before it treats the
+ * node as offline (NodeTimeout there) and stops placing sessions on it.
+ */
+const NODE_TIMEOUT_S = 45;
+
 /** Heartbeat age as a coloured dot plus the age. */
 export function Heartbeat({ at }: { at: unknown }) {
   if (!at || typeof at !== "string" || at.startsWith("0001-"))
     return <Pill tone="tone-neutral" label="从未上线" />;
   const age = (Date.now() - new Date(at).getTime()) / 1000;
+  const online = age <= NODE_TIMEOUT_S;
   return (
-    <span className={"pill " + (age <= 60 ? "tone-good" : age <= 300 ? "tone-warn" : "tone-neutral")}>
+    <span
+      className={"pill " + (online ? "tone-good" : age <= 300 ? "tone-warn" : "tone-neutral")}
+      title={online ? "在线" : "超过 " + NODE_TIMEOUT_S + " 秒没有心跳，已视为离线，不会分配新会话"}
+    >
       <Ago at={at} />
     </span>
   );

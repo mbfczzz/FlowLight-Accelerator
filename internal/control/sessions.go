@@ -102,10 +102,15 @@ func (s *Server) provision(tx *gorm.DB, x *Session, v LineVersion, p c.Profile) 
 				}
 			}
 			if !allocated {
-				// Ports are held until their session closes, so this clears
-				// by itself too; a range that is genuinely too small reports
-				// itself again on every retry.
-				return retryLater("ports-busy", "线路节点端口正被上一个会话占用，请稍候重试")
+				// Every port on this hop is held by a live session. A line
+				// whose capacity exceeds its port supply is refused when it is
+				// compiled, so reaching here means the holders are sessions
+				// that are still running: this clears as they end, which is
+				// what the client is told to wait for. (It is still possible
+				// for a line to be edited down to fewer ports after it was
+				// published; the operator's capacity check catches that on the
+				// next publish.)
+				return retryLater("ports-busy", "线路端口正被其他会话占用，稍后会自动释放；若持续出现请联系运营方扩容")
 			}
 		}
 	}
@@ -173,7 +178,18 @@ func (s *Server) beginSession(w http.ResponseWriter, r *http.Request) {
 			if old.RequestHash != hash(string(body)) {
 				return badRequest("请求重复提交，请重试")
 			}
-			return tx.First(&out, "id = ?", old.SessionID).Error
+			if e := tx.First(&out, "id = ?", old.SessionID).Error; e != nil {
+				return e
+			}
+			// Replaying a key whose session has already ended must not look
+			// like a fresh start: the caller would go on to poll a session
+			// that is gone and report a session-ended error for a start it
+			// just made. Say the truth instead, and let the retryable path
+			// cover it when the ending is still in progress.
+			if out.State == "CLOSED" {
+				return badRequest("这次请求对应的加速会话已经结束，请重新开始加速")
+			}
+			return nil
 		}
 		var d Device
 		if tx.First(&d, "id = ? AND user_id = ?", in.DeviceID, u.ID).Error != nil {
@@ -184,17 +200,31 @@ func (s *Server) beginSession(w http.ResponseWriter, r *http.Request) {
 		// stopping (its nodes are confirming the forwarding is gone), and one
 		// whose lease has run out (the client that held it is gone, and the
 		// reaper stops it within seconds). The client waits and retries
-		// instead of telling the player no.
-		var holding Session
-		if e := tx.Where("device_id = ? AND state <> ?", d.ID, "CLOSED").Order("created_at").First(&holding).Error; e == nil {
-			now := time.Now()
+		// instead of telling the player no. Every leftover is looked at: one
+		// live session among them is a plain refusal, since waiting would
+		// never clear it.
+		var holding []Session
+		if e := tx.Where("device_id = ? AND state <> ?", d.ID, "CLOSED").Order("created_at").Find(&holding).Error; e != nil {
+			return e
+		}
+		var wait error
+		now := time.Now()
+		for _, h := range holding {
 			switch {
-			case holding.State == "STOPPING":
-				return retryLater("session-closing", "上一个加速会话正在结束，请稍候重试")
-			case now.After(holding.LeaseUntil):
-				return retryLater("session-stale", "上一个加速会话尚未释放，正在自动清理，请稍候重试")
+			case h.State == "STOPPING":
+				if wait == nil {
+					wait = retryLater("session-closing", "上一个加速会话正在结束，请稍候重试")
+				}
+			case now.After(h.LeaseUntil):
+				if wait == nil {
+					wait = retryLater("session-stale", "上一个加速会话尚未释放，正在自动清理，请稍候重试")
+				}
+			default:
+				return badRequest("此设备已有一个加速会话在运行")
 			}
-			return badRequest("此设备已有一个加速会话在运行")
+		}
+		if wait != nil {
+			return wait
 		}
 		var active int64
 		tx.Model(&Session{}).Where("user_id = ? AND state <> ? AND purpose = ?", u.ID, "CLOSED", "game").Count(&active)

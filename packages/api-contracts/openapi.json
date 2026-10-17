@@ -707,6 +707,16 @@
           "403": {
             "description": "Permission denied"
           },
+          "409": {
+            "description": "Refused because a previous session has not finished closing, or the ports its line needs are still held. Unlike 400 this clears by itself within about two minutes, so a client should wait and retry rather than report a dead end. The body carries a stable `code`: `session-closing` (the device's last session is still being torn down), `session-stale` (the device's last session outlived its lease and is being reclaimed) or `ports-busy` (every port of a hop is held by live sessions).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetryableError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Internal failure; details are only logged",
             "content": {
@@ -3165,6 +3175,16 @@
           "403": {
             "description": "Permission denied"
           },
+          "409": {
+            "description": "Refused because a previous session has not finished closing, or the ports its line needs are still held. Unlike 400 this clears by itself within about two minutes, so a client should wait and retry rather than report a dead end. The body carries a stable `code`: `session-closing` (the device's last session is still being torn down), `session-stale` (the device's last session outlived its lease and is being reclaimed) or `ports-busy` (every port of a hop is held by live sessions).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetryableError"
+                }
+              }
+            }
+          },
           "500": {
             "description": "Internal failure; details are only logged",
             "content": {
@@ -4879,6 +4899,28 @@
           },
           "created_at": {
             "type": "string"
+          }
+        }
+      },
+      "RetryableError": {
+        "type": "object",
+        "required": [
+          "error",
+          "code"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Why it was refused, for the player to read."
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "session-closing",
+              "session-stale",
+              "ports-busy"
+            ],
+            "description": "Stable identifier for the refusal."
           }
         }
       }

@@ -291,6 +291,24 @@ func TestSessionLeavingADeviceIsRetryable(t *testing.T) {
 	if got := start("after-stale"); got.Code != 202 {
 		t.Fatalf("the device stayed blocked after the leftover was cleared: %d %s", got.Code, got.Body.String())
 	}
+
+	// A live session behind an older one that is still closing: waiting
+	// would never clear it, so the player is told plainly. Only the oldest
+	// row used to be looked at, which sent the client into a wait that
+	// could only time out.
+	var live Session
+	s.Store.DB.First(&live, "device_id = ? AND state != ?", "test-device", "CLOSED")
+	older := live
+	older.ID = "older-" + live.ID
+	older.State = "STOPPING"
+	older.CreatedAt = live.CreatedAt.Add(-time.Minute)
+	if e := s.Store.DB.Create(&older).Error; e != nil {
+		t.Fatal(e)
+	}
+	if got := start("behind-closing"); got.Code != 400 ||
+		!strings.Contains(got.Body.String(), "此设备已有一个加速会话在运行") {
+		t.Fatalf("a live session behind a closing one was answered with a wait: %d %s", got.Code, got.Body.String())
+	}
 }
 
 // A retry after a retryable refusal must create a NEW session, not hand back
@@ -492,6 +510,71 @@ func TestStoppedSessionBlocksForAtMostTheClientWait(t *testing.T) {
 	}
 	if got := request(s, token, "POST", "/api/client/v1/sessions", in, "window-key-2"); got.Code != 202 {
 		t.Fatalf("the device was still blocked after the deadline: %d %s", got.Code, got.Body.String())
+	}
+}
+
+// A line whose capacity is larger than the ports its path can supply looks
+// healthy and then fails for every player once the ports run out, with
+// nothing on screen explaining why. Publishing such a line is refused, and
+// the refusal names the endpoint to widen.
+func TestLineCapacityCannotExceedItsPorts(t *testing.T) {
+	s, token, u := setup(t)
+	fixture(t, s, u)
+	// The fixture's exit endpoint serves 20000-20005, six ports, and the line
+	// must point at it for the path to be compiled at all.
+	var ep Endpoint
+	if e := s.Store.DB.First(&ep, "id = ?", "ep-1").Error; e != nil {
+		t.Fatal(e)
+	}
+	if have := ep.PortEnd - ep.Port + 1; have != 6 {
+		t.Fatalf("fixture changed: the endpoint offers %d ports, the test assumes 6", have)
+	}
+	if e := s.Store.DB.Model(&Line{}).Where("id = ?", "line-1").
+		Update("endpoint_ids", `["ep-1"]`).Error; e != nil {
+		t.Fatal(e)
+	}
+	// The fixture leaves the cipher unset; compile requires one for an ss2022
+	// landing, and the port check sits after it.
+	if e := s.Store.DB.Model(&Endpoint{}).Where("id = ?", "ep-1").
+		Update("cipher", "2022-blake3-aes-128-gcm").Error; e != nil {
+		t.Fatal(e)
+	}
+
+	// Saving a draft is not validated: a line under construction may be
+	// incomplete. What matters is that it cannot be published.
+	save := func(capacity int) *httptest.ResponseRecorder {
+		t.Helper()
+		return request(s, token, "PATCH", "/api/admin/v1/lines/line-1", map[string]any{"capacity": capacity}, "")
+	}
+	if got := save(20); got.Code != 200 {
+		t.Fatalf("saving a draft capacity failed: %d %s", got.Code, got.Body.String())
+	}
+	over := request(s, token, "POST", "/api/admin/v1/lines/line-1/publish", nil, "")
+	if over.Code != 400 {
+		t.Fatalf("a line whose capacity exceeds its ports was published: %d %s", over.Code, over.Body.String())
+	}
+	body := over.Body.String()
+	if !strings.Contains(body, "端口") || !strings.Contains(body, "6") || !strings.Contains(body, "exit") {
+		t.Fatalf("the refusal does not name the port limit and the endpoint: %s", body)
+	}
+
+	// At the port count it publishes: the path can supply one port per session.
+	if got := save(6); got.Code != 200 {
+		t.Fatalf("saving a capacity the path can supply failed: %d %s", got.Code, got.Body.String())
+	}
+	if got := request(s, token, "POST", "/api/admin/v1/lines/line-1/publish", nil, ""); got.Code != 200 {
+		t.Fatalf("a capacity the path can supply was refused at publish: %d %s", got.Code, got.Body.String())
+	}
+}
+
+// A path through the same endpoint twice can never be published, so the
+// draft is refused when it is saved rather than when publishing fails.
+func TestLinePathCannotRepeatAnEndpoint(t *testing.T) {
+	s, token, u := setup(t)
+	fixture(t, s, u)
+	got := request(s, token, "PATCH", "/api/admin/v1/lines/line-1", map[string]any{"endpoint_ids": []string{"ep-1", "ep-1"}}, "")
+	if got.Code != 400 || !strings.Contains(got.Body.String(), "重复的服务端点") {
+		t.Fatalf("a path repeating an endpoint was saved: %d %s", got.Code, got.Body.String())
 	}
 }
 

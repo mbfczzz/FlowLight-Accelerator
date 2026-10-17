@@ -94,11 +94,15 @@ using (var kernelConfig = JsonDocument.Parse(JsonSerializer.Serialize(MihomoKern
 // With another proxy on the machine, the traffic that is not the game's
 // goes to that proxy instead of straight out, so switching the accelerator
 // on does not cut the player's Clash off; without one, nothing changes.
-using (var coexisting = JsonDocument.Parse(JsonSerializer.Serialize(MihomoKernel.BuildConfig(conn, 10900, 7897))))
+using (var coexisting = JsonDocument.Parse(JsonSerializer.Serialize(MihomoKernel.BuildConfig(conn, 10900, new UpstreamProxy(7897, "verge-mihomo.exe")))))
 {
     var root = coexisting.RootElement;
     var rules = root.GetProperty("rules").EnumerateArray().Select(r => r.GetString()!).ToArray();
     Check(rules.Last() == "MATCH,UPSTREAM", "non-game traffic was not given to the other proxy: " + rules.Last());
+    Check(
+        Array.IndexOf(rules, "PROCESS-NAME,verge-mihomo.exe,DIRECT") is var loop && loop >= 0 &&
+        loop < Array.FindIndex(rules, r => r.EndsWith(",FLOWLIGHT") && !r.StartsWith("IN-NAME,")),
+        "the other proxy's own traffic would be handed back to it");
     var upstream = root.GetProperty("proxies").EnumerateArray()
         .FirstOrDefault(p => p.GetProperty("name").GetString() == "UPSTREAM");
     Check(
@@ -109,7 +113,7 @@ using (var coexisting = JsonDocument.Parse(JsonSerializer.Serialize(MihomoKernel
         "the other proxy was not added as a SOCKS5 upstream");
     Check(
         root.GetProperty("dns").GetProperty("fake-ip-range").GetString() == "198.19.0.1/16",
-        "our fake-IP range overlaps the other proxy's");
+        "our fake-IP range overlaps Clash's default 198.18.0.1/16");
 }
 using (var alone = JsonDocument.Parse(JsonSerializer.Serialize(MihomoKernel.BuildConfig(conn, 10900, null))))
 {
@@ -218,7 +222,7 @@ Check(
     unknown.Contains("代理软件"),
     "fake-IP TUN of unknown software not found");
 Check(NetworkConflict.Find([Adapter("WLAN", "Realtek", true, "172.16.2.89", "172.16.2.1")]) is null, "plain Wi-Fi flagged");
-Check(NetworkConflict.Find([Adapter("FlowLightTun", "Meta Tunnel", true, "198.18.0.1")]) is null, "our own TUN flagged");
+Check(NetworkConflict.Find([Adapter("FlowLightTun", "Meta Tunnel", true, "198.19.0.1")]) is null, "our own TUN flagged");
 Check(NetworkConflict.Find([Adapter("公司 VPN", "WireGuard Tunnel", true, "10.8.0.2")]) is null, "a full-tunnel VPN flagged");
 Check(
     NetworkConflict.Find([wifi with { CarriesInternet = true }, Adapter("Meta", "Meta Tunnel", false, "198.18.0.1")]) is null,

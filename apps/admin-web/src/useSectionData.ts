@@ -9,6 +9,14 @@ type Loaded = Paged & { kind: string };
 const nothing: Loaded = { kind: "", rows: [], hasMore: false };
 
 /**
+ * Sections whose rows change by themselves (heartbeats, sessions coming and
+ * going, checks finishing), refreshed in the background while on screen so
+ * "刚刚" and a node's heartbeat colour do not freeze at the time of loading.
+ */
+const live = ["overview", "nodes", "sessions", "lines", "jobs"];
+const LIVE_MS = 20000;
+
+/**
  * Rows (or the overview) for the section on screen, with paging.
  *
  * Every load takes a generation number; a response is applied only while
@@ -24,6 +32,9 @@ export function useSectionData(section: string) {
   const [moreError, setMoreError] = useState("");
   const generation = useRef(0);
   const moreFor = useRef(-1);
+  // Whether the latest visible load has landed; a background refresh never
+  // overtakes one, or the spinner it owns would never be cleared.
+  const settled = useRef(true);
 
   // Rows tagged with another section are never shown, so switching sections
   // does not flash the previous table under the new headings.
@@ -43,6 +54,7 @@ export function useSectionData(section: string) {
       setError("");
       return;
     }
+    settled.current = false;
     setLoading(true);
     setLoadingMore(false);
     setError("");
@@ -60,14 +72,45 @@ export function useSectionData(section: string) {
       if (g === generation.current && !isSessionExpired(e))
         setError(messageOf(e));
     } finally {
-      if (g === generation.current) setLoading(false);
+      if (g === generation.current) {
+        settled.current = true;
+        setLoading(false);
+      }
+    }
+  }
+
+  /**
+   * The section on screen again, keeping what is shown until the new rows
+   * arrive and saying nothing when it fails: the next tick tries again, and
+   * an error banner every 20 s for a blip would only be noise.
+   */
+  async function refreshQuietly() {
+    const { section: kind, rows: loaded } = latest.current;
+    if (!settled.current || moreFor.current !== -1 || document.visibilityState !== "visible") return;
+    const g = ++generation.current;
+    try {
+      if (kind === "overview") {
+        const value = await api("/overview");
+        if (g === generation.current) setOverview(value ?? {});
+      } else {
+        const next = await loadFromStart(kind, Math.max(PAGE_SIZE, loaded.length));
+        if (g === generation.current) {
+          setList({ kind, ...next });
+          setError("");
+        }
+      }
+    } catch {
+      // Expiry is the shell's to handle; anything else waits for the next tick.
     }
   }
 
   useEffect(() => {
     void fetchFromStart(section, PAGE_SIZE);
+    const timer = live.includes(section) ? window.setInterval(() => void refreshQuietly(), LIVE_MS) : undefined;
     return () => {
       generation.current++;
+      settled.current = true;
+      window.clearInterval(timer);
     };
   }, [section]);
 

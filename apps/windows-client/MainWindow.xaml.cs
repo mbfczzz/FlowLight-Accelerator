@@ -704,10 +704,23 @@ public partial class MainWindow : Window
             // the control service then holds the device and the port until
             // the lease runs out. Stopping first, as quitting does, avoids
             // that. A session that will not stop keeps the client open with
-            // the reason instead of installing over it.
+            // the reason instead of installing over it. Until the installer
+            // is running the window is locked as it is while quitting, so a
+            // start clicked in between cannot open a session the installer
+            // would then cut off. A quit that began during the download goes
+            // ahead on its own; the update is offered again next time.
+            if (exiting || quitting)
+            {
+                updating = null;
+                return;
+            }
+            exiting = true;
+            timer.Stop();
+            UpdateAction();
             var stillRunning = await StopForExit();
             if (stillRunning is not null)
             {
+                Unlock();
                 ShowNotice("未能停止加速，更新已取消。" + stillRunning, ErrorHold, NoticeKind.Error);
                 updating = null;
                 ShowUpdate();
@@ -715,6 +728,7 @@ public partial class MainWindow : Window
             }
             if (!Updater.Launch(path, release.Sha256))
             {
+                Unlock();
                 ShowNotice("已取消安装。更新需要管理员权限，可以稍后在头像菜单里继续更新。", ErrorHold, NoticeKind.Warning);
                 updating = null;
                 ShowUpdate();
@@ -732,6 +746,10 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
+            if (exiting && !quitting)
+            {
+                Unlock();
+            }
             ShowNotice("更新失败：" + DescribeUpdate(ex), ErrorHold, NoticeKind.Error);
             updating = null;
             ShowUpdate();
@@ -1824,20 +1842,26 @@ public partial class MainWindow : Window
 
         if (failure is not null)
         {
-            exiting = false;
-            if (!released)
-            {
-                timer.Start();
-            }
+            Unlock();
             ShowFromTray();
             ShowNotice("未能停止加速，客户端未退出。" + failure, ExitFailureHold, NoticeKind.Error);
-            UpdateAction();
             return;
         }
 
         quitting = true;
         ReleaseResources();
         System.Windows.Application.Current.Shutdown();
+    }
+
+    // Gives the window back after a quit or an update that did not go ahead.
+    void Unlock()
+    {
+        exiting = false;
+        if (!released)
+        {
+            timer.Start();
+        }
+        UpdateAction();
     }
 
     async Task<string?> StopForExit()

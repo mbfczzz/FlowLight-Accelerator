@@ -348,7 +348,12 @@ export function Editor({
                     }}>
                       <option value="">选择服务端点</option>
                       {(id && !endpointChoices.some(([v]) => v === id) ? [[id, id] as [string, string], ...endpointChoices] : endpointChoices).map(([v, n]) => (
-                        <option key={v} value={v}>{n}</option>
+                        // One endpoint per path: those used by another hop
+                        // stay listed, so the path reads whole, but cannot
+                        // be picked again.
+                        <option key={v} value={v} disabled={v !== id && hops.includes(v)}>
+                          {v !== id && hops.includes(v) ? n + "（已在路径中）" : n}
+                        </option>
                       ))}
                     </select>
                     <span className="hop-tools">

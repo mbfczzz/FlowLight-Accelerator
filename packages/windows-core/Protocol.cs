@@ -17,11 +17,13 @@ public sealed class ServiceUnavailableException(string message, Exception? inner
 }
 
 // The local service answered and reported that the request failed. Message is
-// the service's own error text. A RetryableRefusalException is the same, for
-// a refusal that clears by itself: the caller waits and tries again instead
-// of showing the player a dead end.
+// the service's own error text.
 public sealed class ServiceErrorException(string message) : InvalidOperationException(message);
 
+// The control service refused a session start for a reason that clears by
+// itself (its 409): the device's last session is still closing, or the
+// line's ports are still held. The local service waits it out and tries
+// again; the window only ever sees the session keep preparing.
 public sealed class RetryableRefusalException(string message, string code) : InvalidOperationException(message)
 {
     public string Code { get; } = code;
@@ -161,15 +163,6 @@ public static class Wire
                 ? text.GetString()
                 : null;
             var message = string.IsNullOrWhiteSpace(error) ? "本地服务请求失败" : error;
-            // The service passes the control service's retry code through,
-            // so the window can wait it out rather than report a dead end.
-            var code = root.TryGetProperty("code", out var tag) && tag.ValueKind == JsonValueKind.String
-                ? tag.GetString()
-                : null;
-            if (code is { Length: > 0 } retryCode)
-            {
-                throw new RetryableRefusalException(message, retryCode);
-            }
             throw new ServiceErrorException(message);
         }
         return root.GetProperty("data").Clone();

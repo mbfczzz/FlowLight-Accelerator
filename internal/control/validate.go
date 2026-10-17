@@ -6,6 +6,7 @@ import (
 	"gorm.io/gorm"
 	"net"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -59,6 +60,11 @@ func (s *Server) compile(tx *gorm.DB, l Line) ([]c.Hop, error) {
 	}
 	seen := map[string]bool{}
 	hops := []c.Hop{}
+	// The narrowest port supply on the path, and the endpoint that has it:
+	// every session takes one port from every managed hop, so the line can
+	// never serve more players than the tightest one can hold.
+	ports := 0
+	narrowest := ""
 	for i, id := range l.EndpointIDs {
 		if seen[id] {
 			return nil, badRequest("线路中有重复的服务端点")
@@ -135,7 +141,22 @@ func (s *Server) compile(tx *gorm.DB, l Line) ([]c.Hop, error) {
 		if l.Mode == "hybrid" && i == len(l.EndpointIDs)-1 && e.Capabilities.Managed {
 			return nil, badRequest("“平台入口＋自带落地”模式下，落地端点不能由平台管理")
 		}
+		if e.Capabilities.Managed || l.Mode == "managed" {
+			if have := e.PortEnd - e.Port + 1; ports == 0 || have < ports {
+				ports = have
+				narrowest = e.Name
+			}
+		}
 		hops = append(hops, c.Hop{EndpointID: e.ID, NodeID: n.ID, Kind: e.Kind, Host: e.Host, Port: e.Port, PortEnd: e.PortEnd, Cipher: e.Cipher, CredentialID: e.CredentialID, Capabilities: e.Capabilities})
+	}
+	// A capacity the path cannot supply is a trap: the line looks healthy
+	// until the ports run out, and then every new session fails on a
+	// configuration no player or operator can see. Refusing it here names the
+	// endpoint to widen.
+	if l.Mode == "managed" && ports > 0 && l.Capacity > ports {
+		return nil, badRequest("并发容量 " + strconv.Itoa(l.Capacity) + " 超过了线路能提供的端口数（服务端点「" +
+			narrowest + "」只有 " + strconv.Itoa(ports) + " 个）。每个会话都要占用一跳端口，请把容量降到 " +
+			strconv.Itoa(ports) + " 或以下，或在“服务端点”里扩大它的端口范围")
 	}
 	for _, gameID := range l.GameIDs {
 		var game Game

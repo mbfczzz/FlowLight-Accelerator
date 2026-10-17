@@ -24,8 +24,6 @@ export type Confirmable = {
   subject?: string;
 };
 
-const DONE = "操作已完成";
-
 export const rowLock = (kind: string, id: string) => kind + ":" + id;
 
 const nameOf = (row: Row) => row.name || row.username || row.id;
@@ -39,7 +37,7 @@ export function publishGame(row: Row): Confirmable {
       "将把「" + nameOf(row) + "」的当前草稿发布为新版本，发布后供新会话使用。",
     confirmLabel: "发布规则",
     path: "/games/" + row.id + "/profiles/publish",
-    success: DONE,
+    success: "已发布「" + nameOf(row) + "」的新规则版本，新开始的加速会话会使用它",
   };
 }
 
@@ -71,7 +69,9 @@ export function drainLine(row: Row): Confirmable {
     danger: draining,
     path: "/lines/" + row.id + "/drain",
     body: { draining },
-    success: DONE,
+    success: draining
+      ? "「" + nameOf(row) + "」已停止接收新会话，已有会话照常运行"
+      : "「" + nameOf(row) + "」已恢复接收新会话",
   };
 }
 
@@ -87,7 +87,7 @@ export function terminateLine(row: Row): Confirmable {
     confirmLabel: "终止线路",
     danger: true,
     path: "/lines/" + row.id + "/terminate",
-    success: DONE,
+    success: "「" + nameOf(row) + "」已停止接收新会话，正在回收上面的会话；节点确认后会话会陆续变为已关闭",
   };
 }
 
@@ -109,7 +109,7 @@ export function rollbackLine(
     confirmLabel: "切换到版本 " + version.number,
     path: "/lines/" + lineId + "/rollback",
     body: { version_id: version.id },
-    success: DONE,
+    success: "「" + lineName + "」已切换到版本 " + version.number + "，新开始的会话会使用它",
   };
 }
 
@@ -122,7 +122,7 @@ export function stopSession(row: Row): Confirmable {
     confirmLabel: "停止会话",
     danger: true,
     path: "/sessions/" + row.id + "/stop",
-    success: DONE,
+    success: "已开始停止会话，节点确认回收后它会变为已关闭",
   };
 }
 

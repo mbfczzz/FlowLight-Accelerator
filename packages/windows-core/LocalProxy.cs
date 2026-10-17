@@ -5,6 +5,11 @@ using Microsoft.Win32;
 
 namespace FlowLight.Core;
 
+// Another proxy found on this machine: the port it takes connections on, and
+// the process behind that port, whose own connections the kernel sends
+// straight out.
+public sealed record UpstreamProxy(int Port, string Process);
+
 // Another proxy running on this machine (Clash, v2rayN, sing-box), found so
 // the kernel can hand it the traffic that is not the game's. Our own TUN
 // carries the whole machine once a session runs, so without this every other
@@ -24,17 +29,23 @@ public static class LocalProxy
     // the service runs as SYSTEM, so its own "current user" is SYSTEM and
     // would never show the player's proxy. Null falls back to the service's
     // own account, which is all a console run has.
-    public static int? Find(string? sid = null)
+    //
+    // A proxy is only used when its process can be named too. Its own
+    // connections must go straight out — handed to it, they would be handed
+    // back again, around and around — and that rule needs the name. Without
+    // one, the start is refused as it was before coexisting existed.
+    public static UpstreamProxy? Find(string? sid = null)
     {
         if (!OperatingSystem.IsWindows())
         {
             return null;
         }
-        if (Configured(sid) is { } configured && SpeaksSocks5(configured))
+        var port = Configured(sid) is { } configured && SpeaksSocks5(configured) ? configured : Find(Ports);
+        if (port is not { } found || Owner(found) is not { } owner || !MihomoKernel.Writable(owner))
         {
-            return configured;
+            return null;
         }
-        return Find(Ports);
+        return new UpstreamProxy(found, owner);
     }
 
     // The ports are a parameter so the search can be checked without the
@@ -95,6 +106,11 @@ public static class LocalProxy
     // player never signed in on this boot) reads as no setting.
     static RegistryKey? Registrations(string? sid)
     {
+        // Guarded here as well: the analyzer does not follow the caller's.
+        if (!OperatingSystem.IsWindows())
+        {
+            return null;
+        }
         if (string.IsNullOrEmpty(sid))
         {
             return Registry.CurrentUser;
@@ -188,7 +204,12 @@ public static class LocalProxy
     {
         var rows = new List<(int, int)>();
         var size = 0;
-        if (GetExtendedTcpTable(IntPtr.Zero, ref size, false, AfInet, TcpTableOwnerPidListener, 0) != NoError || size == 0)
+        // Sizing the table is a call that FAILS: with a null buffer the API
+        // reports ERROR_INSUFFICIENT_BUFFER (122) and fills in the size it
+        // needs. Requiring 0 here (as this first did) made every call return
+        // an empty table, so the port argument was silently ignored and the
+        // caller always fell back to scanning names.
+        if (GetExtendedTcpTable(IntPtr.Zero, ref size, false, AfInet, TcpTableOwnerPidListener, 0) != InsufficientBuffer || size == 0)
         {
             return rows;
         }
@@ -220,6 +241,8 @@ public static class LocalProxy
     const int AfInet = 2;
     const int TcpTableOwnerPidListener = 3;
     const uint NoError = 0;
+    // Returned by the sizing call, where the buffer is null on purpose.
+    const uint InsufficientBuffer = 122;
 
     [StructLayout(LayoutKind.Sequential)]
     struct MibTcpRowOwnerPid

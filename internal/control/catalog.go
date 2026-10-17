@@ -209,10 +209,17 @@ func (s *Server) save(kind string) http.HandlerFunc {
 				if in.Capacity < 1 || in.Capacity > 10000 {
 					return badRequest("并发容量须在 1–10000 之间")
 				}
+				// A path through the same endpoint twice can never be
+				// published, so it is not kept as a draft either.
+				seen := map[string]bool{}
 				for _, endpointID := range in.EndpointIDs {
 					if strings.TrimSpace(endpointID) == "" {
 						return badRequest("线路顺序里有未选择的服务端点")
 					}
+					if seen[endpointID] {
+						return badRequest("线路顺序里有重复的服务端点，每个端点只能用一次")
+					}
+					seen[endpointID] = true
 				}
 				old, _ := load[Line](tx, id)
 				in.ID = id

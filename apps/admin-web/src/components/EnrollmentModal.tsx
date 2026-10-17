@@ -68,7 +68,19 @@ export function EnrollmentModal({
     ? `curl -fsSL ${control}/dist/node/install.sh | sudo bash -s -- --control ${control} --node ${enroll.node_id} --secret ${enroll.bootstrap_secret}` +
       (local ? " --dev-http" : "")
     : "";
-  const copy = (text: string, what: string) => navigator.clipboard.writeText(text).then(() => onCopied(what));
+  const [copyFailed, setCopyFailed] = useState(false);
+  // The browser refuses the clipboard on a plain-http page (where it does not
+  // even exist) or without permission. The command is shown in full, so the
+  // operator can still select it by hand; say so instead of doing nothing.
+  const copy = (text: string, what: string) => {
+    setCopyFailed(false);
+    Promise.resolve()
+      .then(() => navigator.clipboard.writeText(text))
+      .then(
+        () => onCopied(what),
+        () => setCopyFailed(true),
+      );
+  };
 
   return (
     <Modal
@@ -118,6 +130,12 @@ export function EnrollmentModal({
           <Copy size={15} />
           复制命令
         </button>
+        {copyFailed && (
+          <div className="alert" role="alert">
+            <CircleAlert size={16} />
+            <span>浏览器没有允许写入剪贴板。请选中上面的命令（或下方手动安装信息），按 Ctrl+C 复制。</span>
+          </div>
+        )}
         <ul className="command-notes">
           <li>命令里的凭据 15 分钟内有效、只能用一次，并且只显示这一次；过期后重新生成。</li>
           <li>支持 x86_64 和 arm64 的 Linux（需要 systemd），会安装节点程序、注册并设为开机自启。</li>
