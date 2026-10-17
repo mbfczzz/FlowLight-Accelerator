@@ -611,9 +611,10 @@ func TestLinesShowThePlayersOwnLatency(t *testing.T) {
 	now := time.Now().UTC()
 	session := func(user, device, purpose string, at time.Time, rtt float64) {
 		t.Helper()
+		// Every DATETIME is given: MySQL refuses the zero time.Time (year 1).
 		x := Session{
 			ID: ID(), UserID: user, DeviceID: device, GameID: "valorant", RegionID: "kr", LineID: "line-1", LineVersion: "version-1",
-			Purpose: purpose, State: "CLOSED", CreatedAt: at, UpdatedAt: at,
+			Purpose: purpose, State: "CLOSED", CreatedAt: at, UpdatedAt: at, LeaseUntil: at, PrepareUntil: at,
 			Probe: c.ProbeResult{TCP: true, UDP: true, RTTMS: rtt, Samples: 5},
 		}
 		if purpose == "old-version" {
