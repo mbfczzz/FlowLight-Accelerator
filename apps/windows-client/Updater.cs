@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
@@ -145,29 +144,26 @@ static class Updater
         return Convert.ToHexStringLower(await SHA256.HashDataAsync(file, ct));
     }
 
-    // Starts the installer elevated. The file is held open against writes
-    // from the hash check until Windows has started it, so it cannot be
-    // swapped in between. Returns false when the player declines elevation.
-    public static bool Launch(string path, string sha256)
+    // Starts the installer. The file is held open against writes from the
+    // hash check until Windows has started it, so it cannot be swapped in
+    // between. Setup asks for administrator rights itself — started that
+    // way, what it reopens at the end runs as the player, not elevated —
+    // and its launcher stays until the installation has ended, so the
+    // caller can tell a declined prompt from an installation under way: the
+    // former ends the launcher while this client is still here, the latter
+    // closes this client before replacing its files.
+    public static Process Launch(string path, string sha256)
     {
         using var held = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
         if (Convert.ToHexStringLower(SHA256.HashData(held)) != sha256)
         {
             throw new InvalidDataException("安装包在下载后被改动过，已停止更新。");
         }
-        try
+        // /LAUNCH=1 has the installer open the new client when it is done.
+        return Process.Start(new ProcessStartInfo(path, "/SILENT /SUPPRESSMSGBOXES /NORESTART /LAUNCH=1")
         {
-            // /LAUNCH=1 has the installer open the new client when it is done.
-            Process.Start(new ProcessStartInfo(path, "/SILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS /LAUNCH=1")
-            {
-                UseShellExecute = true,
-                WorkingDirectory = Path.GetDirectoryName(path)!,
-            });
-            return true;
-        }
-        catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
-        {
-            return false;
-        }
+            UseShellExecute = true,
+            WorkingDirectory = Path.GetDirectoryName(path)!,
+        }) ?? throw new InvalidOperationException("安装程序没有启动");
     }
 }

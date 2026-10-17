@@ -578,6 +578,85 @@ func TestLinePathCannotRepeatAnEndpoint(t *testing.T) {
 	}
 }
 
+// The latency a line shows a player is one a player felt: their own last
+// session on the line, else other players' today, and the control service's
+// publish-time check only for a line nobody has used. That check is taken
+// from wherever the control service runs and said 177 ms for a line whose
+// players saw 50.
+func TestLinesShowThePlayersOwnLatency(t *testing.T) {
+	s, token, u := setup(t)
+	fixture(t, s, u)
+	db := s.Store.DB
+	var v LineVersion
+	if e := db.First(&v, "id = ?", "version-1").Error; e != nil {
+		t.Fatal(e)
+	}
+	v.Probe = c.ProbeResult{TCP: true, UDP: true, RTTMS: 177, Samples: 3}
+	if e := db.Save(&v).Error; e != nil {
+		t.Fatal(e)
+	}
+	line := func() (float64, string) {
+		t.Helper()
+		w := request(s, token, "GET", "/api/client/v1/lines?game_id=valorant&region_id=kr", nil, "")
+		var out []struct {
+			ID     string        `json:"id"`
+			Probe  c.ProbeResult `json:"probe"`
+			Source string        `json:"probe_source"`
+		}
+		if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &out) != nil || len(out) != 1 || out[0].ID != "line-1" {
+			t.Fatalf("line list: %d %s", w.Code, w.Body.String())
+		}
+		return out[0].Probe.RTTMS, out[0].Source
+	}
+	now := time.Now().UTC()
+	session := func(user, device, purpose string, at time.Time, rtt float64) {
+		t.Helper()
+		x := Session{
+			ID: ID(), UserID: user, DeviceID: device, GameID: "valorant", RegionID: "kr", LineID: "line-1", LineVersion: "version-1",
+			Purpose: purpose, State: "CLOSED", CreatedAt: at, UpdatedAt: at,
+			Probe: c.ProbeResult{TCP: true, UDP: true, RTTMS: rtt, Samples: 5},
+		}
+		if purpose == "old-version" {
+			x.Purpose, x.LineVersion = "game", "version-0"
+		}
+		if e := db.Create(&x).Error; e != nil {
+			t.Fatal(e)
+		}
+	}
+
+	if rtt, source := line(); rtt != 177 || source != "check" {
+		t.Fatalf("an unused line did not show the publish-time check: %v %s", rtt, source)
+	}
+
+	// Other players' sessions today: the median, not the check. The
+	// validation session carries the control service's own 177 and must not
+	// count among them.
+	other := User{ID: ID(), Username: "other-player", Enabled: true, Role: "player", MaxSessions: 1}
+	if e := db.Create(&other).Error; e != nil {
+		t.Fatal(e)
+	}
+	session(other.ID, "device-a", "game", now.Add(-3*time.Hour), 80)
+	session(other.ID, "device-b", "game", now.Add(-2*time.Hour), 100)
+	session(other.ID, "device-c", "game", now.Add(-time.Hour), 90)
+	session(u.ID, "control", "validation", now, 177)
+	if rtt, source := line(); rtt != 90 || source != "players" {
+		t.Fatalf("other players' latency not shown: %v %s", rtt, source)
+	}
+
+	// The player's own last session on the line, even an older one, wins.
+	session(u.ID, "test-device", "game", now.Add(-2*24*time.Hour), 50)
+	if rtt, source := line(); rtt != 50 || source != "own" {
+		t.Fatalf("the player's own latency not shown: %v %s", rtt, source)
+	}
+
+	// A newer session on a version no longer published measured a path
+	// that may have changed; it does not speak for the current one.
+	session(u.ID, "test-device", "old-version", now, 10)
+	if rtt, source := line(); rtt != 50 || source != "own" {
+		t.Fatalf("a session on a superseded version was counted: %v %s", rtt, source)
+	}
+}
+
 // A node's request for work is held while nothing is queued and answered
 // the moment a job is created for it, so a start does not spend up to a
 // whole node poll waiting to be heard. With JobWait unset (as every other

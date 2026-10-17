@@ -184,8 +184,9 @@ func (s *Server) beginSession(w http.ResponseWriter, r *http.Request) {
 			// Replaying a key whose session has already ended must not look
 			// like a fresh start: the caller would go on to poll a session
 			// that is gone and report a session-ended error for a start it
-			// just made. Say the truth instead, and let the retryable path
-			// cover it when the ending is still in progress.
+			// just made. Say the truth instead. One still stopping is handed
+			// back as it is: the caller polls it and reports why it ended,
+			// which is the truth about the request it made.
 			if out.State == "CLOSED" {
 				return badRequest("这次请求对应的加速会话已经结束，请重新开始加速")
 			}
@@ -215,7 +216,9 @@ func (s *Server) beginSession(w http.ResponseWriter, r *http.Request) {
 				if wait == nil {
 					wait = retryLater("session-closing", "上一个加速会话正在结束，请稍候重试")
 				}
-			case now.After(h.LeaseUntil):
+			case now.After(h.LeaseUntil) || h.State == "PREPARING" && now.After(h.PrepareUntil):
+				// The same deadlines reapDue uses, so a leftover the reaper
+				// is about to close is waited for rather than refused.
 				if wait == nil {
 					wait = retryLater("session-stale", "上一个加速会话尚未释放，正在自动清理，请稍候重试")
 				}

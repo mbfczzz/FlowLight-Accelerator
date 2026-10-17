@@ -152,8 +152,9 @@ func (s *Server) compile(tx *gorm.DB, l Line) ([]c.Hop, error) {
 	// A capacity the path cannot supply is a trap: the line looks healthy
 	// until the ports run out, and then every new session fails on a
 	// configuration no player or operator can see. Refusing it here names the
-	// endpoint to widen.
-	if l.Mode == "managed" && ports > 0 && l.Capacity > ports {
+	// endpoint to widen. Every mode but imported reserves a port on each
+	// managed hop (provision), so a hybrid line's entry counts too.
+	if l.Mode != "imported" && ports > 0 && l.Capacity > ports {
 		return nil, badRequest("并发容量 " + strconv.Itoa(l.Capacity) + " 超过了线路能提供的端口数（服务端点「" +
 			narrowest + "」只有 " + strconv.Itoa(ports) + " 个）。每个会话都要占用一跳端口，请把容量降到 " +
 			strconv.Itoa(ports) + " 或以下，或在“服务端点”里扩大它的端口范围")

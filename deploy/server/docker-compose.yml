@@ -61,7 +61,7 @@ services:
       ALLOW_IMPORTED: "false"
 
       # 节点来要任务时，没有任务就把请求挂住最多这么久，任务一出现立刻返回，
-      # 玩家开始加速不用等节点下一次轮询。0 表示立即返回；不要超过 12s
+      # 玩家开始加速不用等节点下一次轮询。0 表示立即返回；不要超过 9s
       JOB_WAIT: "8s"
 
       # Prometheus 抓取 /metrics 的长期只读令牌，不用监控可留空：openssl rand -base64 32

@@ -59,10 +59,11 @@ func main() {
 	if u, e := url.Parse(publicURL); publicURL != "" && (e != nil || u.Host == "" || (u.Scheme != "https" && (prod || u.Scheme != "http"))) {
 		log.Fatal("PUBLIC_URL must be the control service's https:// address")
 	}
-	// Held requests for work must end well inside the node client's 15 s.
+	// Held requests for work must end well inside the node client's 15 s,
+	// and inside the 10 s shutdown drain below, which does not cut them off.
 	jobWait, e := time.ParseDuration(env("JOB_WAIT", "8s"))
-	if e != nil || jobWait < 0 || jobWait > 12*time.Second {
-		log.Fatal("JOB_WAIT must be a duration between 0 and 12s, such as 8s")
+	if e != nil || jobWait < 0 || jobWait > 9*time.Second {
+		log.Fatal("JOB_WAIT must be a duration between 0 and 9s, such as 8s")
 	}
 	server, e := control.New(store, control.Config{PublicURL: publicURL, NodeDist: env("NODE_DIST", "/opt/flowlight/node"), MetricsToken: os.Getenv("METRICS_TOKEN"), TrustedProxies: proxies, Origin: env("ADMIN_ORIGIN", "http://localhost:5173"), AllowImported: os.Getenv("ALLOW_IMPORTED") == "true", RequireMTLS: prod || os.Getenv("NODE_MTLS_REQUIRED") == "true", CAPath: filepath.Join(dir, "pki"), ProbeURL: os.Getenv("PROBE_URL"), ProbeUDP: os.Getenv("PROBE_UDP"), ProbeNodeID: os.Getenv("PROBE_NODE_ID"), JobWait: jobWait})
 	if e != nil {

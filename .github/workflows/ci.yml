@@ -141,7 +141,7 @@ jobs:
           # The command given must be the one run, and the configuration it
           # checks must be ours, rendered from the template, not the stock one.
           timeout 60 docker run --rm flowlight-portal-check nginx -t
-          conf=$(timeout 60 docker run --rm -e PORTAL_LISTEN=127.0.0.1:8099 flowlight-portal-check nginx -T 2>/dev/null)
+          conf=$(timeout 60 docker run --rm -e PORTAL_LISTEN=127.0.0.1:8099 flowlight-portal-check nginx -T 2>&1)
           grep -q 'listen 127.0.0.1:8099;' <<<"$conf" || { echo "PORTAL_LISTEN was not applied"; exit 1; }
           grep -q "frame-ancestors 'none'" <<<"$conf" || { echo "the portal's server block is missing"; exit 1; }
           # The download settings come from the environment at start-up, so a

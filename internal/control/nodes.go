@@ -219,12 +219,24 @@ func (s *Server) claimJobs(w http.ResponseWriter, r *http.Request) {
 				return
 			case <-time.After(jobPoll):
 			}
-			// Only a plain read while waiting; the claim itself is a write.
+			// A node disabled while it waited is answered as it would be
+			// at its next request: nodeAuth checked it only on the way in.
+			if !s.nodeLive(n) {
+				fail(w, 401, "node identity required")
+				return
+			}
+			// Only plain reads while waiting; the claim itself is a write.
 			if s.queued(n) || !time.Now().Before(until) {
 				break
 			}
 		}
 	}
+}
+
+func (s *Server) nodeLive(n Node) bool {
+	var live int64
+	s.Store.DB.Model(&Node{}).Where("id = ? AND enabled = ? AND token_hash = ?", n.ID, true, n.TokenHash).Count(&live)
+	return live > 0
 }
 
 func (s *Server) queued(n Node) bool {
@@ -399,8 +411,15 @@ func (s *Server) jobResult(w http.ResponseWriter, r *http.Request) {
 		}
 		if j.Kind == "probe" {
 			in.Probe.ObservedAt = time.Now().UTC()
-			x.Probe = in.Probe
+			// The node's probe is taken on the exit — a sub-millisecond
+			// round trip to its own echo, or the entry-to-exit hop. It
+			// stands for a validation, which has no player. A game session
+			// keeps only what the player's own tunnel measures: were the
+			// node's figure stored here, a start that fails before its first
+			// heartbeat would leave a CLOSED session saying the line took
+			// 1 ms, and the line list would repeat that to the player.
 			if x.Purpose == "validation" {
+				x.Probe = in.Probe
 				v, e := load[LineVersion](tx, x.LineVersion)
 				if e != nil {
 					return e

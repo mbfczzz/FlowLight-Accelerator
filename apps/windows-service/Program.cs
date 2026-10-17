@@ -298,10 +298,11 @@ sealed class AcceleratorService(ILogger<AcceleratorService> log) : BackgroundSer
                         new { success = false, data = (object?)null, error = ReplyError(e, timedOut) },
                         Wire.Json);
                 }
-                if (clock.Elapsed > SlowRequest)
+                // stop and logout wait for the session to end by design.
+                if (clock.Elapsed > SlowRequest && CommandOf(line) is var command && command is not ("stop" or "logout"))
                 {
                     // The command alone: the line itself can carry a password.
-                    log.LogWarning("Local request {Command} took {Seconds:0.0} s to answer", CommandOf(line), clock.Elapsed.TotalSeconds);
+                    log.LogWarning("Local request {Command} took {Seconds:0.0} s to answer", command, clock.Elapsed.TotalSeconds);
                 }
                 await writer.WriteLineAsync(reply);
             }

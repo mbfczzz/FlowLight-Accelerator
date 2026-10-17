@@ -43,19 +43,26 @@ function Stop-FlowLightService([switch]$KeepClient) {
  $service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
  if ($service -and $service.Status -ne 'Stopped') {
   Write-Log 'Stopping service'
+  # The service manager reports Stopped before the process has let go of
+  # its files; the installer copies right after this returns.
+  $serviceProcess = (Get-CimInstance Win32_Service -Filter "Name = '$ServiceName'").ProcessId
   Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
   try { $service.WaitForStatus('Stopped', [TimeSpan]::FromSeconds(25)) } catch { throw 'Service did not stop' }
+  if ($serviceProcess) { Wait-Process -Id $serviceProcess -Timeout 10 -ErrorAction SilentlyContinue }
  }
  # The client (often in the tray) and a kernel the service left behind
  # hold files the installer replaces. Only processes from this folder.
- # Once the files are in place (-Install) the client is left alone: by then
- # it is the new one, opened for the player, not one holding old files.
+ # Once the files are in place (-Install) no client is closed: the old one
+ # went before the copy, and the installer opens the new one after this
+ # returns, so closing here could only catch that one.
  $root = [IO.Path]::GetFullPath($InstallRoot).TrimEnd('\') + '\'
  $names = if ($KeepClient) { "Name = 'mihomo.exe'" } else { "Name = 'FlowLight.Client.exe' OR Name = 'mihomo.exe'" }
  foreach ($p in Get-CimInstance Win32_Process -Filter $names) {
   if ($p.ExecutablePath -and $p.ExecutablePath.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) {
    Write-Log ('Closing ' + $p.ExecutablePath)
    Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue
+   # Stop-Process returns before the handles are released.
+   Wait-Process -Id $p.ProcessId -Timeout 10 -ErrorAction SilentlyContinue
   }
  }
  $script:Stage = 1

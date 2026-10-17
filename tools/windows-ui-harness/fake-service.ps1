@@ -76,10 +76,12 @@ function Handle($cmd, $a) {
     }
     'lines' {
       if (-not $state.logged) { throw '请先登录' }
-      return @(@{ id = "$($a.region_id)-01"; name = "$($a.region_id.ToUpper()) 直连-01"; available = $true;  capacity = 50; active_sessions = 12; probe = @{ rtt_ms = 38 } },
-               @{ id = "$($a.region_id)-02"; name = "$($a.region_id.ToUpper()) 中转-02"; available = $true;  capacity = 40; active_sessions = 27; probe = @{ rtt_ms = 71 } },
-               @{ id = "$($a.region_id)-04"; name = "$($a.region_id.ToUpper()) 海外-04"; available = $true;  capacity = 20; active_sessions = 18; probe = @{ rtt_ms = 142 } },
-               @{ id = "$($a.region_id)-03"; name = "$($a.region_id.ToUpper()) 备用-03"; available = $false; capacity = 30; active_sessions = 0; probe = @{} })
+      # One line of each latency source, so the caption and the row suffix
+      # for a check-only figure can be seen together.
+      return @(@{ id = "$($a.region_id)-01"; name = "$($a.region_id.ToUpper()) 直连-01"; available = $true;  capacity = 50; active_sessions = 12; probe = @{ rtt_ms = 38 }; probe_source = 'own' },
+               @{ id = "$($a.region_id)-02"; name = "$($a.region_id.ToUpper()) 中转-02"; available = $true;  capacity = 40; active_sessions = 27; probe = @{ rtt_ms = 71 }; probe_source = 'players' },
+               @{ id = "$($a.region_id)-04"; name = "$($a.region_id.ToUpper()) 海外-04"; available = $true;  capacity = 20; active_sessions = 18; probe = @{ rtt_ms = 142 }; probe_source = 'check' },
+               @{ id = "$($a.region_id)-03"; name = "$($a.region_id.ToUpper()) 备用-03"; available = $false; capacity = 30; active_sessions = 0; probe = @{}; probe_source = 'check' })
     }
     'start' {
       if (Test-Path (Join-Path $PSScriptRoot 'fail-start.flag')) { throw '线路容量已满，请选择其他线路' }

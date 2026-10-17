@@ -40,9 +40,12 @@ public partial class MainWindow : Window
         public string Initial => Name.Length == 0 ? "?" : Name[..1].ToUpperInvariant();
     }
 
-    // A line from the control service. Latency is the control plane's
-    // historical probe; load is active sessions against capacity.
-    sealed record Line(string ID, string Name, bool Available, double Rtt, int Capacity, long Active)
+    // A line from the control service. Latency is what a player measured on
+    // it — this player's last session (Source "own"), else other players'
+    // today ("players") — or, for a line nobody has used, the control
+    // plane's publish-time check ("check"), taken from wherever it runs.
+    // Load is active sessions against capacity.
+    sealed record Line(string ID, string Name, bool Available, double Rtt, int Capacity, long Active, string Source)
     {
         public bool Recommended { get; init; }
         // The service refused to start on this line moments ago.
@@ -54,7 +57,9 @@ public partial class MainWindow : Window
         public string RttUnit => Selectable && Rtt > 0 ? "ms" : "";
         public Visibility RecommendedVisibility => Recommended ? Visibility.Visible : Visibility.Collapsed;
         double Load => Capacity > 0 ? (double)Active / Capacity : -1;
-        public string Detail => Refused ? "刚才无法使用，刷新后可重试" : !Available ? "暂不可用" : Load < 0 ? "负载未知" : Load < 0.5 ? "负载低" : Load < 0.8 ? "负载中" : "负载高";
+        public string Detail => Refused ? "刚才无法使用，刷新后可重试"
+            : !Available ? "暂不可用"
+            : (Load < 0 ? "负载未知" : Load < 0.5 ? "负载低" : Load < 0.8 ? "负载中" : "负载高") + (Source == "check" && Rtt > 0 ? " · 延迟为检测值" : "");
         public Brush LoadBrush => Palette.Get(Refused ? "Bad" : Load < 0 ? "TextTertiary" : Load < 0.5 ? "Good" : Load < 0.8 ? "Warn" : "Bad");
         public Visibility LoadVisibility => Refused || Available && Load >= 0 ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -384,6 +389,8 @@ public partial class MainWindow : Window
             }
             else
             {
+                // No session to follow closely while the service is away.
+                timer.Interval = SlowPoll;
                 ShowServiceFailure(ex);
             }
             return;
@@ -671,6 +678,9 @@ public partial class MainWindow : Window
             return;
         }
         var cancel = updating = new CancellationTokenSource();
+        // Whether the installer was started, which decides what 取消 and a
+        // failure mean afterwards.
+        var launched = false;
         UpdateNow.Content = "取消";
         UpdateLater.Visibility = Visibility.Collapsed;
         UpdateTrack.Visibility = Visibility.Visible;
@@ -736,26 +746,64 @@ public partial class MainWindow : Window
                 ShowUpdate();
                 return;
             }
-            if (!Updater.Launch(path, release.Sha256))
+            // The installer asks Windows for administrator rights itself,
+            // and its launcher lives until the installation has ended. One
+            // that goes ahead closes this client and reopens the new one, so
+            // this client is never the one to quit; one that ends while this
+            // client is still here was declined, or failed before it began,
+            // and the client stays and says so. 取消 ends the launcher, and
+            // the prompt with it. The tray icon goes first: a client closed
+            // by the installer cannot take it down itself.
+            using var installer = Updater.Launch(path, release.Sha256);
+            launched = true;
+            UpdateDetail.Text = "正在等待管理员授权…";
+            UpdateNow.IsEnabled = true;
+            tray.Visible = false;
+            try
             {
-                Unlock();
-                ShowNotice("已取消安装。更新需要管理员权限，可以稍后在头像菜单里继续更新。", ErrorHold, NoticeKind.Warning);
-                updating = null;
-                ShowUpdate();
-                return;
+                await installer.WaitForExitAsync(cancel.Token);
             }
-            quitting = true;
-            ReleaseResources();
-            System.Windows.Application.Current.Shutdown();
+            catch (OperationCanceledException) when (cancel.IsCancellationRequested)
+            {
+                try
+                {
+                    installer.Kill(true);
+                }
+                catch (Exception)
+                {
+                    // Already gone, or the elevated part is not ours to end.
+                }
+                throw;
+            }
+            tray.Visible = true;
+            Unlock();
+            ShowNotice(
+                $"安装程序没有开始安装（退出代码 {installer.ExitCode}），通常是没有授予管理员权限。加速已停止；可以稍后在头像菜单里继续更新。",
+                ErrorHold,
+                NoticeKind.Warning);
+            updating = null;
+            ShowUpdate();
         }
         catch (OperationCanceledException) when (cancel.IsCancellationRequested)
         {
-            ShowNotice("已取消下载", InfoHold);
+            if (launched)
+            {
+                tray.Visible = true;
+            }
+            if (exiting && !quitting)
+            {
+                Unlock();
+            }
+            ShowNotice(launched ? "已取消安装，加速已停止" : "已取消下载", InfoHold);
             updating = null;
             ShowUpdate();
         }
         catch (Exception ex)
         {
+            if (launched)
+            {
+                tray.Visible = true;
+            }
             if (exiting && !quitting)
             {
                 Unlock();
@@ -1296,7 +1344,8 @@ public partial class MainWindow : Window
             Flag(line, "available"),
             Number(Child(line, "probe"), "rtt_ms"),
             (int)Number(line, "capacity"),
-            (long)Number(line, "active_sessions"));
+            (long)Number(line, "active_sessions"),
+            Text(line, "probe_source") ?? "check");
     }
 
     static JsonElement Child(JsonElement element, string name) =>
@@ -1624,6 +1673,7 @@ public partial class MainWindow : Window
     {
         var generation = ++selectionGeneration;
         LineList.ItemsSource = null;
+        LinesCaption.Text = "";
         if (GameList.SelectedItem is not Game game || RegionList.SelectedItem is not Region region)
         {
             UpdateAction();
@@ -1655,6 +1705,12 @@ public partial class MainWindow : Window
             LineHint.Text = lines.Length == 0 ? "这个区服暂时没有可用线路，请换个区服或稍后刷新。"
                 : lines.All(l => !l.Selectable) ? "这个区服的线路暂时都不可用，请稍后刷新。"
                 : "";
+            // Where the numbers come from, so a check figure is never taken
+            // for one the player will see.
+            LinesCaption.Text = lines.All(l => l.Rtt <= 0) ? ""
+                : lines.All(l => l.Source == "own") ? "延迟为你上次加速时的实测值"
+                : lines.All(l => l.Source == "check") ? "延迟为线路检测值，加速后以实测为准"
+                : "延迟为近期加速的实测值，标“检测值”的除外";
         }
         catch (Exception ex)
         {
@@ -1686,7 +1742,7 @@ public partial class MainWindow : Window
     {
         SummaryRegion.Text = (RegionList.SelectedItem as Region)?.Name ?? "—";
         SummaryLine.Text = LineList.SelectedItem is Line line
-            ? line.Name + (line.Rtt > 0 ? " · 历史 " + line.Rtt.ToString("0") + " ms" : "")
+            ? line.Name + (line.Rtt > 0 ? " · " + (line.Source == "own" ? "上次 " : line.Source == "players" ? "实测 " : "检测 ") + line.Rtt.ToString("0") + " ms" : "")
             : "—";
     }
 

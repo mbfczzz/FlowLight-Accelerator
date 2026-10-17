@@ -229,6 +229,8 @@ public sealed class MihomoKernel : IDisposable
             { "allow-lan", false },
             { "mode", "rule" },
             { "find-process-mode", "always" },
+            // Not below warning: WaitForTun reads the line mihomo logs at
+            // that level when it binds its outbound (BoundMarker).
             { "log-level", "warning" },
             { "ipv6", false },
             { "listeners", new[] { probeListener } },
@@ -394,6 +396,10 @@ public sealed class MihomoKernel : IDisposable
             if (bound && TunUp())
             {
                 await Task.Delay(TunSettle, ct);
+                if (kernel.HasExited)
+                {
+                    throw await Exited(pumps);
+                }
                 return;
             }
             if (DateTime.UtcNow >= by)

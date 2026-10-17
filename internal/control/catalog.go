@@ -470,11 +470,36 @@ func (s *Server) clientLines(w http.ResponseWriter, r *http.Request) {
 	for _, n := range nodeRows {
 		online[n.ID] = n.Enabled && timeSince(n.LastSeen) < s.Config.NodeTimeout
 	}
+	// The latency shown is one a player felt, not the figure the control
+	// service took when the line was published: that was measured from
+	// wherever the control service runs, through the line, to the probe
+	// service, and can be three times the exit round trip a player in the
+	// line's region sees. This player's own last session on the line comes
+	// first, then what other players measured on it today, and the
+	// publish-time check only for a line nobody has used. Only sessions on
+	// the version now published count: a republished line may run through
+	// a different exit, and until someone has used the new path its check
+	// is the only figure there is.
+	published := make([]string, 0, len(rows))
+	for _, l := range rows {
+		if _, ok := versions[l.PublishedVersion]; ok && permitted(l, u) {
+			published = append(published, l.PublishedVersion)
+		}
+	}
+	measured, e := playerLatency(db, u.ID, published)
+	if e != nil {
+		respond(w, nil, e)
+		return
+	}
 	out := []map[string]any{}
 	for _, l := range rows {
 		v, ok := versions[l.PublishedVersion]
 		if !permitted(l, u) || !ok || len(v.Hops) == 0 || !allowed[v.Hops[len(v.Hops)-1].EndpointID] {
 			continue
+		}
+		probe, source := v.Probe, "check"
+		if m, ok := measured[l.ID]; ok {
+			probe, source = m.Probe, m.Source
 		}
 		if region != "" && !slices.Contains(v.Regions, region) || game != "" && len(v.GameIDs) > 0 && !slices.Contains(v.GameIDs, game) {
 			continue
@@ -486,7 +511,7 @@ func (s *Server) clientLines(w http.ResponseWriter, r *http.Request) {
 				healthy = healthy && online[h.NodeID]
 			}
 		}
-		out = append(out, map[string]any{"id": l.ID, "name": l.Name, "version": v.ID, "regions": v.Regions, "mode": v.Mode, "available": healthy, "capacity": l.Capacity, "active_sessions": count, "probe": v.Probe, "priority": l.Priority})
+		out = append(out, map[string]any{"id": l.ID, "name": l.Name, "version": v.ID, "regions": v.Regions, "mode": v.Mode, "available": healthy, "capacity": l.Capacity, "active_sessions": count, "probe": probe, "probe_source": source, "priority": l.Priority})
 	}
 	slices.SortStableFunc(out, func(a, b map[string]any) int {
 		aa := a["probe"].(c.ProbeResult)
@@ -501,6 +526,63 @@ func (s *Server) clientLines(w http.ResponseWriter, r *http.Request) {
 	})
 	write(w, 200, out)
 }
+
+// A line's latency as players measured it, and whose measurement it is:
+// "own" for the caller's most recent session on the line within a month,
+// "players" for the median of other players' sessions over the last day.
+type lineLatency struct {
+	Probe  c.ProbeResult
+	Source string
+}
+
+// Only game sessions count: a validation session's probe is the control
+// service's own. Sessions keep the last probe their heartbeats carried, so a
+// closed one still says what the tunnel measured while it ran.
+func playerLatency(db *gorm.DB, userID string, versionIDs []string) (map[string]lineLatency, error) {
+	out := map[string]lineLatency{}
+	if len(versionIDs) == 0 {
+		return out, nil
+	}
+	var rows []Session
+	month := time.Now().UTC().Add(-30 * 24 * time.Hour)
+	if e := db.Select("id", "user_id", "line_id", "updated_at", "probe").
+		Where("line_version IN ? AND purpose = ? AND updated_at > ?", versionIDs, "game", month).
+		Order("updated_at desc").Limit(5000).Find(&rows).Error; e != nil {
+		return nil, e
+	}
+	day := time.Now().UTC().Add(-24 * time.Hour)
+	others := map[string][]float64{}
+	latest := map[string]time.Time{}
+	for _, x := range rows {
+		if !x.Probe.TCP || x.Probe.Samples < 1 || x.Probe.RTTMS <= 0 {
+			continue
+		}
+		switch {
+		case x.UserID == userID:
+			// Newest first, so the first seen is the one that stands.
+			if _, seen := out[x.LineID]; !seen {
+				out[x.LineID] = lineLatency{x.Probe, "own"}
+			}
+		case x.UpdatedAt.After(day):
+			others[x.LineID] = append(others[x.LineID], x.Probe.RTTMS)
+			if x.UpdatedAt.After(latest[x.LineID]) {
+				latest[x.LineID] = x.UpdatedAt
+			}
+		}
+	}
+	for id, rtts := range others {
+		if _, own := out[id]; own {
+			continue
+		}
+		slices.Sort(rtts)
+		out[id] = lineLatency{
+			c.ProbeResult{TCP: true, RTTMS: rtts[len(rtts)/2], Samples: len(rtts), ObservedAt: latest[id]},
+			"players",
+		}
+	}
+	return out, nil
+}
+
 func (s *Server) bindings(w http.ResponseWriter, r *http.Request) {
 	listRows[Binding](w, s.Store.DB.Where("user_id = ?", actor(r).ID))
 }

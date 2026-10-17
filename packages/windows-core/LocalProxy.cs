@@ -73,8 +73,12 @@ public static class LocalProxy
     {
         try
         {
+            // SpeaksSocks5 connects over IPv4, so only listeners that take
+            // that: the IPv4 loopback and any-address, and the IPv6
+            // any-address, which Go programs open dual-stack by default. A
+            // listener on ::1 alone would refuse and cost the two seconds.
             return IPGlobalProperties.GetIPGlobalProperties().GetActiveTcpListeners()
-                .Where(e => IPAddress.IsLoopback(e.Address) || e.Address.Equals(IPAddress.Any) || e.Address.Equals(IPAddress.IPv6Any))
+                .Where(e => e.Address.Equals(IPAddress.Loopback) || e.Address.Equals(IPAddress.Any) || e.Address.Equals(IPAddress.IPv6Any))
                 .Select(e => e.Port)
                 .ToHashSet();
         }
@@ -97,7 +101,9 @@ public static class LocalProxy
         }
         try
         {
-            using var key = Registrations(sid)?.OpenSubKey(
+            // Both handles are released; disposing a base key is a no-op.
+            using var hive = Registrations(sid);
+            using var key = hive?.OpenSubKey(
                 @"Software\Microsoft\Windows\CurrentVersion\Internet Settings");
             if (key?.GetValue("ProxyEnable") is not int enabled || enabled == 0)
             {
@@ -158,21 +164,17 @@ public static class LocalProxy
     // The process listening on the upstream port, so the kernel can send its
     // own connections straight out. Without that rule the kernel would hand
     // the proxy's own traffic back to the proxy, which hands it back again.
-    // Unknown names fall back to the list of proxy processes.
-    static readonly string[] ProxyProcesses =
-    [
-        "verge-mihomo.exe", "mihomo.exe", "clash-meta.exe", "clash.exe", "clash-win64.exe",
-        "sing-box.exe", "v2ray.exe", "v2rayN.exe", "xray.exe", "FlClash.exe", "FlClashHelperService.exe",
-        "nekobox.exe", "nekoray.exe", "hiddify.exe", "hiddify-cli.exe", "clash-verge.exe",
-    ];
-
+    // A port whose owner cannot be named gives null, and the proxy is not
+    // used: guessing from a list of proxy names (as this once did) could name
+    // another proxy that happens to run, and the real owner's traffic would
+    // go round in that loop.
     public static string? Owner(int port)
     {
         if (!OperatingSystem.IsWindows())
         {
             return null;
         }
-        return ProcessName(port) ?? KnownRunning();
+        return ProcessName(port);
     }
 
     // The process holding the port, by asking Windows which TCP endpoint it
@@ -198,84 +200,63 @@ public static class LocalProxy
         return null;
     }
 
-    // A proxy process known by name, used when the port's owner cannot be
-    // named (a different user's process, or one that just exited).
-    static string? KnownRunning()
-    {
-        foreach (var candidate in ProxyProcesses)
-        {
-            try
-            {
-                var name = System.IO.Path.GetFileNameWithoutExtension(candidate);
-                if (System.Diagnostics.Process.GetProcessesByName(name).Length > 0)
-                {
-                    return candidate;
-                }
-            }
-            catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception)
-            {
-            }
-        }
-        return null;
-    }
-
     // Local TCP listeners and the process behind each, as Windows reports
-    // them. Only the port and owner are read; nothing is changed. The
-    // unprivileged table is used, which is enough for a proxy this user runs.
+    // them (the same table `netstat -ano` prints), for IPv4 and for IPv6: a
+    // dual-stack listener, which Go programs such as Clash open by default,
+    // appears only in the IPv6 table. Only the port and owner are read;
+    // nothing is changed.
     static List<(int Port, int Pid)> TcpTable()
     {
         var rows = new List<(int, int)>();
+        // MIB_TCPROW_OWNER_PID: state, local address, local port, remote
+        // address, remote port, pid; six DWORDs.
+        Read(AfInet, 24, 8, 20, rows);
+        // MIB_TCP6ROW_OWNER_PID: local address (16 bytes), scope, local port,
+        // remote address (16), scope, remote port, state, pid.
+        Read(AfInet6, 56, 20, 52, rows);
+        return rows;
+    }
+
+    static void Read(int family, int stride, int portAt, int pidAt, List<(int, int)> rows)
+    {
         var size = 0;
         // Sizing the table is a call that FAILS: with a null buffer the API
         // reports ERROR_INSUFFICIENT_BUFFER (122) and fills in the size it
         // needs. Requiring 0 here (as this first did) made every call return
-        // an empty table, so the port argument was silently ignored and the
-        // caller always fell back to scanning names.
-        if (GetExtendedTcpTable(IntPtr.Zero, ref size, false, AfInet, TcpTableOwnerPidListener, 0) != InsufficientBuffer || size == 0)
+        // an empty table, so the port argument was silently ignored.
+        if (GetExtendedTcpTable(IntPtr.Zero, ref size, false, family, TcpTableOwnerPidListener, 0) != InsufficientBuffer || size == 0)
         {
-            return rows;
+            return;
         }
         var buffer = Marshal.AllocHGlobal(size);
         try
         {
-            if (GetExtendedTcpTable(buffer, ref size, false, AfInet, TcpTableOwnerPidListener, 0) != NoError)
+            if (GetExtendedTcpTable(buffer, ref size, false, family, TcpTableOwnerPidListener, 0) != NoError)
             {
-                return rows;
+                return;
             }
             var count = Marshal.ReadInt32(buffer);
-            var at = buffer + 4;
-            var stride = Marshal.SizeOf<MibTcpRowOwnerPid>();
+            var first = buffer + 4;
             for (var i = 0; i < count; i++)
             {
-                var row = Marshal.PtrToStructure<MibTcpRowOwnerPid>(at + i * stride);
+                var row = first + i * stride;
                 // The port is stored in network byte order in the low half.
-                var port = (int)((row.LocalPort >> 8) | ((row.LocalPort & 0xFF) << 8));
-                rows.Add((port, (int)row.OwningPid));
+                var raw = Marshal.ReadInt32(row + portAt);
+                rows.Add((((raw >> 8) & 0xFF) | ((raw & 0xFF) << 8), Marshal.ReadInt32(row + pidAt)));
             }
         }
         finally
         {
             Marshal.FreeHGlobal(buffer);
         }
-        return rows;
     }
 
     const int AfInet = 2;
+    const int AfInet6 = 23;
     const int TcpTableOwnerPidListener = 3;
     const uint NoError = 0;
     // Returned by the sizing call, where the buffer is null on purpose.
     const uint InsufficientBuffer = 122;
-
-    [StructLayout(LayoutKind.Sequential)]
-    struct MibTcpRowOwnerPid
-    {
-        public uint State;
-        public uint LocalAddr;
-        public uint LocalPort;
-        public uint RemoteAddr;
-        public uint RemotePort;
-        public uint OwningPid;
-    }
 
     [DllImport("iphlpapi.dll", SetLastError = true)]
     static extern uint GetExtendedTcpTable(IntPtr table, ref int size, bool order, int family, int type, uint reserved);

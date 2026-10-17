@@ -55,15 +55,16 @@ public static class TunnelProbe
             // so they do not slow one another, and the probe takes as long as
             // its slowest leg rather than all three one after another.
             var result = new ProbeResult { ExitIp = await Fetch(http, conn, ct) };
-            var samples = Samples(http, conn, ct);
+            // The legs share a token: the first to fail cancels the others,
+            // so a path that drops the timed requests is reported then, not
+            // after the UDP leg has waited out its own timeouts.
+            using var legs = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            var samples = Samples(http, conn, legs.Token);
             var echo = string.IsNullOrEmpty(conn.ExitEcho)
                 ? Task.FromResult<List<double>?>(null)
-                : ProbeEcho(port, conn.ExitEcho, EchoReplyTimeout, ct);
-            var udp = conn.Udp ? ProbeUdp(port, conn.ProbeUdp, udpReplyTimeout, ct) : Task.FromResult(0);
-            // Awaited together, so a leg's failure surfaces only once every
-            // leg has ended; the timed requests come first, since a path
-            // that does not carry them is the failure worth naming.
-            await Task.WhenAll(samples, echo, udp);
+                : ProbeEcho(port, conn.ExitEcho, EchoReplyTimeout, legs.Token);
+            var udp = conn.Udp ? ProbeUdp(port, conn.ProbeUdp, udpReplyTimeout, legs.Token) : Task.FromResult(0);
+            await FirstFailure(legs, samples, echo, udp);
 
             var times = samples.Result;
             result.Tcp = true;
@@ -103,6 +104,31 @@ public static class TunnelProbe
         {
             // .NET's message names the probe host; players see this one.
             throw new IOException("隧道探测失败：经这条线路连不上检测服务，请换一条线路或稍后重试", e);
+        }
+    }
+
+    // Waits for every leg; the moment one fails, cancels the rest, lets them
+    // wind down, and rethrows that first failure.
+    static async Task FirstFailure(CancellationTokenSource legs, params Task[] all)
+    {
+        var remaining = all.ToList();
+        while (remaining.Count > 0)
+        {
+            var done = await Task.WhenAny(remaining);
+            if (!done.IsCompletedSuccessfully)
+            {
+                legs.Cancel();
+                try
+                {
+                    await Task.WhenAll(all);
+                }
+                catch (Exception)
+                {
+                    // The first failure is the one reported, below.
+                }
+                await done;
+            }
+            remaining.Remove(done);
         }
     }
 
